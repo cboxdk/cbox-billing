@@ -1,0 +1,31 @@
+/* Cbox type system — system-ui til UI/body (tæt chrome som Linear/Intercom/Plain),
+ * Plus Jakarta Sans KUN til display/headings, JetBrains Mono til code/IDs/numbers. */
+:root {
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', ui-sans-serif, system-ui, Arial, sans-serif;
+    --font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: var(--primary); text-decoration: none; }
+a:hover { color: var(--accent); }
+
+.text-eyebrow {
+    font-family: var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--sidebar-muted);
+}
+
+.text-mono { font-family: var(--font-mono); }
+.tabular { font-variant-numeric: tabular-nums; }

@@ -1,0 +1,37 @@
+/* Hverdag consumer theme — warm paper/green palette from hverdag-mobile resources/css/app.css.
+ * Scope: add .theme-hverdag on the screen root. Danish-first consumer app. */
+.theme-hverdag {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+
+    --app-bg: #f4efe4;
+    --paper: #ffffff;
+    --paper-warm: #fbf4ea;
+    --ink: #2c2a22;
+    --muted: #7d7565;
+    --section-label: #a89f8e;
+    --hairline: rgb(60 50 30 / 7%);
+    --card-fill: #ffffff;
+    --card-border: 1px solid rgb(60 50 30 / 7%);
+    --card-radius: 18px;
+    --card-shadow: 0 3px 10px -4px rgb(60 50 30 / 10%);
+    --green: #4c6b3c;
+    --green-dark: #3c5630;
+    --green-soft: #e7edd9;
+    --sage: #d9e3c6;
+    --chip-bg: #ede7d8;
+    --rose: #f4d6d3;
+    --rose-strong: #eaa8a2;
+    --blue: #d9e0ef;
+    --blue-accent: #5d96c8;
+    --cream: #f6e5cd;
+    --yellow: #f4c86d;
+    --orange: #f29a3f;
+    --orange-soft: #f7ddc5;
+    --lavender: #e7d8ea;
+    --shadow-soft: 0 18px 45px rgb(79 60 38 / 12%);
+    --tab-bar-height: 72px;
+
+    background: var(--app-bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+}

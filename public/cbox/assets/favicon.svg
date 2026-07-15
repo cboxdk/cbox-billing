@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Cbox">
+    <title>Cbox</title>
+    <rect x="0" y="0" width="32" height="32" rx="7" fill="oklch(0.45 0.16 258)"></rect>
+    <circle cx="16" cy="16" r="6" fill="oklch(0.992 0.003 247)"></circle>
+</svg>

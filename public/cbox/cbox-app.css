@@ -1,0 +1,101 @@
+/* Cbox app-shell chrome — extracted verbatim from the design system's
+ * ui_kits/cbox_app shell (the ID/Billing product pattern). Depends on the
+ * design tokens (tokens/*.css via styles.css) for all --cbx-* / --* variables.
+ * Only the shell-local classes live here; the .cbx-* primitives are in tokens. */
+
+html, body { height: 100%; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font-sans); color: var(--foreground); }
+
+.shell { display: flex; height: 100vh; overflow: hidden; font-size: 13px; color: var(--foreground); background: var(--background); }
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.content { flex: 1; overflow-y: auto; }
+.page { max-width: 1152px; margin: 0 auto; padding: 28px 40px; display: flex; flex-direction: column; gap: 20px; }
+
+/* Topbar: breadcrumb context, Linear style */
+.tb { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--border); background: color-mix(in oklch, var(--background) 82%, transparent); backdrop-filter: blur(12px); flex-shrink: 0; }
+.crumb { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; }
+.crumb .sep { color: var(--border-strong); font-weight: 300; }
+.crumb button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; border: none; background: transparent; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--foreground); cursor: pointer; font-family: var(--font-sans); }
+.crumb button:hover { background: var(--secondary); }
+.crumb .muted { color: var(--muted-foreground); font-weight: 400; }
+.iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; color: var(--muted-foreground); cursor: pointer; position: relative; }
+.iconbtn:hover { background: var(--secondary); color: var(--foreground); }
+
+/* Stripe-style table */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-foreground); padding: 8px 20px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.tbl td { padding: 10px 20px; border-bottom: 1px solid color-mix(in oklch, var(--border) 80%, transparent); vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl tbody tr { cursor: pointer; transition: background-color 100ms var(--ease); }
+.tbl tbody tr:hover { background: color-mix(in oklch, var(--secondary) 50%, transparent); }
+.tbl tbody tr:hover .rowchev { opacity: 1; }
+.rowchev { opacity: 0; color: var(--muted-foreground); transition: opacity 100ms; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 12px; }
+.mut { color: var(--muted-foreground); }
+.right { text-align: right; }
+
+/* Stat strip — one hairline card, dividers (Stripe) */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-card); overflow: hidden; }
+.stats > div { padding: 14px 20px; border-right: 1px solid color-mix(in oklch, var(--border) 60%, transparent); }
+.stats > div:last-child { border-right: 0; }
+.stats .lbl { font-size: 12px; color: var(--muted-foreground); margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
+.stats .val { font-size: 22px; line-height: 1; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin: 0; }
+.stats .delta { display: inline-flex; align-items: center; gap: 2px; font-family: var(--font-mono); font-size: 10.5px; margin-top: 5px; }
+.up { color: var(--success); } .warn { color: var(--warning); } .down { color: var(--destructive); }
+
+/* Filter bar (Intercom/Stripe) */
+.filters { display: flex; align-items: center; gap: 8px; }
+.filters .fsearch { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; flex: 0 0 260px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--card); color: var(--muted-foreground); }
+.filters .fsearch input { border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: 13px; color: var(--foreground); width: 100%; }
+.fchip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 9999px; border: 1px dashed var(--border-strong); background: transparent; font-size: 12px; font-family: var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
+.fchip:hover { border-color: var(--muted-foreground); color: var(--foreground); }
+.fchip.set { border-style: solid; border-color: var(--accent-edge); background: var(--accent-soft); color: var(--primary); font-weight: 500; }
+
+kbd.k { font-family: var(--font-mono); font-size: 10px; font-weight: 500; border-radius: 4px; border: 1px solid var(--border); background: var(--secondary); padding: 1px 4px; color: var(--muted-foreground); }
+
+/* Command palette */
+.pal-bg { position: fixed; inset: 0; z-index: 90; background: oklch(0.18 0.012 250 / 0.4); display: none; animation: fade 140ms ease-out; }
+.pal { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); z-index: 100; width: 560px; border-radius: 12px; border: 1px solid var(--border); background: var(--popover); box-shadow: 0 16px 48px rgba(0,0,0,0.18); display: none; overflow: hidden; animation: pop 160ms cubic-bezier(0.16,1,0.3,1); }
+.pal.open, .pal-bg.open { display: block; }
+.pal input { width: 100%; border: none; outline: none; background: transparent; padding: 14px 16px; font-family: var(--font-sans); font-size: 14px; color: var(--foreground); border-bottom: 1px solid var(--border); }
+.pal .grp { padding: 6px 8px; }
+.pal .grp p { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); margin: 4px 8px; }
+.pal .cmd { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px; font-size: 13px; color: var(--foreground); cursor: pointer; text-decoration: none; }
+.pal .cmd:hover, .pal .cmd.sel { background: var(--secondary); }
+.pal .cmd svg { color: var(--muted-foreground); }
+.pal .cmd .k { margin-left: auto; }
+
+/* Workspace / account switcher (Notion/Slack) */
+.menu { position: absolute; z-index: 80; width: 300px; border-radius: 10px; border: 1px solid var(--border); background: var(--popover); box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 5px; display: none; animation: pop2 140ms cubic-bezier(0.16,1,0.3,1); }
+.menu.open { display: block; }
+@keyframes pop2 { from { opacity: 0; transform: scale(0.98) translateY(-3px); } }
+.menu .acct { display: flex; align-items: center; justify-content: space-between; padding: 7px 9px 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted-foreground); }
+.menu .acct a { font-family: var(--font-sans); font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted-foreground); text-decoration: none; }
+.menu .ws { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border-radius: 6px; border: none; background: transparent; cursor: pointer; font-family: var(--font-sans); font-size: 13px; color: var(--foreground); text-align: left; }
+.menu .ws:hover { background: var(--secondary); }
+.menu .ws .wsav { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+.menu .ws .wsmeta { flex: 1; min-width: 0; }
+.menu .ws .wsname { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu .ws .wssub { display: block; font-size: 11px; color: var(--muted-foreground); }
+.menu .ws .tick { color: var(--primary); opacity: 0; }
+.menu .ws.cur .tick { opacity: 1; }
+.menu .div { margin: 5px 4px; border-top: 1px solid var(--border); }
+.menu .act { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 9px; border-radius: 6px; border: none; background: transparent; cursor: pointer; font-family: var(--font-sans); font-size: 13px; color: var(--muted-foreground); text-align: left; }
+.menu .act:hover { background: var(--secondary); color: var(--foreground); }
+.menu .k { margin-left: auto; }
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: translateX(-50%) scale(0.98) translateY(4px); } }
+.avatar-sm { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 9999px; background: var(--accent-soft); color: var(--foreground); font-size: 10px; font-weight: 600; flex-shrink: 0; }
+
+/* Sidebar count on subnav links */
+.cnt { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--sidebar-muted); }
+
+/* Dark-mode primary button contrast fix.
+ * The shared --primary (oklch 0.65 in dark) is tuned as an accent/link colour so it
+ * reads on dark surfaces; as a SOLID button fill it leaves the default dark
+ * --primary-foreground muddy (dark text on mid-blue). Give the primary button its own
+ * deeper blue + near-white text in dark mode for legible, conventional contrast.
+ * Scoped to the button so links, icons and accent chips keep the bright --primary. */
+.dark .cbx-btn--primary { background: oklch(0.55 0.19 258); color: oklch(0.99 0.003 247); }
+.dark .cbx-btn--primary:hover { background: oklch(0.62 0.19 258); }

@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Cbox">
+    <title>Cbox social card template</title>
+    
+    <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="oklch(0.992 0.003 247)"></stop>
+            <stop offset="100%" stop-color="oklch(0.94 0.01 250)"></stop>
+        </linearGradient>
+    </defs>
+    <rect width="1200" height="630" fill="url(#bg)"></rect>
+
+    
+    <g transform="translate(96 96)">
+        <rect x="0" y="0" width="120" height="120" rx="28" fill="oklch(0.45 0.16 258)"></rect>
+        <circle cx="60" cy="60" r="22" fill="oklch(0.992 0.003 247)"></circle>
+    </g>
+
+    
+    <text x="96" y="372" fill="oklch(0.18 0.012 250)" font-family="Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif" font-weight="700" font-size="120" letter-spacing="-0.04em">Cbox</text>
+
+    
+    <text x="96" y="446" fill="oklch(0.5 0.012 250)" font-family="Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif" font-weight="500" font-size="36" letter-spacing="-0.01em">Identity, billing, and entitlements for the Cbox family.</text>
+
+    
+    <rect x="96" y="538" width="64" height="3" fill="oklch(0.45 0.16 258)"></rect>
+    <text x="96" y="572" fill="oklch(0.5 0.012 250)" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500" font-size="20" letter-spacing="0.04em">CBOX.DK</text>
+</svg>

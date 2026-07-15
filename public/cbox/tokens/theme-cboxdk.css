@@ -1,0 +1,36 @@
+/* cbox.dk marketing theme — warm editorial palette from cbox-web resources/css/site.css.
+ * Scope: add .theme-cboxdk on the page root. Product apps do NOT use these. */
+.theme-cboxdk {
+    --color-cream: #faf7f2;
+    --color-warm: #f3ede4;
+    --color-paper: #efe9df;
+    --color-dark: #1a1714;
+    --color-dark-elevated: #242019;
+    --color-dark-card: #2e2a22;
+
+    --color-vermillion: #c4411a;
+    --color-vermillion-hover: #a33616;
+    --color-vermillion-light: #fdf0ec;
+
+    --color-forest: #1a4d3e;
+    --color-forest-light: #e8f0ed;
+
+    --color-ink: #1a1714;
+    --color-body: #44403a;
+    --color-muted: #6b6560;
+    --color-faint: #8a847a;
+    --color-light: #faf7f2;
+    --color-light-muted: #a69f94;
+
+    --color-border: #ddd6ca;
+    --color-border-strong: #c4bdb1;
+    --color-border-dark: #3a352c;
+
+    --font-display: 'Clash Display', system-ui, sans-serif;
+    --font-mono: 'Geist Mono', 'SF Mono', 'Fira Code', monospace;
+    --font-sans: 'Satoshi', system-ui, -apple-system, sans-serif;
+
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+}

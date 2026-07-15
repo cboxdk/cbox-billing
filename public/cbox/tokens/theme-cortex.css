@@ -1,0 +1,38 @@
+/* Cortex theme — committed dark design direction from cboxdk/cortex design_handoff_cortex_shell.
+ * Scope: .theme-cortex on the page root. IBM Plex Sans/Mono. Colour = state, never decoration. */
+.theme-cortex {
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+
+    --surface-rail: #0a0d12;
+    --surface-canvas: #0a0a0e;
+    --surface-page: #0e1116;
+    --surface-panel: #11151c;
+    --surface-card: #161b22;
+    --surface-active: #1c2430;
+
+    --border-structure: #232a35;
+    --border-interactive: #2a3341;
+    --border-hairline: #1a212b;
+
+    --text-primary: #e6edf3;
+    --text-secondary: #8b96a5;
+    --text-muted: #6c7684;
+    --text-faint: #4d5766;
+
+    --accent: #58a6ff;
+    --status-success: #3fb950;
+    --status-warning: #d29922;
+    --status-critical: #f85149;
+
+    --signal-fact: #39c5cf;
+    --signal-decision: #d29922;
+    --signal-effect: #bc8cff;
+    --signal-verify: #3fb950;
+
+    --avatar-bg: #2a3341;
+
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+}

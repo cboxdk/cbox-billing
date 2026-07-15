@@ -6,14 +6,15 @@
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
-        "cboxdk/laravel-billing": "^0.1",
+        "php": "^8.4",
+        "cboxdk/laravel-billing": "^0.2",
         "firebase/php-jwt": "^7.1",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.0",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",

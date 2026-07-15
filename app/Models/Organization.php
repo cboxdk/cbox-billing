@@ -16,9 +16,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * org without a country is invoiced tax-pending (net prices, honest reason) rather
  * than with a fabricated rate.
  *
+ * `billing_currency` is the currency the account chose at signup — nullable until
+ * chosen. It is one-way pinned by the engine's currency lock on the first finalized
+ * invoice; the lock table is the authority thereafter.
+ *
  * @property string $id
  * @property string $name
  * @property string|null $billing_email
+ * @property string|null $billing_currency
  * @property string|null $billing_country
  * @property string|null $billing_subdivision
  * @property string|null $tax_id
@@ -31,7 +36,7 @@ class Organization extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'id', 'name', 'billing_email',
+        'id', 'name', 'billing_email', 'billing_currency',
         'billing_country', 'billing_subdivision', 'tax_id', 'tax_id_validated',
     ];
 

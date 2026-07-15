@@ -8,46 +8,83 @@ use Cbox\Billing\Money\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use RuntimeException;
 
 /**
- * A price point of a product. The recurring price is integer minor units plus an ISO
- * currency, exposed as an engine {@see Money}. Credit grants and metered entitlements
- * are the child collections the host projects into wallet grants and meter policies.
+ * A price point of a product. A plan can be priced in several ISO currencies — its
+ * recurring amounts live one-per-currency in {@see PlanPrice}, and the account's
+ * billing currency selects which applies via {@see priceFor()}. Credit grants and
+ * metered entitlements are the child collections the host projects into wallet grants
+ * and meter policies.
  *
  * @property int $id
  * @property int $product_id
  * @property string $key
  * @property string $name
- * @property int $price_minor
- * @property string $currency
  * @property string $interval
  * @property bool $active
  */
 class Plan extends Model
 {
     protected $fillable = [
-        'product_id', 'key', 'name', 'price_minor', 'currency', 'interval', 'active',
+        'product_id', 'key', 'name', 'interval', 'active',
     ];
 
     /** @return array<string, string> */
     protected function casts(): array
     {
         return [
-            'price_minor' => 'integer',
             'active' => 'boolean',
         ];
     }
 
-    /** The recurring price as an engine money value object. */
-    public function price(): Money
+    /**
+     * The recurring price in `$currency` as an engine money value object. Deny-by-default:
+     * a currency the plan is not priced in is refused rather than assigned a fabricated
+     * rate — the caller must offer the account a currency the plan actually carries.
+     */
+    public function priceFor(string $currency): Money
     {
-        return Money::ofMinor($this->price_minor, $this->currency);
+        $price = $this->prices->firstWhere('currency', $currency);
+
+        if (! $price instanceof PlanPrice) {
+            throw new RuntimeException(sprintf(
+                'Plan [%s] is not priced in %s (available: %s).',
+                $this->key,
+                $currency,
+                implode(', ', $this->pricedCurrencies()) ?: 'none',
+            ));
+        }
+
+        return $price->money();
+    }
+
+    /**
+     * The ISO currencies this plan is priced in.
+     *
+     * @return list<string>
+     */
+    public function pricedCurrencies(): array
+    {
+        $currencies = [];
+
+        foreach ($this->prices as $price) {
+            $currencies[] = $price->currency;
+        }
+
+        return $currencies;
     }
 
     /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /** @return HasMany<PlanPrice, $this> */
+    public function prices(): HasMany
+    {
+        return $this->hasMany(PlanPrice::class);
     }
 
     /** @return HasMany<PlanCreditGrant, $this> */

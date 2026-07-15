@@ -5,6 +5,10 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\CommitController;
 use App\Http\Controllers\Api\EntitlementController;
 use App\Http\Controllers\Api\LeaseController;
+use App\Http\Controllers\Api\Management\InvoiceController;
+use App\Http\Controllers\Api\Management\PlanController;
+use App\Http\Controllers\Api\Management\SubscriptionController;
+use App\Http\Controllers\Api\Management\UsageController as UsageSummaryController;
 use App\Http\Controllers\Api\ReserveController;
 use App\Http\Controllers\Api\UsageController;
 use Illuminate\Support\Facades\Route;
@@ -19,3 +23,19 @@ Route::post('usage', UsageController::class)->name('usage.ingest');
 Route::post('reserve', ReserveController::class)->name('reserve');
 Route::post('commit', CommitController::class)->name('commit');
 Route::get('entitlements/{org}', EntitlementController::class)->name('entitlements.show');
+
+/*
+ * The self-service management API (`/api/v1`) the `cboxdk/laravel-billing-client` SDK's
+ * management surface and the hosted portal drive. Same token auth and per-org scope as
+ * the enforcement API; thin controllers over task #41's lifecycle services and the engine.
+ */
+Route::get('plans', [PlanController::class, 'index'])->name('plans.index');
+
+Route::get('subscriptions/{org}', [SubscriptionController::class, 'show'])->name('subscriptions.show');
+Route::post('subscriptions', [SubscriptionController::class, 'store'])->name('subscriptions.store');
+Route::post('subscriptions/{org}/preview', [SubscriptionController::class, 'preview'])->name('subscriptions.preview');
+Route::post('subscriptions/{org}/change', [SubscriptionController::class, 'change'])->name('subscriptions.change');
+Route::post('subscriptions/{org}/cancel', [SubscriptionController::class, 'cancel'])->name('subscriptions.cancel');
+
+Route::get('usage/{org}', UsageSummaryController::class)->name('usage.summary');
+Route::get('invoices/{org}', InvoiceController::class)->name('invoices.index');

@@ -23,6 +23,8 @@ class OrganizationSeeder extends Seeder
 {
     private const SELLER = 'cbox-dk';
 
+    private const CURRENCY = 'DKK';
+
     public function run(): void
     {
         $periodStart = Carbon::parse('2026-07-01');
@@ -34,6 +36,7 @@ class OrganizationSeeder extends Seeder
                 [
                     'name' => $definition['name'],
                     'billing_email' => $definition['email'],
+                    'billing_currency' => self::CURRENCY,
                     'billing_country' => $definition['country'],
                 ],
             );
@@ -58,13 +61,13 @@ class OrganizationSeeder extends Seeder
     private function seedInvoice(string $organizationId, Plan $plan, string $status, int $index, Carbon $issuedAt): void
     {
         $number = sprintf('%s-2026-%04d', strtoupper(self::SELLER), 500 + $index);
-        $total = $plan->price_minor;
+        $total = $plan->priceFor(self::CURRENCY)->minor();
 
         $invoice = Invoice::query()->updateOrCreate(
             ['seller' => self::SELLER, 'number' => $number],
             [
                 'organization_id' => $organizationId,
-                'currency' => $plan->currency,
+                'currency' => self::CURRENCY,
                 'subtotal_minor' => $total,
                 'tax_minor' => 0,
                 'total_minor' => $total,

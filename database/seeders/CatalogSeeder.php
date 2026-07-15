@@ -8,6 +8,7 @@ use App\Models\Meter;
 use App\Models\Plan;
 use App\Models\PlanCreditGrant;
 use App\Models\PlanEntitlement;
+use App\Models\PlanPrice;
 use App\Models\Product;
 use Cbox\Billing\Metering\Enums\OverageBehaviour;
 use Cbox\Billing\Metering\ValueObjects\MeterPolicy;
@@ -18,14 +19,12 @@ use Illuminate\Database\Seeder;
 
 /**
  * A demo catalog: one product with four plans (Starter / Team / Business / Scale),
- * each carrying a recurring price (DKK minor units), a recurring included-credit
- * grant, and per-meter entitlements. Prices, allowances and multipliers are synthetic
- * but internally consistent so later tasks have real catalog rows to project from.
+ * each priced in DKK + EUR + USD (minor units), with a recurring included-credit grant
+ * and per-meter entitlements. Prices, allowances and multipliers are synthetic but
+ * internally consistent so later tasks have real catalog rows to project from.
  */
 class CatalogSeeder extends Seeder
 {
-    private const CURRENCY = 'DKK';
-
     public function run(): void
     {
         $meters = $this->seedMeters();
@@ -41,12 +40,17 @@ class CatalogSeeder extends Seeder
                 [
                     'product_id' => $product->id,
                     'name' => $definition['name'],
-                    'price_minor' => $definition['price_minor'],
-                    'currency' => self::CURRENCY,
                     'interval' => 'month',
                     'active' => true,
                 ],
             );
+
+            foreach ($definition['prices'] as $currency => $priceMinor) {
+                PlanPrice::query()->updateOrCreate(
+                    ['plan_id' => $plan->id, 'currency' => $currency],
+                    ['price_minor' => $priceMinor],
+                );
+            }
 
             PlanCreditGrant::query()->updateOrCreate(
                 ['plan_id' => $plan->id, 'pool' => Pools::INCLUDED],
@@ -89,10 +93,10 @@ class CatalogSeeder extends Seeder
     }
 
     /**
-     * The four-plan ladder. Each entitlement is a projection-ready
-     * {@see MeterPolicy} shape.
+     * The four-plan ladder. Each plan is priced in DKK + EUR + USD (minor units), and
+     * each entitlement is a projection-ready {@see MeterPolicy} shape.
      *
-     * @return list<array{key: string, name: string, price_minor: int, included_credits: int, entitlements: array<string, array<string, mixed>>}>
+     * @return list<array{key: string, name: string, prices: array<string, int>, included_credits: int, entitlements: array<string, array<string, mixed>>}>
      */
     private function plans(): array
     {
@@ -100,7 +104,7 @@ class CatalogSeeder extends Seeder
             [
                 'key' => 'starter',
                 'name' => 'Starter',
-                'price_minor' => 29_000,
+                'prices' => ['DKK' => 29_000, 'EUR' => 3_900, 'USD' => 4_500],
                 'included_credits' => 50_000,
                 'entitlements' => [
                     'api.requests' => $this->metered(100_000, 0.0005, OverageBehaviour::Bill),
@@ -112,7 +116,7 @@ class CatalogSeeder extends Seeder
             [
                 'key' => 'team',
                 'name' => 'Team',
-                'price_minor' => 124_000,
+                'prices' => ['DKK' => 124_000, 'EUR' => 16_900, 'USD' => 18_900],
                 'included_credits' => 250_000,
                 'entitlements' => [
                     'api.requests' => $this->metered(1_000_000, 0.0004, OverageBehaviour::Bill),
@@ -124,7 +128,7 @@ class CatalogSeeder extends Seeder
             [
                 'key' => 'business',
                 'name' => 'Business',
-                'price_minor' => 349_000,
+                'prices' => ['DKK' => 349_000, 'EUR' => 46_900, 'USD' => 52_900],
                 'included_credits' => 1_000_000,
                 'entitlements' => [
                     'api.requests' => $this->metered(5_000_000, 0.0003, OverageBehaviour::Bill),
@@ -136,7 +140,7 @@ class CatalogSeeder extends Seeder
             [
                 'key' => 'scale',
                 'name' => 'Scale',
-                'price_minor' => 990_000,
+                'prices' => ['DKK' => 990_000, 'EUR' => 132_900, 'USD' => 149_900],
                 'included_credits' => 5_000_000,
                 'entitlements' => [
                     'api.requests' => $this->unlimited(),

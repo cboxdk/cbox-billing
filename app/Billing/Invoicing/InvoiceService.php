@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Invoicing;
 
+use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Seller\SellerCatalog;
 use App\Billing\Tax\TaxContextFactory;
@@ -45,13 +46,15 @@ readonly class InvoiceService implements GeneratesInvoices
         private Invoicer $invoicer,
         private SellerCatalog $sellers,
         private TaxContextFactory $taxContexts,
+        private ResolvesAccountCurrency $currencies,
     ) {}
 
     public function quoteFor(Subscription $subscription): Quote
     {
         $organization = $this->organizationOf($subscription);
+        $currency = $this->currencies->for($organization);
 
-        return $this->quotes->build($this->lines($subscription), $this->taxContexts->forOrganization($organization));
+        return $this->quotes->build($this->lines($subscription, $currency), $this->taxContexts->forOrganization($organization));
     }
 
     public function generate(Subscription $subscription): Invoice
@@ -82,11 +85,12 @@ readonly class InvoiceService implements GeneratesInvoices
     }
 
     /**
-     * The catalog line inputs for the period: the plan's recurring subscription fee.
+     * The catalog line inputs for the period: the plan's recurring subscription fee,
+     * priced in the account's billing currency.
      *
      * @return list<LineInput>
      */
-    private function lines(Subscription $subscription): array
+    private function lines(Subscription $subscription, string $currency): array
     {
         $plan = $subscription->plan ?? throw new RuntimeException('Subscription has no plan to invoice.');
 
@@ -94,7 +98,7 @@ readonly class InvoiceService implements GeneratesInvoices
             new LineInput(
                 description: sprintf('%s — subscription (%s)', $plan->name, $this->periodLabel($subscription)),
                 quantity: 1,
-                unitAmount: $plan->price(),
+                unitAmount: $plan->priceFor($currency),
             ),
         ];
     }

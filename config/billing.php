@@ -5,6 +5,14 @@ declare(strict_types=1);
 return [
 
     /*
+     * The app's default billing currency (ISO 4217). Used only as the last-resort
+     * fallback when an account has neither finalized an invoice (no currency lock) nor
+     * chosen a currency at signup. Once an account transacts, the currency lock is the
+     * authority — this value never overrides it.
+     */
+    'default_currency' => env('CBOX_BILLING_DEFAULT_CURRENCY', 'DKK'),
+
+    /*
      * Billing-account invariants.
      */
     'account' => [

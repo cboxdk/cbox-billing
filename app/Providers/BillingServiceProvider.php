@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Billing\Account\AccountCurrencyResolver;
+use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Api\Contracts\ApiTokenAuthenticator;
 use App\Billing\Api\DatabaseApiTokenAuthenticator;
 use App\Billing\Enforcement\CacheReservationStore;
@@ -112,6 +114,15 @@ class BillingServiceProvider extends ServiceProvider
     /** Bind the host-owned seams to app-model-backed implementations. */
     private function registerHostSeams(): void
     {
+        $this->app->singleton(ResolvesAccountCurrency::class, static function (Application $app): AccountCurrencyResolver {
+            $default = $app->make(Config::class)->get('billing.default_currency', 'DKK');
+
+            return new AccountCurrencyResolver(
+                $app->make(BillingCurrencyLock::class),
+                is_string($default) ? $default : 'DKK',
+            );
+        });
+
         $this->app->singleton(AccountStanding::class, static fn (Application $app): DatabaseAccountStanding => new DatabaseAccountStanding(
             $app->make('db')->connection(),
         ));

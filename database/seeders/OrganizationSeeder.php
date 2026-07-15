@@ -31,7 +31,11 @@ class OrganizationSeeder extends Seeder
         foreach ($this->organizations() as $index => $definition) {
             $organization = Organization::query()->updateOrCreate(
                 ['id' => $definition['id']],
-                ['name' => $definition['name'], 'billing_email' => $definition['email']],
+                [
+                    'name' => $definition['name'],
+                    'billing_email' => $definition['email'],
+                    'billing_country' => $definition['country'],
+                ],
             );
 
             $plan = Plan::query()->where('key', $definition['plan'])->firstOrFail();
@@ -78,15 +82,15 @@ class OrganizationSeeder extends Seeder
     }
 
     /**
-     * @return list<array{id: string, name: string, email: string, plan: string, seats: int, invoice_status: string}>
+     * @return list<array{id: string, name: string, email: string, country: string, plan: string, seats: int, invoice_status: string}>
      */
     private function organizations(): array
     {
         return [
-            ['id' => 'org_hverdag', 'name' => 'Hverdag ApS', 'email' => 'billing@hverdag.example', 'plan' => 'team', 'seats' => 8, 'invoice_status' => 'paid'],
-            ['id' => 'org_nordwind', 'name' => 'Nordwind Media', 'email' => 'ap@nordwind.example', 'plan' => 'business', 'seats' => 24, 'invoice_status' => 'open'],
-            ['id' => 'org_klarhed', 'name' => 'Klarhed A/S', 'email' => 'finance@klarhed.example', 'plan' => 'starter', 'seats' => 2, 'invoice_status' => 'paid'],
-            ['id' => 'org_fjord', 'name' => 'Fjord Studio', 'email' => 'accounts@fjord.example', 'plan' => 'scale', 'seats' => 60, 'invoice_status' => 'open'],
+            ['id' => 'org_hverdag', 'name' => 'Hverdag ApS', 'email' => 'billing@hverdag.example', 'country' => 'DK', 'plan' => 'team', 'seats' => 8, 'invoice_status' => 'paid'],
+            ['id' => 'org_nordwind', 'name' => 'Nordwind Media', 'email' => 'ap@nordwind.example', 'country' => 'DK', 'plan' => 'business', 'seats' => 24, 'invoice_status' => 'open'],
+            ['id' => 'org_klarhed', 'name' => 'Klarhed A/S', 'email' => 'finance@klarhed.example', 'country' => 'DK', 'plan' => 'starter', 'seats' => 2, 'invoice_status' => 'paid'],
+            ['id' => 'org_fjord', 'name' => 'Fjord Studio', 'email' => 'accounts@fjord.example', 'country' => 'DK', 'plan' => 'scale', 'seats' => 60, 'invoice_status' => 'open'],
         ];
     }
 }

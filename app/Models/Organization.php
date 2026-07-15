@@ -12,9 +12,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * identifier — the same `org` handle used across the billing engine's metering,
  * reconciliation and standing surfaces — so identity is never duplicated.
  *
+ * `billing_country` / `billing_subdivision` are the org's place of supply for tax. An
+ * org without a country is invoiced tax-pending (net prices, honest reason) rather
+ * than with a fabricated rate.
+ *
  * @property string $id
  * @property string $name
  * @property string|null $billing_email
+ * @property string|null $billing_country
+ * @property string|null $billing_subdivision
+ * @property string|null $tax_id
+ * @property bool $tax_id_validated
  */
 class Organization extends Model
 {
@@ -22,7 +30,24 @@ class Organization extends Model
 
     public $incrementing = false;
 
-    protected $fillable = ['id', 'name', 'billing_email'];
+    protected $fillable = [
+        'id', 'name', 'billing_email',
+        'billing_country', 'billing_subdivision', 'tax_id', 'tax_id_validated',
+    ];
+
+    /** @return array<string, string> */
+    protected function casts(): array
+    {
+        return [
+            'tax_id_validated' => 'boolean',
+        ];
+    }
+
+    /** Whether this org has enough of an address to resolve tax. */
+    public function hasBillingAddress(): bool
+    {
+        return $this->billing_country !== null;
+    }
 
     /** @return HasMany<Subscription, $this> */
     public function subscriptions(): HasMany

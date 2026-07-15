@@ -167,4 +167,62 @@ return [
         'checkpoint_store' => env('CBOX_BILLING_RECONCILE_CHECKPOINT', 'memory'),
     ],
 
+    /*
+     * The enforcement HTTP API the `cboxdk/laravel-billing-client` SDK talks to.
+     */
+    'api' => [
+
+        /*
+         * A bearer token that authenticates as an OPERATOR (any org) without a database
+         * row — the simplest possible auth for a single-tenant or bootstrapping setup.
+         * Leave null in multi-tenant deployments and issue per-org `api_tokens` instead;
+         * the authenticator is a swappable contract either way (deny-by-default when
+         * neither a static token nor a matching row authenticates the request).
+         */
+        'static_token' => env('CBOX_BILLING_API_TOKEN'),
+
+        /*
+         * How long a leased slice and a reservation live before they are considered
+         * abandoned. The SDK re-leases/renews within this window; an abandoned slice is
+         * reclaimed by the central budget on expiry (seconds).
+         */
+        'lease_ttl_seconds' => (int) env('CBOX_BILLING_LEASE_TTL', 300),
+        'reservation_ttl_seconds' => (int) env('CBOX_BILLING_RESERVATION_TTL', 300),
+    ],
+
+    /*
+     * The selling entities of record (multi-entity routing). Each entity issues invoices
+     * under its own legal identity, tax registrations and per-entity number sequence; the
+     * entity that issues the invoice drives the tax outcome. Values here are synthetic
+     * demo identifiers — replace them with the real registered numbers in production.
+     */
+    'seller' => [
+
+        'default' => env('CBOX_BILLING_SELLER', 'cbox-dk'),
+
+        'entities' => [
+            'cbox-dk' => [
+                'legal_name' => 'Cbox',
+                'registration_number' => 'DK00000000',
+                'establishment' => 'DK',
+                'currency' => 'DKK',
+                'invoice_prefix' => 'CBOX-DK',
+                'tax_registrations' => [
+                    ['country' => 'DK', 'number' => 'DK00000000'],
+                ],
+            ],
+        ],
+    ],
+
+    /*
+     * Payment webhook verification. The manual gateway settles out of band; the operator
+     * (or a payment provider adapter) posts a settlement webhook signed with a shared
+     * secret. Verification is deny-by-default: with no secret configured the verifier
+     * refuses every payload rather than trusting it.
+     */
+    'webhook' => [
+        'secret' => env('CBOX_BILLING_WEBHOOK_SECRET'),
+        'signature_header' => env('CBOX_BILLING_WEBHOOK_SIGNATURE_HEADER', 'X-Cbox-Signature'),
+    ],
+
 ];

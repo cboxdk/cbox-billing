@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Middleware;
+
+use App\Billing\Api\ApiIdentity;
+use App\Billing\Api\Contracts\ApiTokenAuthenticator;
+use Closure;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * Guards the enforcement API. It resolves the request's bearer token to an
+ * {@see ApiIdentity} through the pluggable {@see ApiTokenAuthenticator}
+ * and refuses (401) when nothing authenticates it — deny-by-default. The resolved
+ * identity is attached to the request so controllers can gate the body's `org` against
+ * what the token is allowed to act for.
+ */
+readonly class AuthenticateApiToken
+{
+    public const ATTRIBUTE = 'billing_api_identity';
+
+    public function __construct(private ApiTokenAuthenticator $authenticator) {}
+
+    /**
+     * @param  Closure(Request): Response  $next
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        $bearer = $request->bearerToken();
+
+        if ($bearer === null) {
+            return $this->unauthorized('Missing bearer token.');
+        }
+
+        $identity = $this->authenticator->authenticate($bearer);
+
+        if ($identity === null) {
+            return $this->unauthorized('Invalid API token.');
+        }
+
+        $request->attributes->set(self::ATTRIBUTE, $identity);
+
+        return $next($request);
+    }
+
+    private function unauthorized(string $message): JsonResponse
+    {
+        return new JsonResponse(['error' => $message], Response::HTTP_UNAUTHORIZED);
+    }
+}

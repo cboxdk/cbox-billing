@@ -87,12 +87,8 @@
                         @include('partials.icon', ['name' => 'chevron-down', 'size' => 12, 'sw' => 1.7])
                     </button>
                     <div class="menu" id="orgmenu" style="top:100%;left:0;margin-top:4px" role="menu">
-                        <div class="acct"><span>sn@cbox.dk</span><a href="#">Sign out</a></div>
-                        <button class="ws cur" data-ws="Cbox Systems" data-ini="CB"><span class="wsav" style="background:var(--accent-soft);color:var(--primary)">CB</span><span class="wsmeta"><span class="wsname">Cbox Systems</span><span class="wssub">Team · DKK</span></span><kbd class="k">⌘1</kbd><span class="tick">@include('partials.icon', ['name' => 'check', 'size' => 14, 'sw' => 2])</span></button>
-                        <button class="ws" data-ws="Hverdag ApS" data-ini="HV"><span class="wsav" style="background:var(--success-soft);color:var(--success)">HV</span><span class="wsmeta"><span class="wsname">Hverdag ApS</span><span class="wssub">trial — 7 days left</span></span><kbd class="k">⌘2</kbd><span class="tick">@include('partials.icon', ['name' => 'check', 'size' => 14, 'sw' => 2])</span></button>
-                        <button class="ws" data-ws="Meridian Labs" data-ini="ML"><span class="wsav" style="background:var(--warning-soft);color:var(--warning-foreground)">ML</span><span class="wsmeta"><span class="wsname">Meridian Labs</span><span class="wssub">Business · USD</span></span><kbd class="k">⌘3</kbd><span class="tick">@include('partials.icon', ['name' => 'check', 'size' => 14, 'sw' => 2])</span></button>
-                        <div class="div"></div>
-                        <button class="act">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])Create organization</button>
+                        <div class="acct"><span>{{ $userEmail ?: 'Signed in via Cbox ID' }}</span></div>
+                        <button class="ws cur"><span class="wsav" style="background:var(--accent-soft);color:var(--primary)">{{ $orgInitials }}</span><span class="wsmeta"><span class="wsname">{{ $orgName }}</span><span class="wssub">Current organization</span></span><span class="tick">@include('partials.icon', ['name' => 'check', 'size' => 14, 'sw' => 2])</span></button>
                     </div>
                 </span>
                 <span class="sep">/</span>

@@ -46,13 +46,14 @@ class BillingController extends Controller
     /** Not-yet-built sections render the shell's empty state with the right context. */
     public function section(Request $request, string $area): View
     {
+        abort_unless(config()->has("cbox_nav.areas.{$area}"), 404);
+
         $areas = config('cbox_nav.areas');
-        abort_unless(isset($areas[$area]), 404);
 
         return view('billing.generic', [
             'activeArea' => $area,
-            'activeNav' => $areas[$area]['nav'][0]['key'] ?? null,
-            'title' => $areas[$area]['label'],
+            'activeNav' => data_get($areas, "{$area}.nav.0.key"),
+            'title' => data_get($areas, "{$area}.label"),
         ]);
     }
 }

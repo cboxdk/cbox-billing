@@ -28,7 +28,16 @@ class CurrentUser
     {
         $data = $this->session->get(self::USER_KEY);
 
-        return is_array($data) ? AuthedUser::fromArray($data) : null;
+        if (! is_array($data)) {
+            return null;
+        }
+
+        $claims = [];
+        foreach ($data as $key => $value) {
+            $claims[(string) $key] = $value;
+        }
+
+        return AuthedUser::fromArray($claims);
     }
 
     public function idToken(): ?string

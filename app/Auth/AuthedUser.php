@@ -24,14 +24,14 @@ readonly class AuthedUser
     /** @param array<string, mixed> $claims */
     public static function fromClaims(array $claims): self
     {
-        $name = (string) ($claims['name'] ?? $claims['preferred_username'] ?? $claims['email'] ?? 'User');
+        $name = self::str($claims['name'] ?? $claims['preferred_username'] ?? $claims['email'] ?? 'User');
 
         return new self(
-            sub: (string) ($claims['sub'] ?? ''),
+            sub: self::str($claims['sub'] ?? ''),
             name: $name,
-            email: (string) ($claims['email'] ?? ''),
-            org: isset($claims['org']) ? (string) $claims['org'] : null,
-            picture: isset($claims['picture']) ? (string) $claims['picture'] : null,
+            email: self::str($claims['email'] ?? ''),
+            org: isset($claims['org']) ? self::str($claims['org']) : null,
+            picture: isset($claims['picture']) ? self::str($claims['picture']) : null,
         );
     }
 
@@ -39,12 +39,18 @@ readonly class AuthedUser
     public static function fromArray(array $data): self
     {
         return new self(
-            sub: (string) ($data['sub'] ?? ''),
-            name: (string) ($data['name'] ?? 'User'),
-            email: (string) ($data['email'] ?? ''),
-            org: $data['org'] ?? null,
-            picture: $data['picture'] ?? null,
+            sub: self::str($data['sub'] ?? ''),
+            name: self::str($data['name'] ?? 'User'),
+            email: self::str($data['email'] ?? ''),
+            org: isset($data['org']) ? self::str($data['org']) : null,
+            picture: isset($data['picture']) ? self::str($data['picture']) : null,
         );
+    }
+
+    /** Safely coerce a claim value to a string; non-scalar claims collapse to empty. */
+    private static function str(mixed $value): string
+    {
+        return is_scalar($value) ? (string) $value : '';
     }
 
     /** @return array<string, mixed> */

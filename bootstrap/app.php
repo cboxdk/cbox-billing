@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAuthenticated;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,7 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'auth.cbox' => \App\Http\Middleware\EnsureAuthenticated::class,
+            'auth.cbox' => EnsureAuthenticated::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -17,6 +17,9 @@ class EnsureAuthenticated
 {
     public function __construct(private readonly CurrentUser $current) {}
 
+    /**
+     * @param  Closure(Request): Response  $next
+     */
     public function handle(Request $request, Closure $next): Response
     {
         if (! $this->current->check()) {

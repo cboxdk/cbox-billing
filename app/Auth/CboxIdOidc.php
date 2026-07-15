@@ -8,6 +8,7 @@ use App\Auth\Contracts\IdentityProvider;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use Illuminate\Contracts\Cache\Repository as Cache;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -72,27 +73,41 @@ readonly class CboxIdOidc implements IdentityProvider
             throw new RuntimeException('Cbox ID token exchange failed: '.$response->body());
         }
 
-        /** @var array{id_token?:string} $tokens */
-        $tokens = $response->json();
+        $tokens = $this->decodeJson($response);
+        $idToken = $tokens['id_token'] ?? null;
 
-        if (! isset($tokens['id_token']) || ! is_string($tokens['id_token'])) {
+        if (! is_string($idToken)) {
             throw new RuntimeException('Cbox ID token response is missing an id_token.');
         }
 
-        return $tokens;
+        $result = ['id_token' => $idToken];
+
+        if (isset($tokens['access_token']) && is_string($tokens['access_token'])) {
+            $result['access_token'] = $tokens['access_token'];
+        }
+
+        if (isset($tokens['refresh_token']) && is_string($tokens['refresh_token'])) {
+            $result['refresh_token'] = $tokens['refresh_token'];
+        }
+
+        if (isset($tokens['expires_in']) && is_int($tokens['expires_in'])) {
+            $result['expires_in'] = $tokens['expires_in'];
+        }
+
+        return $result;
     }
 
     public function verifyIdToken(string $idToken, string $expectedNonce): array
     {
         $discovery = $this->discovery();
         $algs = $discovery['id_token_signing_alg_values_supported'] ?? ['RS256'];
-        $keys = JWK::parseKeySet($this->jwks(), is_array($algs) ? (string) ($algs[0] ?? 'RS256') : 'RS256');
+        $keys = JWK::parseKeySet($this->jwks(), is_array($algs) ? self::str($algs[0] ?? 'RS256') : 'RS256');
 
         // Verifies signature (kid-matched), exp, iat and nbf; throws otherwise.
-        $claims = (array) JWT::decode($idToken, $keys);
+        $claims = $this->objectToClaims(JWT::decode($idToken, $keys));
 
         $issuer = rtrim((string) $this->config['issuer'], '/');
-        if (rtrim((string) ($claims['iss'] ?? ''), '/') !== $issuer) {
+        if (rtrim(self::str($claims['iss'] ?? ''), '/') !== $issuer) {
             throw new RuntimeException('id_token issuer mismatch.');
         }
 
@@ -106,7 +121,7 @@ readonly class CboxIdOidc implements IdentityProvider
             throw new RuntimeException('id_token authorized-party mismatch.');
         }
 
-        if (! isset($claims['nonce']) || ! hash_equals($expectedNonce, (string) $claims['nonce'])) {
+        if (! isset($claims['nonce']) || ! hash_equals($expectedNonce, self::str($claims['nonce']))) {
             throw new RuntimeException('id_token nonce mismatch.');
         }
 
@@ -122,7 +137,7 @@ readonly class CboxIdOidc implements IdentityProvider
 
         $response = Http::acceptJson()->withToken($accessToken)->get($endpoint);
 
-        return $response->successful() ? (array) $response->json() : [];
+        return $response->successful() ? $this->decodeJson($response) : [];
     }
 
     public function endSessionUrl(?string $idTokenHint, string $postLogoutRedirectUri): ?string
@@ -156,7 +171,7 @@ readonly class CboxIdOidc implements IdentityProvider
                 throw new RuntimeException("Cbox ID discovery unreachable at {$url} (HTTP {$response->status()}).");
             }
 
-            return $response->json();
+            return $this->decodeJson($response);
         });
     }
 
@@ -176,7 +191,7 @@ readonly class CboxIdOidc implements IdentityProvider
                 throw new RuntimeException("Cbox ID JWKS unreachable at {$uri}.");
             }
 
-            return $response->json();
+            return $this->decodeJson($response);
         });
     }
 
@@ -189,5 +204,47 @@ readonly class CboxIdOidc implements IdentityProvider
         }
 
         return $value;
+    }
+
+    /**
+     * Decode a JSON response body into a string-keyed array — the shape every OIDC
+     * document (discovery, JWKS, token, userinfo) has. A non-object body yields `[]`.
+     *
+     * @return array<string, mixed>
+     */
+    private function decodeJson(Response $response): array
+    {
+        $decoded = $response->json();
+        $claims = [];
+
+        if (is_array($decoded)) {
+            foreach ($decoded as $key => $value) {
+                $claims[(string) $key] = $value;
+            }
+        }
+
+        return $claims;
+    }
+
+    /**
+     * Normalize the decoded-and-verified JWT payload into a string-keyed claim set.
+     *
+     * @return array<string, mixed>
+     */
+    private function objectToClaims(object $payload): array
+    {
+        $claims = [];
+
+        foreach ((array) $payload as $key => $value) {
+            $claims[(string) $key] = $value;
+        }
+
+        return $claims;
+    }
+
+    /** Safely coerce a discovered/claim value to string; non-scalars collapse to empty. */
+    private static function str(mixed $value): string
+    {
+        return is_scalar($value) ? (string) $value : '';
     }
 }

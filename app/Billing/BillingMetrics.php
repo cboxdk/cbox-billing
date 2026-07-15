@@ -27,7 +27,11 @@ readonly class BillingMetrics
         private ChurnCalculator $churn,
     ) {}
 
-    /** The plan mix behind the active book of business: [label, monthly minor units, count]. */
+    /**
+     * The plan mix behind the active book of business: [label, monthly minor units, count].
+     *
+     * @return list<array{plan: string, monthly: int, count: int}>
+     */
     private function activeBook(): array
     {
         return [
@@ -83,7 +87,11 @@ readonly class BillingMetrics
         return 14;
     }
 
-    /** Recent invoices for the dashboard + invoices screen. */
+    /**
+     * Recent invoices for the dashboard + invoices screen.
+     *
+     * @return list<array{number: string, org: string, ini: string, minor: int, status: string, date: string}>
+     */
     public function invoices(): array
     {
         return [
@@ -97,7 +105,11 @@ readonly class BillingMetrics
         ];
     }
 
-    /** Active subscriptions for the subscriptions screen. */
+    /**
+     * Active subscriptions for the subscriptions screen.
+     *
+     * @return list<array{org: string, ini: string, plan: string, minor: int, status: string, started: string, renews: string}>
+     */
     public function subscriptions(): array
     {
         return [
@@ -113,7 +125,7 @@ readonly class BillingMetrics
     /** Format engine Money as a Danish-grouped amount, e.g. "DKK 216.370,00". */
     public static function format(Money $money): string
     {
-        return $money->currency() . ' ' . number_format($money->minor() / 100, 2, ',', '.');
+        return $money->currency().' '.number_format($money->minor() / 100, 2, ',', '.');
     }
 
     /** Format bare minor units in a currency. */

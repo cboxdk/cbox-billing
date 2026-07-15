@@ -66,13 +66,13 @@ class AuthController extends Controller
         $nonce = $session->pull('oidc.nonce');
         $verifier = $session->pull('oidc.verifier');
 
-        if (! $expectedState || ! hash_equals($expectedState, (string) $request->query('state'))) {
+        if (! is_string($expectedState) || $expectedState === '' || ! hash_equals($expectedState, $this->queryString($request, 'state'))) {
             return redirect()->route('login')->with('error', 'Sign-in failed: state mismatch. Please try again.');
         }
 
         try {
-            $tokens = $this->idp->exchangeCode((string) $request->query('code'), (string) $verifier);
-            $claims = $this->idp->verifyIdToken($tokens['id_token'], (string) $nonce);
+            $tokens = $this->idp->exchangeCode($this->queryString($request, 'code'), is_string($verifier) ? $verifier : '');
+            $claims = $this->idp->verifyIdToken($tokens['id_token'], is_string($nonce) ? $nonce : '');
 
             // The id_token carries identity + auth facts (sub, org, amr); profile
             // fields (name, email) come from UserInfo. Merge them, but only when the
@@ -134,5 +134,13 @@ class AuthController extends Controller
     private function demoAllowed(): bool
     {
         return ! $this->idp->isConfigured();
+    }
+
+    /** A single query parameter as a string; array/absent values collapse to empty. */
+    private function queryString(Request $request, string $key): string
+    {
+        $value = $request->query($key);
+
+        return is_string($value) ? $value : '';
     }
 }

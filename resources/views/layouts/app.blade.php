@@ -10,12 +10,15 @@
 </head>
 <body>
 @php
-    $areas = config('cbox_nav.areas');
+    $areas = $navAreas ?? config('cbox_nav.areas');
     $activeArea = $activeArea ?? 'home';
     $activeNav = $activeNav ?? null;
     $current = $areas[$activeArea] ?? $areas['home'];
-    $areaUrl = function (string $key, array $area) {
-        return $area['route'] === 'billing.section' ? url('/' . $key) : route($area['route']);
+    $areaUrl = function (array $area) {
+        return route($area['route']);
+    };
+    $navUrl = function (array $item) {
+        return $item['route'] ? route($item['route'], $item['params'] ?? []) : '#';
     };
     $u = $currentUser ?? null;
     $userName = $u?->name ?? 'Account';
@@ -33,7 +36,7 @@
             <button class="cbx-pin set" title="Unpin (auto-hide)">@include('partials.icon', ['name' => 'pin', 'size' => 14, 'sw' => 1.7])</button>
         </div>
         @foreach ($areas as $key => $area)
-            <a href="{{ $areaUrl($key, $area) }}" @class(['cbx-on' => $key === $activeArea]) data-area="{{ $key }}">
+            <a href="{{ $areaUrl($area) }}" @class(['cbx-on' => $key === $activeArea]) data-area="{{ $key }}">
                 @include('partials.icon', ['name' => $area['icon'], 'size' => 17])
                 <span class="lbl">{{ $area['label'] }}</span>
                 @isset($area['badge'])<span class="badge">{{ $area['badge'] }}</span>@endisset
@@ -64,9 +67,9 @@
         </div>
         <nav style="flex:1">
             @foreach ($current['nav'] as $item)
-                <a href="{{ $item['route'] ? route($item['route']) : '#' }}" @class(['cbx-on' => $item['key'] === $activeNav])>
+                <a href="{{ $navUrl($item) }}" @class(['cbx-on' => $item['key'] === $activeNav])>
                     {{ $item['label'] }}
-                    @if ($item['count'])<span class="cnt">{{ $item['count'] }}</span>@endif
+                    @if (($item['count'] ?? null) !== null)<span class="cnt">{{ $item['count'] }}</span>@endif
                 </a>
             @endforeach
         </nav>

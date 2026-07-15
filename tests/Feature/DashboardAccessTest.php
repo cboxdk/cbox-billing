@@ -4,13 +4,25 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use Database\Seeders\CatalogSeeder;
+use Database\Seeders\OrganizationSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DashboardAccessTest extends TestCase
 {
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed([CatalogSeeder::class, OrganizationSeeder::class]);
+    }
+
     /**
      * An authenticated session reaches the dashboard shell (200) — proving the auth
-     * gate and the dashboard route remain intact alongside the billing wiring.
+     * gate and the dashboard route render on the real, seeded dataset.
      */
     public function test_authenticated_user_sees_the_dashboard(): void
     {

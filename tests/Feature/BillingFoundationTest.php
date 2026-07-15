@@ -72,7 +72,8 @@ class BillingFoundationTest extends TestCase
     {
         $targets = iterator_to_array(app(ExpectedEntitlements::class)->targets());
 
-        $this->assertCount(4, $targets);
+        // One target per active-subscription org in the seeded book (the canceled org is excluded).
+        $this->assertCount(7, $targets);
 
         $hverdag = collect($targets)->firstWhere('org', 'org_hverdag');
         $this->assertNotNull($hverdag);

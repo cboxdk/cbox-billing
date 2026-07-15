@@ -13,14 +13,21 @@ Route::get('/auth/callback', [AuthController::class, 'callback'])->name('auth.ca
 Route::post('/auth/demo', [AuthController::class, 'demo'])->name('auth.demo');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-// --- The app (requires an authenticated Cbox ID session) ---
+// --- The provider console (requires an authenticated Cbox ID session) ---
 Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/', [BillingController::class, 'dashboard'])->name('billing.dashboard');
-    Route::get('/subscriptions', [BillingController::class, 'subscriptions'])->name('billing.subscriptions');
-    Route::get('/invoices', [BillingController::class, 'invoices'])->name('billing.invoices');
 
-    // Not-yet-built areas render the empty-state screen within the shell.
-    Route::get('/{area}', [BillingController::class, 'section'])
-        ->whereIn('area', ['usage', 'catalog', 'customers', 'settings'])
-        ->name('billing.section');
+    Route::get('/subscriptions', [BillingController::class, 'subscriptions'])->name('billing.subscriptions');
+    Route::get('/subscriptions/{subscription}', [BillingController::class, 'subscription'])->name('billing.subscriptions.show');
+
+    Route::get('/invoices', [BillingController::class, 'invoices'])->name('billing.invoices');
+    Route::get('/invoices/{invoice}', [BillingController::class, 'invoice'])->name('billing.invoices.show');
+
+    Route::get('/usage', [BillingController::class, 'usage'])->name('billing.usage');
+    Route::get('/catalog', [BillingController::class, 'catalog'])->name('billing.catalog');
+
+    Route::get('/customers', [BillingController::class, 'customers'])->name('billing.customers');
+    Route::get('/customers/{organization}', [BillingController::class, 'customer'])->name('billing.customers.show');
+
+    Route::get('/settings', [BillingController::class, 'settings'])->name('billing.settings');
 });

@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Auth\CboxIdOidc;
 use App\Auth\Contracts\IdentityProvider;
 use App\Auth\CurrentUser;
+use App\Http\View\NavigationComposer;
 use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
@@ -50,5 +51,8 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.app', function (ViewContract $view): void {
             $view->with('currentUser', $this->app->make(CurrentUser::class)->user());
         });
+
+        // Overlay live, database-derived counts onto the navigation IA.
+        View::composer('layouts.app', NavigationComposer::class);
     }
 }

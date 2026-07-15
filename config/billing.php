@@ -223,6 +223,31 @@ return [
     ],
 
     /*
+     * Payment gateways the console surfaces in Settings. The `manual` gateway is always
+     * present — it settles out of band via a signed settlement webhook (see `webhook`
+     * below), and is "connected" once a webhook secret is configured. Provider adapters
+     * (Stripe, Mollie, …) bind the same PaysInvoices / WebhookVerifier contracts; they
+     * are listed here as available and flip to connected when their credentials are set.
+     */
+    'gateways' => [
+        'manual' => [
+            'name' => 'Manual / bank transfer',
+            'mode' => 'signed-webhook',
+            'connected' => env('CBOX_BILLING_WEBHOOK_SECRET') !== null,
+        ],
+        'stripe' => [
+            'name' => 'Stripe',
+            'mode' => 'adapter',
+            'connected' => env('STRIPE_SECRET') !== null,
+        ],
+        'mollie' => [
+            'name' => 'Mollie',
+            'mode' => 'adapter',
+            'connected' => env('MOLLIE_KEY') !== null,
+        ],
+    ],
+
+    /*
      * Payment webhook verification. The manual gateway settles out of band; the operator
      * (or a payment provider adapter) posts a settlement webhook signed with a shared
      * secret. Verification is deny-by-default: with no secret configured the verifier

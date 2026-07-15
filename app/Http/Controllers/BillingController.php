@@ -4,56 +4,150 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Billing\BillingMetrics;
+use App\Billing\Reporting\CatalogReport;
+use App\Billing\Reporting\CustomerReport;
+use App\Billing\Reporting\InvoiceReport;
+use App\Billing\Reporting\RevenueMetrics;
+use App\Billing\Reporting\SettingsReport;
+use App\Billing\Reporting\SubscriptionReport;
+use App\Billing\Reporting\UsageReport;
+use App\Billing\Support\SubscriptionStanding;
+use App\Models\Invoice;
+use App\Models\Organization;
+use App\Models\Subscription;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 /**
- * Thin HTTP layer over the billing engine — resolves the metrics service and maps
- * the result onto the Cbox app-shell views. No business logic lives here.
+ * Thin HTTP layer over the billing read models — each action resolves a read model,
+ * hands its real data to the app-shell view, and does nothing else. No business logic
+ * lives here; the read models compose it from the models and the engine.
  */
 class BillingController extends Controller
 {
-    public function dashboard(BillingMetrics $metrics): View
+    public function dashboard(RevenueMetrics $metrics, InvoiceReport $invoices, SettingsReport $settings): View
     {
         return view('billing.dashboard', [
             'activeArea' => 'home',
             'activeNav' => 'dashboard',
             'metrics' => $metrics,
             'revenue' => $metrics->revenue(),
-            'invoices' => $metrics->invoices(),
+            'primaryCurrency' => $metrics->primaryCurrency(),
+            'counts' => SubscriptionStanding::counts(),
+            'planBreakdown' => $metrics->planBreakdown(),
+            'recentInvoices' => $invoices->list(limit: 7),
+            'gateways' => $settings->gateways(),
         ]);
     }
 
-    public function subscriptions(BillingMetrics $metrics): View
+    public function subscriptions(Request $request, SubscriptionReport $report): View
     {
+        $status = $this->filter($request, ['active', 'trialing', 'past_due', 'canceled']);
+
         return view('billing.subscriptions', [
             'activeArea' => 'subscriptions',
-            'activeNav' => 'active',
-            'subscriptions' => $metrics->subscriptions(),
+            'activeNav' => $status ?? 'all',
+            'status' => $status,
+            'counts' => $report->counts(),
+            'subscriptions' => $report->list($status),
         ]);
     }
 
-    public function invoices(BillingMetrics $metrics): View
+    public function subscription(Subscription $subscription, SubscriptionReport $report): View
     {
+        return view('billing.subscription-detail', [
+            'activeArea' => 'subscriptions',
+            'activeNav' => 'all',
+            'subscription' => $report->find($subscription->id),
+        ]);
+    }
+
+    public function invoices(Request $request, InvoiceReport $report): View
+    {
+        $status = $this->filter($request, ['open', 'paid', 'draft']);
+
         return view('billing.invoices', [
             'activeArea' => 'invoices',
-            'activeNav' => 'all',
-            'invoices' => $metrics->invoices(),
+            'activeNav' => $status ?? 'all',
+            'status' => $status,
+            'counts' => $report->counts(),
+            'invoices' => $report->list($status),
         ]);
     }
 
-    /** Not-yet-built sections render the shell's empty state with the right context. */
-    public function section(Request $request, string $area): View
+    public function invoice(Invoice $invoice): View
     {
-        abort_unless(config()->has("cbox_nav.areas.{$area}"), 404);
+        $invoice->load(['organization', 'lines']);
 
-        $areas = config('cbox_nav.areas');
-
-        return view('billing.generic', [
-            'activeArea' => $area,
-            'activeNav' => data_get($areas, "{$area}.nav.0.key"),
-            'title' => data_get($areas, "{$area}.label"),
+        return view('billing.invoice-detail', [
+            'activeArea' => 'invoices',
+            'activeNav' => 'all',
+            'invoice' => $invoice,
         ]);
+    }
+
+    public function usage(Request $request, UsageReport $report): View
+    {
+        $selected = $request->query('org');
+        $organization = is_string($selected) ? Organization::query()->find($selected) : null;
+
+        return view('billing.usage', [
+            'activeArea' => 'usage',
+            'activeNav' => 'meters',
+            'selectedOrg' => $organization?->id,
+            'organizations' => $report->forAllOrganizations(),
+        ]);
+    }
+
+    public function catalog(CatalogReport $report): View
+    {
+        return view('billing.catalog', [
+            'activeArea' => 'catalog',
+            'activeNav' => 'products',
+            'products' => $report->products(),
+        ]);
+    }
+
+    public function customers(CustomerReport $report): View
+    {
+        return view('billing.customers', [
+            'activeArea' => 'customers',
+            'activeNav' => 'organizations',
+            'customers' => $report->list(),
+        ]);
+    }
+
+    public function customer(Organization $organization, CustomerReport $report): View
+    {
+        return view('billing.customer-detail', [
+            'activeArea' => 'customers',
+            'activeNav' => 'organizations',
+            'customer' => $report->find($organization->id),
+        ]);
+    }
+
+    public function settings(SettingsReport $report): View
+    {
+        return view('billing.settings', [
+            'activeArea' => 'settings',
+            'activeNav' => 'sellers',
+            'sellers' => $report->sellers(),
+            'taxRegistrations' => $report->taxRegistrations(),
+            'gateways' => $report->gateways(),
+            'apiTokens' => $report->apiTokens(),
+            'webhook' => $report->webhook(),
+        ]);
+    }
+
+    /**
+     * The requested status filter when it is one of the allowed values, else null (all).
+     *
+     * @param  list<string>  $allowed
+     */
+    private function filter(Request $request, array $allowed): ?string
+    {
+        $status = $request->query('status');
+
+        return is_string($status) && in_array($status, $allowed, true) ? $status : null;
     }
 }

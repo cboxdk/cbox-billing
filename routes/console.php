@@ -30,3 +30,11 @@ Schedule::command('billing:apply-scheduled-changes')->hourly()->withoutOverlappi
 Schedule::command('billing:renew')->dailyAt('03:00')->withoutOverlapping();
 Schedule::command('billing:invoice')->monthlyOn(1, '02:00')->withoutOverlapping();
 Schedule::command('billing:dunning')->dailyAt('06:00')->withoutOverlapping();
+
+/*
+ * (Re)issue on-prem licenses for active subscriptions on a licensable plan, after the
+ * daily renewal so a rolled-over paid period is reflected in the license expiry. The run
+ * is idempotent (one active license per deployment), so a deployment already covering the
+ * current period is skipped and only a period roll-over triggers a reissue.
+ */
+Schedule::command('billing:issue-licenses')->dailyAt('03:30')->withoutOverlapping();

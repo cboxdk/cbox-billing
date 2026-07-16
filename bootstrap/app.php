@@ -24,6 +24,13 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('api')
                 ->group(__DIR__.'/../routes/webhooks.php');
 
+            // The optional, unauthenticated license activation heartbeat: /api/v1/license/*.
+            // Rate-limited; the deployment id is the credential (see the route file).
+            Route::middleware('api')
+                ->prefix('api/v1')
+                ->name('api.v1.')
+                ->group(__DIR__.'/../routes/licensing.php');
+
             // Token-authorized hosted checkout + customer portal: /billing/*.
             Route::middleware('web')
                 ->group(__DIR__.'/../routes/hosted.php');

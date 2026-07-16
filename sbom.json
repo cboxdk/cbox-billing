@@ -1,7 +1,7 @@
 {
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:b679433d-81be-4812-ae4e-3c1e33af73fc",
+    "serialNumber": "urn:uuid:bcf9112d-ecfb-48f0-847b-0d256a725171",
     "version": 1,
     "metadata": {
         "tools": [
@@ -69,11 +69,11 @@
         },
         {
             "type": "library",
-            "bom-ref": "pkg:composer/cboxdk/laravel-billing@v0.4.0",
+            "bom-ref": "pkg:composer/cboxdk/laravel-billing@v0.6.0",
             "group": "cboxdk",
             "name": "laravel-billing",
-            "version": "v0.4.0",
-            "purl": "pkg:composer/cboxdk/laravel-billing@v0.4.0",
+            "version": "v0.6.0",
+            "purl": "pkg:composer/cboxdk/laravel-billing@v0.6.0",
             "description": "Cbox Billing \u2014 the billing engine for Laravel \u2014 a gateway-agnostic library: catalog, subscriptions, real-time usage metering with hard limits, a double-entry ledger, invoicing, and pricing operations.",
             "licenses": [
                 {
@@ -123,6 +123,22 @@
             "version": "v0.1.1",
             "purl": "pkg:composer/cboxdk/laravel-tax@v0.1.1",
             "description": "Cbox Tax \u2014 a self-hostable consumption-tax engine for Laravel: it owns the calculation logic (place-of-supply, reverse-charge, rate application, inclusive/exclusive) per jurisdiction and sources only rate data behind a pluggable contract.",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "bom-ref": "pkg:composer/cboxdk/license@v0.1.0",
+            "group": "cboxdk",
+            "name": "license",
+            "version": "v0.1.0",
+            "purl": "pkg:composer/cboxdk/license@v0.1.0",
+            "description": "Framework-agnostic, offline license core: mint and verify compact Ed25519-signed license artifacts (EdDSA JWTs) with entitlements, limits, deployment/domain binding, grace windows and signed revocation lists. The shared leaf both a billing issuer and a self-hosted verifier depend on.",
             "licenses": [
                 {
                     "license": {

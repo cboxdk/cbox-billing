@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\EntitlementController;
 use App\Http\Controllers\Api\LeaseController;
 use App\Http\Controllers\Api\Management\CheckoutSessionController;
 use App\Http\Controllers\Api\Management\InvoiceController;
+use App\Http\Controllers\Api\Management\LicenseController;
 use App\Http\Controllers\Api\Management\PaymentIntentController;
 use App\Http\Controllers\Api\Management\PaymentMethodController;
 use App\Http\Controllers\Api\Management\PlanController;
@@ -75,3 +76,14 @@ Route::post('payment-intents', PaymentIntentController::class)->name('payment-in
 Route::get('payment-methods/{org}', [PaymentMethodController::class, 'index'])->name('payment-methods.index');
 Route::post('payment-methods/{org}/default', [PaymentMethodController::class, 'setDefault'])->name('payment-methods.default');
 Route::delete('payment-methods/{org}/{id}', [PaymentMethodController::class, 'destroy'])->name('payment-methods.destroy');
+
+/*
+ * On-prem license management (operator-authed). Issue a signed, offline-verifiable license
+ * for a customer + licensable plan, renew it (reissue with an extended window), and revoke
+ * it (add to the signed revocation list). Thin controllers over the licensing service; the
+ * self-hosted deployment verifies the artifact offline — the activation heartbeat below is
+ * the separate, unauthenticated refresh path.
+ */
+Route::post('licenses', [LicenseController::class, 'store'])->name('licenses.store');
+Route::post('licenses/{id}/renew', [LicenseController::class, 'renew'])->name('licenses.renew');
+Route::post('licenses/{id}/revoke', [LicenseController::class, 'revoke'])->name('licenses.revoke');

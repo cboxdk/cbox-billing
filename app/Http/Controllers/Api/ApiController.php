@@ -40,4 +40,26 @@ abstract class ApiController extends Controller
 
         return null;
     }
+
+    /**
+     * Refuse (403) unless the token is an operator (issuer-side administration such as
+     * license management is never an org-scoped SDK action); null when allowed.
+     */
+    protected function denyUnlessOperator(Request $request): ?JsonResponse
+    {
+        if (! $this->identity($request)->isOperator) {
+            return new JsonResponse(
+                ['error' => 'This action requires an operator token.'],
+                Response::HTTP_FORBIDDEN,
+            );
+        }
+
+        return null;
+    }
+
+    /** A 404 with an operator-visible message. */
+    protected function notFound(string $message): JsonResponse
+    {
+        return new JsonResponse(['error' => $message], Response::HTTP_NOT_FOUND);
+    }
 }

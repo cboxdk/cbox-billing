@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
+use App\Http\Controllers\LicenseController;
 use Illuminate\Support\Facades\Route;
 
 // --- Authentication (Cbox ID as OIDC provider) ---
@@ -30,6 +31,13 @@ Route::middleware('auth.cbox')->group(function (): void {
 
     Route::get('/customers', [BillingController::class, 'customers'])->name('billing.customers');
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->name('billing.customers.show');
+
+    // --- On-prem licensing (issuer console) ---
+    Route::get('/licenses', [LicenseController::class, 'index'])->name('billing.licenses');
+    Route::get('/licenses/distribution', [LicenseController::class, 'settings'])->name('billing.licenses.settings');
+    Route::post('/licenses', [LicenseController::class, 'issue'])->name('billing.licenses.issue');
+    Route::post('/licenses/{id}/renew', [LicenseController::class, 'renew'])->name('billing.licenses.renew');
+    Route::post('/licenses/{id}/revoke', [LicenseController::class, 'revoke'])->name('billing.licenses.revoke');
 
     Route::get('/settings', [BillingController::class, 'settings'])->name('billing.settings');
 });

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "fc8737b5e56934142b1cc4aeb386c100",
+    "content-hash": "4ebc9d189d406a925f22d564777de10b",
     "packages": [
         {
             "name": "brick/math",
@@ -193,22 +193,23 @@
         },
         {
             "name": "cboxdk/laravel-billing",
-            "version": "v0.4.0",
+            "version": "v0.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-billing.git",
-                "reference": "019e02a4e1ceeca19579ec38b876c274a8be67dd"
+                "reference": "ce649461bfa04677f86d3d3b02d683353368adba"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/019e02a4e1ceeca19579ec38b876c274a8be67dd",
-                "reference": "019e02a4e1ceeca19579ec38b876c274a8be67dd",
+                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/ce649461bfa04677f86d3d3b02d683353368adba",
+                "reference": "ce649461bfa04677f86d3d3b02d683353368adba",
                 "shasum": ""
             },
             "require": {
                 "brick/money": "^0.14",
                 "cboxdk/laravel-geo": "^0.4",
                 "cboxdk/laravel-tax": "^0.1",
+                "cboxdk/license": "^0.1",
                 "illuminate/cache": "^13.0",
                 "illuminate/contracts": "^13.0",
                 "illuminate/database": "^13.0",
@@ -251,9 +252,9 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-billing/issues",
-                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.4.0"
+                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.6.0"
             },
-            "time": "2026-07-16T08:11:22+00:00"
+            "time": "2026-07-16T16:40:50+00:00"
         },
         {
             "name": "cboxdk/laravel-billing-stripe",
@@ -436,6 +437,70 @@
                 "source": "https://github.com/cboxdk/laravel-tax/tree/v0.1.1"
             },
             "time": "2026-07-15T13:11:22+00:00"
+        },
+        {
+            "name": "cboxdk/license",
+            "version": "v0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cboxdk/license.git",
+                "reference": "0ef7d1860118ab39a9af894ba82bd43c7500ac46"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cboxdk/license/zipball/0ef7d1860118ab39a9af894ba82bd43c7500ac46",
+                "reference": "0ef7d1860118ab39a9af894ba82bd43c7500ac46",
+                "shasum": ""
+            },
+            "require": {
+                "ext-sodium": "*",
+                "firebase/php-jwt": "^7.1",
+                "php": "^8.4"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.18",
+                "pestphp/pest": "^3.5 || ^4.0",
+                "phpstan/phpstan": "^2.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Cbox\\License\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Sylvester Damgaard",
+                    "email": "sn@cbox.dk",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Framework-agnostic, offline license core: mint and verify compact Ed25519-signed license artifacts (EdDSA JWTs) with entitlements, limits, deployment/domain binding, grace windows and signed revocation lists. The shared leaf both a billing issuer and a self-hosted verifier depend on.",
+            "homepage": "https://github.com/cboxdk/license",
+            "keywords": [
+                "Ed25519",
+                "EdDSA",
+                "crypto",
+                "entitlements",
+                "framework-agnostic",
+                "jwt",
+                "license",
+                "license-key",
+                "licensing",
+                "offline",
+                "php",
+                "revocation",
+                "signature"
+            ],
+            "support": {
+                "issues": "https://github.com/cboxdk/license/issues",
+                "source": "https://github.com/cboxdk/license/tree/v0.1.0"
+            },
+            "time": "2026-07-16T15:07:34+00:00"
         },
         {
             "name": "commerceguys/addressing",
@@ -9154,7 +9219,14 @@
             "time": "2025-12-08T11:19:18+00:00"
         }
     ],
-    "aliases": [],
+    "aliases": [
+        {
+            "package": "cboxdk/laravel-billing",
+            "version": "0.6.0.0",
+            "alias": "0.4.99",
+            "alias_normalized": "0.4.99.0"
+        }
+    ],
     "minimum-stability": "stable",
     "stability-flags": {},
     "prefer-stable": true,

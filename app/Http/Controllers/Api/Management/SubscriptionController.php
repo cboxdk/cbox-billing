@@ -410,9 +410,4 @@ class SubscriptionController extends ApiController
             ),
         ];
     }
-
-    private function notFound(string $message): JsonResponse
-    {
-        return new JsonResponse(['error' => $message], Response::HTTP_NOT_FOUND);
-    }
 }

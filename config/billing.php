@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Cbox\License\Capabilities;
+
 return [
 
     /*
@@ -298,6 +300,100 @@ return [
          * app root.
          */
         'upgrade_return_url' => env('CBOX_BILLING_UPGRADE_RETURN_URL'),
+    ],
+
+    /*
+     * On-prem / self-hosted licensing (the issuer side). Billing mints a signed,
+     * offline-verifiable license from a licensable plan; a self-hosted cbox-id
+     * deployment bundles the PUBLIC key and verifies the artifact with no call home.
+     *
+     * The engine's licensing module reads `profiles` (the licensable-plan map) and
+     * `grace_seconds` (the offline validity buffer) from this section; the app's
+     * LicensingServiceProvider reads `signing_key` / `public_key` to bind the crypto
+     * core, and `validity_days` / `clock_skew_seconds` to size issued windows.
+     */
+    'licensing' => [
+
+        /*
+         * The base64 Ed25519 PRIVATE key that signs licenses and revocation lists — the
+         * issuer secret. NEVER commit it and NEVER log it: `.env` is gitignored, and
+         * `.env.example` carries only an empty placeholder. Generate a pair with
+         * `php artisan billing:license-keygen`. When unset, licensing is inert — the app
+         * still boots, and only an actual mint/publish surfaces a clear operator error.
+         */
+        'signing_key' => env('CBOX_LICENSE_SIGNING_KEY'),
+
+        /*
+         * The base64 Ed25519 PUBLIC key — safe to display and distribute. Operators
+         * bundle it in the self-hosted cbox-id deployment so it can verify licenses
+         * offline. Shown in the Licenses settings panel for air-gapped hand-off.
+         */
+        'public_key' => env('CBOX_LICENSE_PUBLIC_KEY'),
+
+        /*
+         * How long a freshly-issued license lasts when its window is NOT derived from a
+         * subscription's paid period (the console/API issue flow default). A
+         * subscription-driven reissue instead tracks the paid-period end via the engine's
+         * SubscriptionLicensePolicy (period end + the grace buffer below).
+         */
+        'validity_days' => (int) env('CBOX_LICENSE_VALIDITY_DAYS', 365),
+
+        /*
+         * The offline grace buffer added past a license's `expiresAt`. It covers the lag
+         * between a renewal being paid and the new artifact being pulled by the
+         * deployment, without ever handing out a license that outlives the paid period by
+         * more than this. Exposed to the engine's SubscriptionLicensePolicy as
+         * `grace_seconds`; the verifier honours the same window.
+         */
+        'grace_days' => (int) env('CBOX_LICENSE_GRACE_DAYS', 14),
+        'grace_seconds' => ((int) env('CBOX_LICENSE_GRACE_DAYS', 14)) * 86_400,
+
+        /*
+         * Clock-skew tolerance the verifier applies to the not-before / expiry checks, so
+         * a small wall-clock drift on an air-gapped host does not spuriously invalidate a
+         * license. Advisory to the issuer; enforced by the verifier deployment.
+         */
+        'clock_skew_seconds' => (int) env('CBOX_LICENSE_CLOCK_SKEW', 60),
+
+        /*
+         * The licensable-plan map — the issuer-side policy that turns a paid plan into a
+         * license's contents. Deny-by-default: a plan absent here is NOT licensable and
+         * can never be minted (a self-serve plan ships no offline artifact). Each entry is
+         * `entitlements` (opaque {@see Capabilities} keys the license unlocks) and `limits`
+         * (the quantitative ceilings: organizations / seats / environments; omit or null a
+         * dimension for "unlimited"). Keyed by plan id — the same key the subscription's
+         * plan carries, so an active subscription on a licensable plan can be minted.
+         */
+        'profiles' => [
+            'enterprise-onprem' => [
+                'entitlements' => [
+                    Capabilities::MULTI_TENANT_PLATFORM,
+                    Capabilities::SSO,
+                    Capabilities::SAML,
+                    Capabilities::SCIM,
+                    Capabilities::ANALYTICS,
+                    Capabilities::COMPLIANCE,
+                    Capabilities::SUPPORT,
+                ],
+                'limits' => [
+                    'organizations' => 50,
+                    'seats' => 500,
+                    'environments' => 5,
+                ],
+            ],
+            'team-onprem' => [
+                'entitlements' => [
+                    Capabilities::SSO,
+                    Capabilities::SCIM,
+                    Capabilities::SUPPORT,
+                ],
+                'limits' => [
+                    'organizations' => 5,
+                    'seats' => 50,
+                    'environments' => 2,
+                ],
+            ],
+        ],
     ],
 
 ];

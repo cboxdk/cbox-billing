@@ -76,6 +76,15 @@ return [
                 ['label' => 'Organizations', 'key' => 'organizations', 'route' => 'billing.customers', 'count' => null],
             ],
         ],
+        'licenses' => [
+            'label' => 'Licenses',
+            'icon' => 'key',
+            'route' => 'billing.licenses',
+            'nav' => [
+                ['label' => 'Issued', 'key' => 'issued', 'route' => 'billing.licenses', 'count' => null],
+                ['label' => 'Distribution', 'key' => 'distribution', 'route' => 'billing.licenses.settings', 'count' => null],
+            ],
+        ],
         'settings' => [
             'label' => 'Settings',
             'icon' => 'settings',

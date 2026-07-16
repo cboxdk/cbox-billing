@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\View;
 
+use App\Billing\Licensing\LicenseReport;
 use App\Billing\Reporting\InvoiceReport;
 use App\Billing\Reporting\SettingsReport;
 use App\Billing\Support\SubscriptionStanding;
@@ -25,6 +26,7 @@ readonly class NavigationComposer
         private Config $config,
         private InvoiceReport $invoices,
         private SettingsReport $settings,
+        private LicenseReport $licenses,
     ) {}
 
     public function compose(View $view): void
@@ -58,6 +60,7 @@ readonly class NavigationComposer
                 'plans' => Plan::query()->count(),
             ],
             'customers' => ['organizations' => Organization::query()->count()],
+            'licenses' => ['issued' => $this->licenses->counts()['all']],
             'settings' => [
                 'sellers' => count($this->settings->sellers()),
                 'tax' => count($this->settings->taxRegistrations()),

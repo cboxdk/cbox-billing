@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e4889bd4b789949b447eb349283a1add",
+    "content-hash": "99621a6f7e40cb8dd74dd9be67ae9dcf",
     "packages": [
         {
             "name": "brick/math",
@@ -193,16 +193,16 @@
         },
         {
             "name": "cboxdk/laravel-billing",
-            "version": "v0.6.0",
+            "version": "v0.7.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-billing.git",
-                "reference": "ce649461bfa04677f86d3d3b02d683353368adba"
+                "reference": "ca2fe48f3f45a64c3b27fb1e77decd632460da17"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/ce649461bfa04677f86d3d3b02d683353368adba",
-                "reference": "ce649461bfa04677f86d3d3b02d683353368adba",
+                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/ca2fe48f3f45a64c3b27fb1e77decd632460da17",
+                "reference": "ca2fe48f3f45a64c3b27fb1e77decd632460da17",
                 "shasum": ""
             },
             "require": {
@@ -252,26 +252,26 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-billing/issues",
-                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.6.0"
+                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.7.0"
             },
-            "time": "2026-07-16T16:40:50+00:00"
+            "time": "2026-07-16T20:53:37+00:00"
         },
         {
             "name": "cboxdk/laravel-billing-stripe",
-            "version": "v0.4.1",
+            "version": "v0.4.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-billing-stripe.git",
-                "reference": "cf499e3f73a66f8d9899316f86adb8e54757eaf1"
+                "reference": "b022bd4a11784e300eab5a70d0d2b1284fefe75d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-billing-stripe/zipball/cf499e3f73a66f8d9899316f86adb8e54757eaf1",
-                "reference": "cf499e3f73a66f8d9899316f86adb8e54757eaf1",
+                "url": "https://api.github.com/repos/cboxdk/laravel-billing-stripe/zipball/b022bd4a11784e300eab5a70d0d2b1284fefe75d",
+                "reference": "b022bd4a11784e300eab5a70d0d2b1284fefe75d",
                 "shasum": ""
             },
             "require": {
-                "cboxdk/laravel-billing": "^0.4 || ^0.5 || ^0.6",
+                "cboxdk/laravel-billing": "^0.4 || ^0.5 || ^0.6 || ^0.7",
                 "illuminate/contracts": "^13.0",
                 "illuminate/database": "^13.0",
                 "illuminate/support": "^13.0",
@@ -312,9 +312,9 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-billing-stripe/issues",
-                "source": "https://github.com/cboxdk/laravel-billing-stripe/tree/v0.4.1"
+                "source": "https://github.com/cboxdk/laravel-billing-stripe/tree/v0.4.2"
             },
-            "time": "2026-07-16T17:11:17+00:00"
+            "time": "2026-07-16T20:56:02+00:00"
         },
         {
             "name": "cboxdk/laravel-console-kit",

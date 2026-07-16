@@ -7,7 +7,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
-        "cboxdk/laravel-billing": "^0.6",
+        "cboxdk/laravel-billing": "^0.7",
         "cboxdk/laravel-billing-stripe": "^0.4",
         "cboxdk/laravel-console-kit": "^0.2.1",
         "cboxdk/laravel-health": "^2.0",

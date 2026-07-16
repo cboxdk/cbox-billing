@@ -14,6 +14,7 @@ use Cbox\Billing\Wallet\Enums\GrantKind;
 use Cbox\Billing\Wallet\GrantScheduler;
 use Cbox\Billing\Wallet\Support\Pools;
 use Cbox\Billing\Wallet\ValueObjects\Denomination;
+use Cbox\Billing\Wallet\ValueObjects\Duration;
 use Cbox\Billing\Wallet\ValueObjects\EndOfPeriod;
 use Cbox\Billing\Wallet\ValueObjects\Fixed;
 use Cbox\Billing\Wallet\ValueObjects\NeverExpires;
@@ -89,8 +90,8 @@ readonly class WalletProvisioner
                 org: $org,
                 pool: $pool,
                 denomination: $this->denomination($definition->denomination),
-                amount: new Fixed($amount, $definition->cadence),
-                expiry: $this->expiryFor($pool, $definition->cadence),
+                amount: $definition->amount_mode->amount($amount, $definition->cadence),
+                expiry: $this->expiryFor($pool, $definition->cadence, $definition->rollover_seconds),
                 kind: $definition->kind,
             );
         }
@@ -137,12 +138,18 @@ readonly class WalletProvisioner
     }
 
     /**
-     * The expiry policy for a credit-pool grant: a recurring cadence resets each period
-     * (use-it-or-lose-it), a pool that must carry an expiry gets the period end too, and
-     * everything else never expires.
+     * The expiry policy for a credit-pool grant (ADR-0013): a grant that opts into rollover
+     * carries a {@see Duration} — each lot lives a fixed span and unused credit accumulates
+     * across periods; otherwise a recurring cadence (or a pool that must carry an expiry)
+     * resets each period ({@see EndOfPeriod}, use-it-or-lose-it) and everything else never
+     * expires. Rollover is expiry-beyond-the-period, so it composes with any pool.
      */
-    private function expiryFor(Pool $pool, GrantCadence $cadence): ExpiryPolicy
+    private function expiryFor(Pool $pool, GrantCadence $cadence, ?int $rolloverSeconds): ExpiryPolicy
     {
+        if ($rolloverSeconds !== null && $rolloverSeconds > 0) {
+            return new Duration($rolloverSeconds);
+        }
+
         return $cadence->isRecurring() || $pool->requiresExpiry
             ? new EndOfPeriod
             : new NeverExpires;

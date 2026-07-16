@@ -81,7 +81,7 @@
     <header><h1>Invoices</h1></header>
     <div class="hosted-body" style="padding:0">
         <table class="tbl">
-            <thead><tr><th>Invoice</th><th>Date</th><th class="right">Amount</th><th class="right">Status</th></tr></thead>
+            <thead><tr><th>Invoice</th><th>Date</th><th class="right">Amount</th><th class="right">Status</th><th class="right">PDF</th></tr></thead>
             <tbody>
                 @forelse ($invoices as $invoice)
                     <tr>
@@ -89,9 +89,10 @@
                         <td class="num">{{ $invoice->issued_at?->format('Y-m-d') ?? '—' }}</td>
                         <td class="right num">{{ MoneyFormatter::minor($invoice->total_minor, $invoice->currency) }}</td>
                         <td class="right"><span class="cbx-pill cbx-pill--{{ $statusPill[$invoice->status] ?? 'muted' }}">{{ $invoice->status }}</span></td>
+                        <td class="right"><a href="{{ route('hosted.portal.invoice-pdf', ['token' => $session->token, 'invoice' => $invoice->id]) }}">Download</a></td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" style="padding:16px 20px;color:var(--muted-foreground)">No invoices yet.</td></tr>
+                    <tr><td colspan="5" style="padding:16px 20px;color:var(--muted-foreground)">No invoices yet.</td></tr>
                 @endforelse
             </tbody>
         </table>

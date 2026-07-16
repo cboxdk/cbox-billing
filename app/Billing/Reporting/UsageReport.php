@@ -55,6 +55,8 @@ readonly class UsageReport
             $allowance = $meter['allowance'];
             $used = $meter['used'];
             $overage = $meter['overage'];
+            $projected = $meter['projected'];
+            $projectedOverage = $meter['projected_overage'];
 
             $meters[] = [
                 'key' => $key,
@@ -65,7 +67,10 @@ readonly class UsageReport
                 'used' => $used,
                 'allowance' => $allowance,
                 'overage' => $overage,
+                'projected' => $projected,
+                'projected_overage' => $projectedOverage,
                 'percent' => $this->percent($used, $allowance, $unlimited),
+                'projected_percent' => $this->percent($projected, $allowance, $unlimited),
                 'state' => $this->state($enabled, $unlimited, $used, $allowance, $overage),
             ];
         }

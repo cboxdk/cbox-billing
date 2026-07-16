@@ -42,6 +42,7 @@ class ConsoleRoutesTest extends TestCase
             '/invoices',
             '/usage',
             '/catalog',
+            '/pricing',
             '/customers',
             '/settings',
         ] as $path) {

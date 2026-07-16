@@ -65,7 +65,7 @@ return [
             'route' => 'billing.catalog',
             'nav' => [
                 ['label' => 'Products', 'key' => 'products', 'route' => 'billing.catalog', 'count' => null],
-                ['label' => 'Plans', 'key' => 'plans', 'route' => 'billing.catalog', 'count' => null],
+                ['label' => 'Plans &amp; pricing', 'key' => 'plans', 'route' => 'billing.pricing', 'count' => null],
             ],
         ],
         'customers' => [

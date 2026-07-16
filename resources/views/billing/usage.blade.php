@@ -49,9 +49,19 @@
                                 {{ $meter['unit'] }}
                             </span>
                         </div>
-                        <div style="height:6px;border-radius:9999px;background:var(--secondary);overflow:hidden">
+                        <div style="position:relative;height:6px;border-radius:9999px;background:var(--secondary);overflow:hidden">
                             <div style="height:100%;width:{{ $meter['percent'] }}%;background:{{ $barColor[$meter['state']] ?? 'var(--muted-foreground)' }};border-radius:9999px"></div>
+                            @if($meter['enabled'] && !$meter['unlimited'] && $meter['allowance'] !== null && $meter['projected'] > $meter['used'])
+                                {{-- Projected end-of-period marker: a tick at the extrapolated fill --}}
+                                <span title="Projected end of period" style="position:absolute;top:-2px;bottom:-2px;left:calc({{ $meter['projected_percent'] }}% - 1px);width:2px;background:var(--foreground);opacity:.55;border-radius:2px"></span>
+                            @endif
                         </div>
+                        @if($meter['enabled'] && !$meter['unlimited'] && $meter['allowance'] !== null)
+                            <div class="mut" style="display:flex;justify-content:space-between;font-size:11px;margin-top:5px">
+                                <span>Included {{ number_format($meter['allowance']) }} · overage {{ number_format($meter['overage']) }}</span>
+                                <span class="num">Projected {{ number_format($meter['projected']) }}@if($meter['projected_overage'] > 0) <span style="color:var(--destructive)">(+{{ number_format($meter['projected_overage']) }} over)</span>@endif</span>
+                            </div>
+                        @endif
                     </div>
                 @endforeach
                 @if (count($org['meters']) === 0)

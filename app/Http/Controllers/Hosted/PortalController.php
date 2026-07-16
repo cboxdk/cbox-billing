@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Hosted;
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
+use App\Billing\Invoicing\InvoicePdfRenderer;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\BillingSession;
@@ -25,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * The hosted customer-portal page and its actions (ADR-0009 Path A), authorized solely by
@@ -64,6 +66,25 @@ class PortalController extends HostedController
             'plans' => $this->availablePlans($currency, $subscription),
             'invoices' => $this->invoices($session->organization_id),
             'methods' => $this->gateway->paymentMethods($organization->id),
+        ]);
+    }
+
+    /**
+     * `GET` — download an invoice for this account as a PDF. Per-session org scope: an
+     * invoice not owned by the session's organization is 404 (deny-by-default, never leaks
+     * that another org's invoice exists).
+     */
+    public function invoicePdf(string $token, Invoice $invoice, InvoicePdfRenderer $renderer): Response
+    {
+        $session = $this->require($token, SessionType::Portal);
+
+        if ($invoice->organization_id !== $session->organization_id) {
+            throw new NotFoundHttpException('This invoice is not available.');
+        }
+
+        return new Response($renderer->render($invoice), Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$renderer->filename($invoice).'"',
         ]);
     }
 

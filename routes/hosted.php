@@ -20,6 +20,7 @@ Route::prefix('billing')->name('hosted.')->group(function (): void {
     Route::get('checkout/{token}/status', [CheckoutController::class, 'status'])->name('checkout.status');
 
     Route::get('portal/{token}', [PortalController::class, 'show'])->name('portal.show');
+    Route::get('portal/{token}/invoices/{invoice}/pdf', [PortalController::class, 'invoicePdf'])->name('portal.invoice-pdf');
     Route::post('portal/{token}/preview', [PortalController::class, 'preview'])->name('portal.preview');
     Route::post('portal/{token}/change', [PortalController::class, 'change'])->name('portal.change');
     Route::post('portal/{token}/cancel', [PortalController::class, 'cancel'])->name('portal.cancel');

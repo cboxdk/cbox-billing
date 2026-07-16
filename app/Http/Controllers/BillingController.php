@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Invoicing\InvoicePdfRenderer;
 use App\Billing\Reporting\CatalogReport;
 use App\Billing\Reporting\CustomerReport;
 use App\Billing\Reporting\InvoiceReport;
+use App\Billing\Reporting\PricingReport;
 use App\Billing\Reporting\RevenueMetrics;
 use App\Billing\Reporting\SettingsReport;
 use App\Billing\Reporting\SubscriptionReport;
@@ -17,6 +19,7 @@ use App\Models\Organization;
 use App\Models\Subscription;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Thin HTTP layer over the billing read models — each action resolves a read model,
@@ -86,6 +89,14 @@ class BillingController extends Controller
         ]);
     }
 
+    public function invoicePdf(Invoice $invoice, InvoicePdfRenderer $renderer): Response
+    {
+        return new Response($renderer->render($invoice), Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$renderer->filename($invoice).'"',
+        ]);
+    }
+
     public function usage(Request $request, UsageReport $report): View
     {
         $selected = $request->query('org');
@@ -105,6 +116,21 @@ class BillingController extends Controller
             'activeArea' => 'catalog',
             'activeNav' => 'products',
             'products' => $report->products(),
+        ]);
+    }
+
+    public function pricing(Request $request, PricingReport $report): View
+    {
+        $comparison = $report->comparison();
+        $currency = $this->currency($request, $comparison['currencies']);
+
+        return view('billing.pricing', [
+            'activeArea' => 'catalog',
+            'activeNav' => 'plans',
+            'currency' => $currency,
+            'currencies' => $comparison['currencies'],
+            'meters' => $comparison['meters'],
+            'plans' => $comparison['plans'],
         ]);
     }
 
@@ -149,5 +175,24 @@ class BillingController extends Controller
         $status = $request->query('status');
 
         return is_string($status) && in_array($status, $allowed, true) ? $status : null;
+    }
+
+    /**
+     * The requested `?currency=` when it is one the catalog is priced in, else the first
+     * available currency (else the app default).
+     *
+     * @param  list<string>  $available
+     */
+    private function currency(Request $request, array $available): string
+    {
+        $requested = $request->query('currency');
+
+        if (is_string($requested) && in_array(strtoupper($requested), $available, true)) {
+            return strtoupper($requested);
+        }
+
+        $default = config('billing.default_currency', 'DKK');
+
+        return $available[0] ?? (is_string($default) ? $default : 'DKK');
     }
 }

@@ -21,6 +21,7 @@
         <div style="display:flex;gap:8px;align-items:center">
             @php($v = $statusPill[$invoice->status] ?? 'muted')
             <span class="cbx-pill cbx-pill--{{ $v }}">@if($invoice->status !== 'draft')<span class="dot"></span>@endif{{ $invoice->status }}</span>
+            <a class="cbx-btn cbx-btn--secondary cbx-btn--sm" href="{{ route('billing.invoices.pdf', $invoice) }}">Download PDF</a>
             <a class="cbx-btn cbx-btn--secondary cbx-btn--sm" href="{{ route('billing.customers.show', $invoice->organization_id) }}">View customer</a>
         </div>
     </header>

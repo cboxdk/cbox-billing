@@ -22,9 +22,11 @@ Route::middleware('auth.cbox')->group(function (): void {
 
     Route::get('/invoices', [BillingController::class, 'invoices'])->name('billing.invoices');
     Route::get('/invoices/{invoice}', [BillingController::class, 'invoice'])->name('billing.invoices.show');
+    Route::get('/invoices/{invoice}/pdf', [BillingController::class, 'invoicePdf'])->name('billing.invoices.pdf');
 
     Route::get('/usage', [BillingController::class, 'usage'])->name('billing.usage');
     Route::get('/catalog', [BillingController::class, 'catalog'])->name('billing.catalog');
+    Route::get('/pricing', [BillingController::class, 'pricing'])->name('billing.pricing');
 
     Route::get('/customers', [BillingController::class, 'customers'])->name('billing.customers');
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->name('billing.customers.show');

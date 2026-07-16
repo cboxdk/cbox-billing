@@ -4,18 +4,15 @@ declare(strict_types=1);
 
 namespace App\Billing\Invoicing;
 
-use App\Billing\Support\MoneyFormatter;
 use App\Models\Invoice;
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use Illuminate\Contracts\Config\Repository as Config;
-use Illuminate\Contracts\View\Factory as ViewFactory;
+use RuntimeException;
 
 /**
- * Renders a legal {@see Invoice} to a self-contained PDF (#55). The document is built from
- * a Blade template into fully inlined HTML and rasterised by Dompdf with remote fetching
- * disabled — nothing is pulled off the network at render time, so the PDF is a pure
- * function of the invoice row, its lines and the selling entity's registered identity.
+ * Renders a legal {@see Invoice} to a self-contained PDF (#55) with a manual FPDF layout
+ * (see {@see InvoiceDocument}). Nothing is fetched at render time: the document is a pure
+ * function of the invoice row, its lines and the selling entity's registered identity, and
+ * the only embedded asset is the local Cbox logo.
  *
  * A negative-total invoice is the app's representation of a credit note (the legal reversal
  * of an issued invoice); it renders under the "Credit note" heading with credited amounts.
@@ -23,7 +20,6 @@ use Illuminate\Contracts\View\Factory as ViewFactory;
 readonly class InvoicePdfRenderer
 {
     public function __construct(
-        private ViewFactory $views,
         private Config $config,
     ) {}
 
@@ -32,35 +28,27 @@ readonly class InvoicePdfRenderer
     {
         $invoice->loadMissing(['organization', 'lines']);
 
-        $html = $this->views->make('invoices.pdf', [
-            'invoice' => $invoice,
-            'seller' => $this->seller($invoice->seller),
-            'isCreditNote' => $this->isCreditNote($invoice),
-        ])->render();
+        $organization = $invoice->organization;
 
-        $options = new Options;
-        $options->set('isRemoteEnabled', false);
-        $options->set('isPhpEnabled', false);
-        // A core PDF font, un-subsetted, so text is emitted as literal WinAnsi strings
-        // (kept legible/extractable in the byte stream) rather than hex-mapped subset glyphs.
-        $options->set('defaultFont', 'helvetica');
-        $options->set('isFontSubsettingEnabled', false);
+        if ($organization === null) {
+            throw new RuntimeException("Invoice [{$invoice->number}] has no billed organization.");
+        }
 
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('a4');
+        $document = new InvoiceDocument(
+            $invoice,
+            $organization,
+            $this->seller($invoice->seller),
+            $this->isCreditNote($invoice),
+            $this->logoPath(),
+        );
 
-        // The legal number and total live in the (uncompressed) document info dictionary so
-        // the document is identifiable from its metadata, not only its rendered glyphs.
-        $label = $this->isCreditNote($invoice) ? 'Credit note' : 'Invoice';
-        $dompdf->addInfo('Title', $label.' '.$invoice->number);
-        $dompdf->addInfo('Subject', 'Total '.MoneyFormatter::minor($invoice->total_minor, $invoice->currency));
+        $document->build();
 
-        $dompdf->render();
+        // FPDF's Output() is untyped; with the 'S' destination it returns the PDF as a
+        // string. Narrow it at the boundary rather than trusting the mixed return.
+        $bytes = $document->Output('S');
 
-        // Uncompressed content streams keep the rendered text legible/extractable rather
-        // than gzip-hidden.
-        return $dompdf->output(['compress' => 0]);
+        return is_string($bytes) ? $bytes : '';
     }
 
     /** The download filename for `$invoice` (its legal number). */
@@ -73,6 +61,14 @@ readonly class InvoicePdfRenderer
     public function isCreditNote(Invoice $invoice): bool
     {
         return $invoice->total_minor < 0;
+    }
+
+    /** The local Cbox logo embedded in the header, or null when it is not present. */
+    private function logoPath(): ?string
+    {
+        $path = public_path('cbox/assets/logo/cbox-logo-h50.png');
+
+        return is_file($path) ? $path : null;
     }
 
     /**

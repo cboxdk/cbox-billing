@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
+use App\Billing\Subscriptions\ValueObjects\QuantityPreview;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\SubscriptionAddOn;
+use Cbox\Billing\Subscription\Enums\AddOnAlignment;
+use Cbox\Billing\Subscription\Enums\BillingInterval;
 use Cbox\Billing\Subscription\PlanChange\PlanChangePreview;
 use Cbox\Billing\Subscription\Proration\ProrationLine;
 use DateTimeImmutable;
@@ -17,11 +23,12 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The subscription lifecycle surface of the management API — thin HTTP over
- * {@see SubscribesOrganizations} (task #41's service): read the current subscription,
- * subscribe, preview a plan change, apply it, and cancel. Every write is per-org scoped
- * (a token for org A cannot touch org B → 403) and delegates the engine work; the
- * controller only validates, authorizes, and maps.
+ * The subscription lifecycle + management-depth surface of the management API — thin HTTP
+ * over {@see SubscribesOrganizations} and {@see ManagesSubscriptionDepth}: read/subscribe,
+ * preview + apply (immediate or deferred) a plan change, cancel, pause/resume, change seat
+ * quantity, and attach/detach add-ons. Every write is per-org scoped (a token for org A
+ * cannot touch org B → 403) and delegates the engine work; the controller only validates,
+ * authorizes, and maps.
  */
 class SubscriptionController extends ApiController
 {
@@ -89,13 +96,59 @@ class SubscriptionController extends ApiController
     /** `POST /api/v1/subscriptions/{org}/preview` {plan} — the consequence of a change, uncommitted. */
     public function preview(Request $request, string $org, SubscribesOrganizations $subscriptions): JsonResponse
     {
-        return $this->planChange($request, $org, $subscriptions, apply: false);
+        if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        $subscription = $this->activeSubscription($org);
+        $newPlan = $this->requestedPlan($request);
+
+        if (! $subscription instanceof Subscription) {
+            return $this->notFound('This organization has no active subscription.');
+        }
+
+        if (! $newPlan instanceof Plan) {
+            return $this->notFound('Unknown plan.');
+        }
+
+        return new JsonResponse($this->presentPreview($subscriptions->previewChange($subscription, $newPlan)));
     }
 
-    /** `POST /api/v1/subscriptions/{org}/change` {plan} — apply the change (same consequence as preview). */
-    public function change(Request $request, string $org, SubscribesOrganizations $subscriptions): JsonResponse
+    /**
+     * `POST /api/v1/subscriptions/{org}/change` {plan, when?} — apply a plan change now
+     * (`when: now`, the default) or schedule it for the current period end
+     * (`when: period_end`). The `scheduled` flag surfaces a deferred change distinctly.
+     */
+    public function change(Request $request, string $org, SubscribesOrganizations $subscriptions, ManagesSubscriptionDepth $depth): JsonResponse
     {
-        return $this->planChange($request, $org, $subscriptions, apply: true);
+        $request->validate(['when' => ['sometimes', 'in:now,period_end']]);
+
+        if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        $subscription = $this->activeSubscription($org);
+        $newPlan = $this->requestedPlan($request);
+
+        if (! $subscription instanceof Subscription) {
+            return $this->notFound('This organization has no active subscription.');
+        }
+
+        if (! $newPlan instanceof Plan) {
+            return $this->notFound('Unknown plan.');
+        }
+
+        if ($request->string('when')->toString() === 'period_end') {
+            $preview = $depth->scheduleChange($subscription, $newPlan);
+
+            // The scheduled date wins the union over the preview's immediate effective_at.
+            return new JsonResponse([
+                'scheduled' => true,
+                'effective_at' => $subscription->refresh()->pending_effective_at?->toIso8601String(),
+            ] + $this->presentPreview($preview));
+        }
+
+        return new JsonResponse(['scheduled' => false] + $this->presentPreview($subscriptions->changePlan($subscription, $newPlan)));
     }
 
     /** `POST /api/v1/subscriptions/{org}/cancel` {at_period_end?} — schedule or immediately cancel. */
@@ -122,9 +175,29 @@ class SubscriptionController extends ApiController
         return new JsonResponse($this->present($subscription->refresh()));
     }
 
-    private function planChange(Request $request, string $org, SubscribesOrganizations $subscriptions, bool $apply): JsonResponse
+    /** `POST /api/v1/subscriptions/{org}/pause` — suspend access + metering until resumed. */
+    public function pause(Request $request, string $org, ManagesSubscriptionDepth $depth): JsonResponse
     {
-        $request->validate(['plan' => ['required', 'string']]);
+        return $this->onActive($request, $org, static fn (Subscription $s): Subscription => $depth->pause($s));
+    }
+
+    /** `POST /api/v1/subscriptions/{org}/resume` — lift a pause. */
+    public function resume(Request $request, string $org, ManagesSubscriptionDepth $depth): JsonResponse
+    {
+        return $this->onActive($request, $org, static fn (Subscription $s): Subscription => $depth->resume($s));
+    }
+
+    /**
+     * `POST /api/v1/subscriptions/{org}/quantity` {seats, preview?} — change the seat
+     * quantity with preview-equals-charge proration; `preview: true` computes without
+     * applying.
+     */
+    public function quantity(Request $request, string $org, ManagesSubscriptionDepth $depth): JsonResponse
+    {
+        $request->validate([
+            'seats' => ['required', 'integer', 'min:1'],
+            'preview' => ['sometimes', 'boolean'],
+        ]);
 
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
             return $denied;
@@ -136,23 +209,120 @@ class SubscriptionController extends ApiController
             return $this->notFound('This organization has no active subscription.');
         }
 
-        $newPlan = $this->planByKey($request->string('plan')->toString());
+        $seats = $request->integer('seats');
+        $isPreview = $request->boolean('preview');
 
-        if (! $newPlan instanceof Plan) {
-            return $this->notFound('Unknown plan.');
+        $result = $isPreview
+            ? $depth->previewQuantity($subscription, $seats)
+            : $depth->changeQuantity($subscription, $seats);
+
+        return new JsonResponse($this->presentQuantity($result, $isPreview));
+    }
+
+    /**
+     * `POST /api/v1/subscriptions/{org}/addons` — attach an add-on (aligned or independent),
+     * or compute the prorated consequence with `preview: true`.
+     */
+    public function addAddOn(Request $request, string $org, ManagesSubscriptionDepth $depth): JsonResponse
+    {
+        $request->validate([
+            'key' => ['required', 'string'],
+            'price_minor' => ['required', 'integer', 'min:0'],
+            'currency' => ['required', 'string', 'size:3'],
+            'alignment' => ['sometimes', 'in:aligned,independent'],
+            'credit_allotment' => ['sometimes', 'integer', 'min:0'],
+            'anchor_day' => ['sometimes', 'integer', 'min:1', 'max:31'],
+            'anchor_month' => ['sometimes', 'integer', 'min:1', 'max:12'],
+            'interval' => ['sometimes', 'in:monthly,yearly'],
+            'preview' => ['sometimes', 'boolean'],
+        ]);
+
+        if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
         }
 
-        $preview = $apply
-            ? $subscriptions->changePlan($subscription, $newPlan)
-            : $subscriptions->previewChange($subscription, $newPlan);
+        $subscription = $this->activeSubscription($org);
 
-        return new JsonResponse($this->presentPreview($preview));
+        if (! $subscription instanceof Subscription) {
+            return $this->notFound('This organization has no active subscription.');
+        }
+
+        $addOnRequest = new AddOnRequest(
+            key: $request->string('key')->toString(),
+            priceMinor: $request->integer('price_minor'),
+            currency: strtoupper($request->string('currency')->toString()),
+            alignment: AddOnAlignment::from($request->string('alignment', 'aligned')->toString()),
+            creditAllotment: $request->integer('credit_allotment', 0),
+            anchorDay: $request->has('anchor_day') ? $request->integer('anchor_day') : null,
+            anchorMonth: $request->has('anchor_month') ? $request->integer('anchor_month') : null,
+            interval: $request->has('interval') ? BillingInterval::from($request->string('interval')->toString()) : null,
+        );
+
+        if ($request->boolean('preview')) {
+            return new JsonResponse($depth->previewAddOn($subscription, $addOnRequest));
+        }
+
+        $preview = $depth->previewAddOn($subscription, $addOnRequest);
+        $addOn = $depth->addAddOn($subscription, $addOnRequest);
+
+        return new JsonResponse([
+            'preview' => $preview,
+            'add_on' => $this->presentAddOn($addOn),
+        ], Response::HTTP_CREATED);
+    }
+
+    /** `DELETE /api/v1/subscriptions/{org}/addons/{key}` — detach an add-on. */
+    public function removeAddOn(Request $request, string $org, string $key, ManagesSubscriptionDepth $depth): JsonResponse
+    {
+        if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        $subscription = $this->activeSubscription($org);
+
+        if (! $subscription instanceof Subscription) {
+            return $this->notFound('This organization has no active subscription.');
+        }
+
+        if (! $depth->removeAddOn($subscription, $key)) {
+            return $this->notFound('This organization has no such add-on.');
+        }
+
+        return new JsonResponse($this->present($subscription->refresh()));
+    }
+
+    /**
+     * Resolve the org's active subscription, run `$mutate` on it, and present the result —
+     * the shared shape of the pause/resume endpoints.
+     *
+     * @param  callable(Subscription): Subscription  $mutate
+     */
+    private function onActive(Request $request, string $org, callable $mutate): JsonResponse
+    {
+        if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        $subscription = $this->activeSubscription($org);
+
+        if (! $subscription instanceof Subscription) {
+            return $this->notFound('This organization has no active subscription.');
+        }
+
+        return new JsonResponse($this->present($mutate($subscription)->refresh()));
+    }
+
+    private function requestedPlan(Request $request): ?Plan
+    {
+        $request->validate(['plan' => ['required', 'string']]);
+
+        return $this->planByKey($request->string('plan')->toString());
     }
 
     private function activeSubscription(string $org): ?Subscription
     {
         return Subscription::query()
-            ->with('plan')
+            ->with(['plan', 'pendingPlan', 'addOns'])
             ->where('organization_id', $org)
             ->where('status', 'active')
             ->latest('current_period_start')
@@ -169,12 +339,48 @@ class SubscriptionController extends ApiController
     {
         return [
             'plan' => $subscription->plan?->key,
-            'status' => $subscription->status->value,
+            'status' => $subscription->standing(),
+            'paused' => $subscription->isPaused(),
+            'seats' => $subscription->seats,
             'period_start' => $subscription->current_period_start?->toIso8601String(),
             'period_end' => $subscription->current_period_end?->toIso8601String(),
-            'renews_at' => $subscription->cancel_at_period_end
+            'renews_at' => $subscription->cancel_at_period_end || $subscription->isPaused()
                 ? null
                 : $subscription->current_period_end?->toIso8601String(),
+            'pending_change' => $subscription->hasPendingChange()
+                ? [
+                    'plan' => $subscription->pendingPlan?->key,
+                    'effective_at' => $subscription->pending_effective_at?->toIso8601String(),
+                ]
+                : null,
+            'add_ons' => $subscription->addOns->map(fn (SubscriptionAddOn $addOn): array => $this->presentAddOn($addOn))->all(),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function presentAddOn(SubscriptionAddOn $addOn): array
+    {
+        return [
+            'key' => $addOn->key,
+            'price_minor' => $addOn->price_minor,
+            'currency' => $addOn->currency,
+            'alignment' => $addOn->alignment->value,
+            'credit_allotment' => $addOn->credit_allotment,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function presentQuantity(QuantityPreview $preview, bool $isPreview): array
+    {
+        $charge = $preview->charge;
+
+        return [
+            'applied' => ! $isPreview,
+            'from_seats' => $preview->fromSeats,
+            'to_seats' => $preview->toSeats,
+            'due_now_minor' => $preview->isCredit() ? 0 : $charge->minor(),
+            'credit_minor' => $preview->isCredit() ? $charge->negated()->minor() : 0,
+            'currency' => $charge->currency(),
         ];
     }
 
@@ -190,6 +396,11 @@ class SubscriptionController extends ApiController
             'credit_minor' => $credit,
             'new_recurring_minor' => $preview->newRecurring->minor(),
             'effective_at' => $preview->effectiveAt->format(DateTimeImmutable::ATOM),
+            'credit_delta' => [
+                'forfeited' => $preview->creditDelta->forfeited,
+                'granted' => $preview->creditDelta->granted,
+                'carried' => $preview->creditDelta->carried,
+            ],
             'lines' => array_map(
                 static fn (ProrationLine $line): array => [
                     'description' => $line->description,

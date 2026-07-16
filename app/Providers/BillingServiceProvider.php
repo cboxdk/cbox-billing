@@ -26,7 +26,9 @@ use App\Billing\Seams\EloquentInvoicePaymentApplier;
 use App\Billing\Seams\PlanExpectedEntitlements;
 use App\Billing\Seams\SubscriptionMeterPolicyResolver;
 use App\Billing\Seller\ConfiguredEntityRouter;
+use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Subscriptions\SubscriptionDepthService;
 use App\Billing\Subscriptions\SubscriptionService;
 use Cbox\Billing\Account\Contracts\AccountStanding;
 use Cbox\Billing\Account\Contracts\BillingCurrencyLock;
@@ -229,6 +231,8 @@ class BillingServiceProvider extends ServiceProvider
         $this->app->singleton(EntityRouter::class, ConfiguredEntityRouter::class);
 
         $this->app->singleton(SubscribesOrganizations::class, SubscriptionService::class);
+
+        $this->app->singleton(ManagesSubscriptionDepth::class, SubscriptionDepthService::class);
 
         $this->app->singleton(GeneratesInvoices::class, InvoiceService::class);
 

@@ -25,6 +25,7 @@ readonly class PlanExpectedEntitlements implements ExpectedEntitlements
     {
         $subscriptions = Subscription::query()
             ->where('status', 'active')
+            ->whereNull('paused_at')
             ->with(['plan.entitlements.meter'])
             ->get();
 

@@ -37,5 +37,16 @@ Route::post('subscriptions/{org}/preview', [SubscriptionController::class, 'prev
 Route::post('subscriptions/{org}/change', [SubscriptionController::class, 'change'])->name('subscriptions.change');
 Route::post('subscriptions/{org}/cancel', [SubscriptionController::class, 'cancel'])->name('subscriptions.cancel');
 
+/*
+ * Subscription-management depth (ADR-0012): pause/resume, seat-quantity changes with
+ * preview-equals-charge proration, and aligned/independent add-ons — thin controllers
+ * over the engine lifecycle + the app's depth service.
+ */
+Route::post('subscriptions/{org}/pause', [SubscriptionController::class, 'pause'])->name('subscriptions.pause');
+Route::post('subscriptions/{org}/resume', [SubscriptionController::class, 'resume'])->name('subscriptions.resume');
+Route::post('subscriptions/{org}/quantity', [SubscriptionController::class, 'quantity'])->name('subscriptions.quantity');
+Route::post('subscriptions/{org}/addons', [SubscriptionController::class, 'addAddOn'])->name('subscriptions.addons.add');
+Route::delete('subscriptions/{org}/addons/{key}', [SubscriptionController::class, 'removeAddOn'])->name('subscriptions.addons.remove');
+
 Route::get('usage/{org}', UsageSummaryController::class)->name('usage.summary');
 Route::get('invoices/{org}', InvoiceController::class)->name('invoices.index');

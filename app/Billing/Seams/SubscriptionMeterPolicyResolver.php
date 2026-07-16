@@ -15,9 +15,9 @@ use Cbox\Billing\Metering\ValueObjects\MeterPolicy;
  * subscription → plan → metered entitlement. This is entitlement's answer to "what is
  * this dimension granted?", read live from the durable catalog.
  *
- * **Deny-by-default:** an org with no active subscription, or a plan with no
- * entitlement row for the meter, resolves to `null` — and the enforcer refuses it. A
- * metered dimension is never silently trusted.
+ * **Deny-by-default:** an org with no active subscription, a **paused** subscription,
+ * or a plan with no entitlement row for the meter, resolves to `null` — and the enforcer
+ * refuses it. A metered dimension is never silently trusted; pausing suspends metering.
  */
 readonly class SubscriptionMeterPolicyResolver implements MeterPolicyResolver
 {
@@ -26,6 +26,7 @@ readonly class SubscriptionMeterPolicyResolver implements MeterPolicyResolver
         $subscription = Subscription::query()
             ->where('organization_id', $org)
             ->where('status', 'active')
+            ->whereNull('paused_at')
             ->latest('current_period_start')
             ->first();
 

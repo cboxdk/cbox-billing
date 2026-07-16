@@ -21,5 +21,6 @@ Artisan::command('inspire', function () {
  *    credits or the ledger).
  */
 Schedule::command('billing:reconcile-active')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('billing:apply-scheduled-changes')->hourly()->withoutOverlapping();
 Schedule::command('billing:invoice')->monthlyOn(1, '02:00')->withoutOverlapping();
 Schedule::command('billing:dunning')->dailyAt('06:00')->withoutOverlapping();

@@ -85,7 +85,7 @@ readonly class WalletProvisioner
             $pool = $this->pool($definition->pool);
 
             $grants[] = new PlanGrant(
-                id: sprintf('%s:%s:credit:%s', $org, $plan->key, $definition->pool),
+                id: sprintf('%s:%s:credit:%s:s%d', $org, $plan->key, $definition->pool, $seats),
                 org: $org,
                 pool: $pool,
                 denomination: $this->denomination($definition->denomination),
@@ -96,7 +96,7 @@ readonly class WalletProvisioner
         }
 
         foreach ($plan->entitlements as $entitlement) {
-            $grant = $this->includedAllowanceGrant($org, $plan->key, $entitlement);
+            $grant = $this->includedAllowanceGrant($org, $plan->key, $seats, $entitlement);
 
             if ($grant !== null) {
                 $grants[] = $grant;
@@ -111,7 +111,7 @@ readonly class WalletProvisioner
      * grant (ADR-0013). An unlimited or disabled dimension has no cap to fund, so it grants
      * nothing — deny-by-default is preserved by the base resolver, not a phantom allowance.
      */
-    private function includedAllowanceGrant(string $org, string $planKey, PlanEntitlement $entitlement): ?PlanGrant
+    private function includedAllowanceGrant(string $org, string $planKey, int $seats, PlanEntitlement $entitlement): ?PlanGrant
     {
         $meter = $entitlement->meter?->key;
 
@@ -120,7 +120,7 @@ readonly class WalletProvisioner
         }
 
         return PlanGrant::includedAllowance(
-            id: sprintf('%s:%s:included:%s', $org, $planKey, $meter),
+            id: sprintf('%s:%s:included:%s:s%d', $org, $planKey, $meter, $seats),
             org: $org,
             meter: $meter,
             amount: new Fixed($entitlement->allowance, GrantCadence::Monthly),

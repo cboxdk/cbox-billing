@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4beec879c44c2ce797c7ceb1ca44c301",
+    "content-hash": "832914bba56e8125c8794bb8ccc264b0",
     "packages": [
         {
             "name": "brick/math",
@@ -254,6 +254,66 @@
                 "source": "https://github.com/cboxdk/laravel-billing/tree/v0.3.0"
             },
             "time": "2026-07-15T23:57:06+00:00"
+        },
+        {
+            "name": "cboxdk/laravel-billing-stripe",
+            "version": "v0.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cboxdk/laravel-billing-stripe.git",
+                "reference": "db7b8189be21d10a65204d9cc3e079bb5daa0800"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cboxdk/laravel-billing-stripe/zipball/db7b8189be21d10a65204d9cc3e079bb5daa0800",
+                "reference": "db7b8189be21d10a65204d9cc3e079bb5daa0800",
+                "shasum": ""
+            },
+            "require": {
+                "cboxdk/laravel-billing": "^0.3",
+                "illuminate/contracts": "^13.0",
+                "illuminate/database": "^13.0",
+                "illuminate/support": "^13.0",
+                "php": "^8.4",
+                "stripe/stripe-php": "^20.3"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.18",
+                "orchestra/testbench": "^11.0",
+                "pestphp/pest": "^4.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Cbox\\Billing\\Stripe\\StripeServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cbox\\Billing\\Stripe\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Cbox Billing — Stripe payment-gateway adapter: a PaymentGateway implementation backed by Stripe, for cboxdk/laravel-billing.",
+            "keywords": [
+                "billing",
+                "cbox",
+                "gateway",
+                "laravel",
+                "payments",
+                "stripe"
+            ],
+            "support": {
+                "issues": "https://github.com/cboxdk/laravel-billing-stripe/issues",
+                "source": "https://github.com/cboxdk/laravel-billing-stripe/tree/v0.3.0"
+            },
+            "time": "2026-07-16T00:05:44+00:00"
         },
         {
             "name": "cboxdk/laravel-geo",
@@ -3812,6 +3872,68 @@
                 "source": "https://github.com/ramsey/uuid/tree/4.9.3"
             },
             "time": "2026-06-18T03:57:49+00:00"
+        },
+        {
+            "name": "stripe/stripe-php",
+            "version": "v20.3.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/stripe/stripe-php.git",
+                "reference": "bf2c6caf886a88e35f831a68f3b6a49ac85cb357"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/bf2c6caf886a88e35f831a68f3b6a49ac85cb357",
+                "reference": "bf2c6caf886a88e35f831a68f3b6a49ac85cb357",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "php": ">=7.2.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "3.94.0",
+                "phpstan/phpstan": "^1.2",
+                "phpunit/phpunit": "^8.0 || ^9.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.0-dev"
+                }
+            },
+            "autoload": {
+                "files": [
+                    "lib/version_check.php"
+                ],
+                "psr-4": {
+                    "Stripe\\": "lib/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Stripe and contributors",
+                    "homepage": "https://github.com/stripe/stripe-php/contributors"
+                }
+            ],
+            "description": "Stripe PHP Library",
+            "homepage": "https://stripe.com/",
+            "keywords": [
+                "api",
+                "payment processing",
+                "stripe"
+            ],
+            "support": {
+                "issues": "https://github.com/stripe/stripe-php/issues",
+                "source": "https://github.com/stripe/stripe-php/tree/v20.3.1"
+            },
+            "time": "2026-07-09T17:57:50+00:00"
         },
         {
             "name": "symfony/clock",

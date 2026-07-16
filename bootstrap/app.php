@@ -23,6 +23,10 @@ return Application::configure(basePath: dirname(__DIR__))
             // Public, signature-verified payment webhooks: /webhooks/{gateway}.
             Route::middleware('api')
                 ->group(__DIR__.'/../routes/webhooks.php');
+
+            // Token-authorized hosted checkout + customer portal: /billing/*.
+            Route::middleware('web')
+                ->group(__DIR__.'/../routes/hosted.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

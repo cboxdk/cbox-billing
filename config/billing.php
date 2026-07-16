@@ -282,4 +282,14 @@ return [
         'signature_header' => env('CBOX_BILLING_WEBHOOK_SIGNATURE_HEADER', 'X-Cbox-Signature'),
     ],
 
+    /*
+     * Hosted checkout + customer portal (ADR-0009 Path A). A checkout- or portal-session
+     * is addressed by an opaque, non-guessable token carried in the hosted page URL — the
+     * token, not the provider auth gate, authorizes the page. `session_ttl_minutes` bounds
+     * how long a pending token stays usable before it is stamped expired.
+     */
+    'hosted' => [
+        'session_ttl_minutes' => (int) env('CBOX_BILLING_HOSTED_SESSION_TTL', 30),
+    ],
+
 ];

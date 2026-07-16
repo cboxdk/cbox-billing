@@ -12,6 +12,9 @@ use App\Billing\Enforcement\CacheReservationStore;
 use App\Billing\Enforcement\CentralAllowanceLeaseSource;
 use App\Billing\Enforcement\Contracts\ReservationStore;
 use App\Billing\Enforcement\EventLogUsageBuffer;
+use App\Billing\Hosted\BillingSessionService;
+use App\Billing\Hosted\CheckoutActivation;
+use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Invoicing\DatabaseInvoiceNumberSequence;
 use App\Billing\Invoicing\InvoiceService;
@@ -52,10 +55,12 @@ use Cbox\Billing\Metering\LeasedEnforcement;
 use Cbox\Billing\Metering\Sources\WalletIncludedAllowanceResolver;
 use Cbox\Billing\Metering\Storage\DatabaseEventLog;
 use Cbox\Billing\Payment\Contracts\InvoicePaymentApplier;
+use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Cbox\Billing\Payment\Contracts\ProcessedEventStore;
 use Cbox\Billing\Payment\Contracts\SettledPaymentStore;
 use Cbox\Billing\Payment\Contracts\WebhookVerifier;
 use Cbox\Billing\Payment\Dunning\Contracts\DunningStateStore;
+use Cbox\Billing\Payment\Gateways\ManualPaymentGateway;
 use Cbox\Billing\Reconciliation\Contracts\CheckpointStore;
 use Cbox\Billing\Reconciliation\Storage\DatabaseCheckpointStore;
 use Cbox\Billing\Seller\Contracts\EntityRouter;
@@ -90,7 +95,21 @@ class BillingServiceProvider extends ServiceProvider
         $this->registerEnforcement();
         $this->registerLifecycleServices();
         $this->registerPaymentSeams();
+        $this->registerHostedSessions();
         $this->registerApi();
+    }
+
+    /**
+     * Bind the hosted checkout + customer-portal session manager (ADR-0009 Path A). The
+     * TTL bounds how long an opaque session token authorizes its page.
+     */
+    private function registerHostedSessions(): void
+    {
+        $this->app->singleton(ManagesBillingSessions::class, static function (Application $app): BillingSessionService {
+            $ttl = $app->make(Config::class)->get('billing.hosted.session_ttl_minutes', 30);
+
+            return new BillingSessionService(is_numeric($ttl) ? (int) $ttl : 30);
+        });
     }
 
     /** Rebind the engine's memory-default stores to their database-backed impls. */
@@ -147,7 +166,15 @@ class BillingServiceProvider extends ServiceProvider
 
         $this->app->singleton(ExpectedEntitlements::class, PlanExpectedEntitlements::class);
 
-        $this->app->singleton(InvoicePaymentApplier::class, EloquentInvoicePaymentApplier::class);
+        // The settled-webhook effect, decorated to ALSO activate a hosted checkout
+        // (ADR-0009): a checkout's subscription is created strictly on the gateway's
+        // settled webhook — the decorator wraps the plain invoice applier, so an ordinary
+        // invoice/renewal reference still marks its invoice paid.
+        $this->app->singleton(InvoicePaymentApplier::class, static fn (Application $app): CheckoutActivation => new CheckoutActivation(
+            $app->make(EloquentInvoicePaymentApplier::class),
+            $app->make(SubscribesOrganizations::class),
+            $app->make(ManagesBillingSessions::class),
+        ));
 
         $this->registerTransitionPolicy();
     }
@@ -246,6 +273,16 @@ class BillingServiceProvider extends ServiceProvider
      */
     private function registerPaymentSeams(): void
     {
+        $config = $this->app->make(Config::class);
+
+        // The bound gateway: the Stripe adapter binds itself as the PaymentGateway (and its
+        // own verifier) when its keys are configured — we only supply the dependency-free
+        // ManualPaymentGateway as the fallback when no gateway keys are set, and leave the
+        // Stripe binding untouched when they are.
+        if (! $this->stripeGatewayConfigured($config)) {
+            $this->app->singleton(PaymentGateway::class, static fn (): ManualPaymentGateway => new ManualPaymentGateway);
+        }
+
         $this->app->singleton(ProcessedEventStore::class, static fn (Application $app): DatabaseProcessedEventStore => new DatabaseProcessedEventStore(
             $app->make('db')->connection(),
         ));
@@ -258,16 +295,37 @@ class BillingServiceProvider extends ServiceProvider
             $app->make('db')->connection(),
         ));
 
-        $this->app->singleton(WebhookVerifier::class, static function (Application $app): ManualWebhookVerifier {
-            $config = $app->make(Config::class);
-            $secret = $config->get('billing.webhook.secret');
-            $header = $config->get('billing.webhook.signature_header', 'X-Cbox-Signature');
+        // The manual HMAC verifier backs the manual gateway's settlement webhook. When the
+        // Stripe adapter is configured with a signing secret it binds its OWN verifier, so
+        // we only bind the manual one when Stripe's is not in play.
+        if (! $this->stripeWebhookConfigured($config)) {
+            $this->app->singleton(WebhookVerifier::class, static function (Application $app): ManualWebhookVerifier {
+                $config = $app->make(Config::class);
+                $secret = $config->get('billing.webhook.secret');
+                $header = $config->get('billing.webhook.signature_header', 'X-Cbox-Signature');
 
-            return new ManualWebhookVerifier(
-                secret: is_string($secret) ? $secret : null,
-                signatureHeader: is_string($header) ? $header : 'X-Cbox-Signature',
-            );
-        });
+                return new ManualWebhookVerifier(
+                    secret: is_string($secret) ? $secret : null,
+                    signatureHeader: is_string($header) ? $header : 'X-Cbox-Signature',
+                );
+            });
+        }
+    }
+
+    /** Whether a Stripe secret key is configured, so the Stripe gateway is the bound one. */
+    private function stripeGatewayConfigured(Config $config): bool
+    {
+        $secret = $config->get('billing-stripe.secret');
+
+        return is_string($secret) && $secret !== '';
+    }
+
+    /** Whether a Stripe webhook signing secret is configured (so Stripe binds its verifier). */
+    private function stripeWebhookConfigured(Config $config): bool
+    {
+        $secret = $config->get('billing-stripe.webhook_secret');
+
+        return is_string($secret) && $secret !== '';
     }
 
     /** Bind the pluggable API token authenticator (operator static token + per-org rows). */

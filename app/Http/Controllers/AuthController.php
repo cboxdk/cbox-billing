@@ -105,8 +105,9 @@ class AuthController extends Controller
             sub: 'demo|sylvester',
             name: 'Sylvester Damgaard',
             email: 'sn@cbox.dk',
-            org: 'Cbox Systems',
+            org: '01demo0org0systems',
             picture: null,
+            orgName: 'Cbox Systems',
         ));
 
         return redirect()->intended(route('billing.dashboard'));

@@ -24,7 +24,7 @@
     $userName = $u?->name ?? 'Account';
     $userEmail = $u?->email ?? '';
     $userInitials = $u?->initials() ?? '··';
-    $orgName = $u?->org ?? 'Personal';
+    $orgName = $u?->orgLabel() ?? 'Personal';
     $orgInitials = $u?->orgInitials() ?? 'PE';
 @endphp
 <div class="shell" id="root">

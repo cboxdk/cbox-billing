@@ -19,6 +19,7 @@ readonly class AuthedUser
         public string $email,
         public ?string $org,
         public ?string $picture,
+        public ?string $orgName = null,
     ) {}
 
     /** @param array<string, mixed> $claims */
@@ -32,6 +33,7 @@ readonly class AuthedUser
             email: self::str($claims['email'] ?? ''),
             org: isset($claims['org']) ? self::str($claims['org']) : null,
             picture: isset($claims['picture']) ? self::str($claims['picture']) : null,
+            orgName: isset($claims['org_name']) ? self::str($claims['org_name']) : null,
         );
     }
 
@@ -44,6 +46,7 @@ readonly class AuthedUser
             email: self::str($data['email'] ?? ''),
             org: isset($data['org']) ? self::str($data['org']) : null,
             picture: isset($data['picture']) ? self::str($data['picture']) : null,
+            orgName: isset($data['org_name']) ? self::str($data['org_name']) : null,
         );
     }
 
@@ -62,6 +65,7 @@ readonly class AuthedUser
             'email' => $this->email,
             'org' => $this->org,
             'picture' => $this->picture,
+            'org_name' => $this->orgName,
         ];
     }
 
@@ -80,9 +84,30 @@ readonly class AuthedUser
         return Str::upper(Str::substr($source, 0, 2));
     }
 
-    /** Monogram for the organization chip. */
+    /**
+     * The human label for the active organization: the `org_name` claim Cbox ID emits,
+     * falling back to the opaque org id, then to "Personal" when unscoped. Callers should
+     * render this, never the raw `org` ulid.
+     */
+    public function orgLabel(): string
+    {
+        if ($this->orgName !== null && $this->orgName !== '') {
+            return $this->orgName;
+        }
+
+        return ($this->org !== null && $this->org !== '') ? $this->org : 'Personal';
+    }
+
+    /** Monogram for the organization chip, derived from the human org label. */
     public function orgInitials(): string
     {
-        return Str::upper(Str::substr($this->org ?? 'Personal', 0, 2));
+        $label = $this->orgLabel();
+        $parts = array_values(array_filter(preg_split('/\s+/', trim($label)) ?: []));
+
+        if (count($parts) >= 2) {
+            return Str::upper(Str::substr($parts[0], 0, 1).Str::substr($parts[count($parts) - 1], 0, 1));
+        }
+
+        return Str::upper(Str::substr($label, 0, 2));
     }
 }

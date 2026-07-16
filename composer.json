@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "cboxdk/cbox-billing",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Cbox Billing — the self-hostable billing, metering and entitlement application (provider console + self-service portal) built on cboxdk/laravel-billing and cboxdk/laravel-id.",
+    "keywords": ["billing", "metering", "entitlements", "subscriptions"],
     "license": "MIT",
     "require": {
         "php": "^8.4",

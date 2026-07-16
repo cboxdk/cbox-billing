@@ -1,58 +1,78 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Cbox Billing
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+The self-hostable billing, metering and entitlement platform — the deployable app
+built on [`cboxdk/laravel-billing`](https://github.com/cboxdk/laravel-billing).
+Plans and pricing, real-time usage metering with hard-limit enforcement, credit
+wallets, tax-aware invoicing with legal numbering, dunning, and a self-service
+customer portal — with a provider console on top.
 
-## About Laravel
+Repo: `cboxdk/cbox-billing` (private). This app composes the framework package and
+adds the provider console + hosted-cloud concerns (UI, onboarding, payment-gateway
+wiring, the hosted checkout/portal, and the customer-facing self-service surface).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Laravel 13**, PHP 8.4+.
+- Depends on **`cboxdk/laravel-billing`** (the engine) and
+  **`cboxdk/laravel-billing-stripe`** (a payment-gateway adapter) from
+  Composer/Packagist. Mollie is available as `cboxdk/laravel-billing-mollie`; a
+  manual, operator-reconciled gateway ships in the engine.
+- Signs in against **Cbox ID** over OIDC — one billing account per identity
+  organization, so entitlements are enforced at the org level on the application
+  hot path (not by inflating identity tokens).
+- Invoice PDFs render with **`setasign/fpdf`** (MIT) — pure PHP, no headless
+  browser, no external runtime.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## What's inside
 
-## Learning Laravel
+- **Provider console** — dashboard (MRR/ARR, churn, outstanding), subscriptions,
+  invoices, catalog, customers, usage, and settings, all on real engine data.
+- **Enforcement API** (`/api/v1`) — lease-backed `reserve` / `commit` / `release`
+  and combined-balance entitlement checks for the metered hot path.
+- **Management API** — self-service plans, subscribe, preview-and-change (preview
+  equals charge), cancel, usage, invoices, plus hosted checkout / customer-portal
+  sessions and embedded payment / setup intents (both integration paths).
+- **Scheduled jobs** — cycle renewal (per-cadence allotment grants + period
+  advance), convergent reconciliation, dunning, and invoice issuance.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Quickstart
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone … && cd cbox-billing
+composer setup          # installs deps, copies .env, generates the app key,
+                        # runs migrations, builds front-end assets
+composer run dev        # serve + queue + vite + logs
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Seed the catalog and a first organization with `php artisan migrate:fresh --seed`.
+The provider console is served at `/`; the metered hot path and self-service
+surface live under `/api/v1`.
 
-## Contributing
+Required env lives in `.env.example` (keep secrets out of git): the Cbox ID OIDC
+issuer/client credentials, and — per gateway you enable — the gateway API and
+webhook-signing secrets. The manual gateway needs no external credentials.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Verification
 
-## Code of Conduct
+```bash
+composer qa             # pint --test · phpstan (level max) · pest · license-check · audit
+composer sbom           # regenerate the CycloneDX SBOM (CI fails on drift)
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+All production dependencies are permissively licensed
+(`composer license-check` enforces MIT/BSD/Apache/ISC/0BSD).
 
-## Security Vulnerabilities
+## Framework-level detail
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+The billing invariants — credit-pool behaviour matrix, ledger idempotency,
+convergent reconciliation, the three-way enforcement outcome, preview-equals-charge,
+plan families and transition policy, unified entitlement and allotment distribution —
+live in the engine and are documented there, including the architecture decision
+records:
+
+- Engine docs: <https://github.com/cboxdk/laravel-billing/tree/main/docs>
+- Decision records: <https://github.com/cboxdk/laravel-billing/tree/main/adr>
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT — see [LICENSE](LICENSE).

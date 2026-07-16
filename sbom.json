@@ -13,9 +13,9 @@
         ],
         "component": {
             "type": "application",
-            "bom-ref": "laravel/laravel",
-            "name": "laravel/laravel",
-            "purl": "pkg:composer/laravel/laravel"
+            "bom-ref": "cboxdk/cbox-billing",
+            "name": "cboxdk/cbox-billing",
+            "purl": "pkg:composer/cboxdk/cbox-billing"
         }
     },
     "components": [

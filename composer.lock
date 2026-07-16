@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4ebc9d189d406a925f22d564777de10b",
+    "content-hash": "2b3d531f5e333a1c709f40933625fce5",
     "packages": [
         {
             "name": "brick/math",
@@ -258,20 +258,20 @@
         },
         {
             "name": "cboxdk/laravel-billing-stripe",
-            "version": "v0.4.0",
+            "version": "v0.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-billing-stripe.git",
-                "reference": "4ec7dfd38b2a3cb3d6f82b521779b3bd0b0e2336"
+                "reference": "cf499e3f73a66f8d9899316f86adb8e54757eaf1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-billing-stripe/zipball/4ec7dfd38b2a3cb3d6f82b521779b3bd0b0e2336",
-                "reference": "4ec7dfd38b2a3cb3d6f82b521779b3bd0b0e2336",
+                "url": "https://api.github.com/repos/cboxdk/laravel-billing-stripe/zipball/cf499e3f73a66f8d9899316f86adb8e54757eaf1",
+                "reference": "cf499e3f73a66f8d9899316f86adb8e54757eaf1",
                 "shasum": ""
             },
             "require": {
-                "cboxdk/laravel-billing": "^0.4",
+                "cboxdk/laravel-billing": "^0.4 || ^0.5 || ^0.6",
                 "illuminate/contracts": "^13.0",
                 "illuminate/database": "^13.0",
                 "illuminate/support": "^13.0",
@@ -312,9 +312,9 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-billing-stripe/issues",
-                "source": "https://github.com/cboxdk/laravel-billing-stripe/tree/v0.4.0"
+                "source": "https://github.com/cboxdk/laravel-billing-stripe/tree/v0.4.1"
             },
-            "time": "2026-07-16T08:16:58+00:00"
+            "time": "2026-07-16T17:11:17+00:00"
         },
         {
             "name": "cboxdk/laravel-geo",
@@ -9219,14 +9219,7 @@
             "time": "2025-12-08T11:19:18+00:00"
         }
     ],
-    "aliases": [
-        {
-            "package": "cboxdk/laravel-billing",
-            "version": "0.6.0.0",
-            "alias": "0.4.99",
-            "alias_normalized": "0.4.99.0"
-        }
-    ],
+    "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {},
     "prefer-stable": true,

@@ -7,7 +7,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
-        "cboxdk/laravel-billing": "0.6.0 as 0.4.99",
+        "cboxdk/laravel-billing": "^0.6",
         "cboxdk/laravel-billing-stripe": "^0.4",
         "cboxdk/license": "^0.1",
         "firebase/php-jwt": "^7.1",

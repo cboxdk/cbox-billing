@@ -33,6 +33,24 @@ readonly class BillingSessionService implements ManagesBillingSessions
         return $this->open($organization, SessionType::Checkout, $returnUrl, $plan->key, $currency);
     }
 
+    public function openOrReuseCheckout(Organization $organization, Plan $plan, ?string $currency, string $returnUrl): BillingSession
+    {
+        $existing = BillingSession::query()
+            ->where('organization_id', $organization->id)
+            ->where('type', SessionType::Checkout->value)
+            ->where('plan_key', $plan->key)
+            ->where('status', SessionStatus::Pending->value)
+            ->where('expires_at', '>', Carbon::now())
+            ->latest('id')
+            ->first();
+
+        if ($existing instanceof BillingSession) {
+            return $existing;
+        }
+
+        return $this->openCheckout($organization, $plan, $currency, $returnUrl);
+    }
+
     public function openPortal(Organization $organization, string $returnUrl): BillingSession
     {
         return $this->open($organization, SessionType::Portal, $returnUrl);

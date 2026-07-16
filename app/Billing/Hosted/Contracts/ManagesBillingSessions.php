@@ -25,6 +25,14 @@ interface ManagesBillingSessions
     public function openCheckout(Organization $organization, Plan $plan, ?string $currency, string $returnUrl): BillingSession;
 
     /**
+     * Open a checkout for `$plan`, reusing an existing still-usable (pending, un-expired)
+     * checkout session the org already holds for the SAME plan instead of minting a new
+     * one. This keeps a pre-built upgrade deep-link stable and idempotent across repeated
+     * denials rather than spawning a fresh row per enforcement call.
+     */
+    public function openOrReuseCheckout(Organization $organization, Plan $plan, ?string $currency, string $returnUrl): BillingSession;
+
+    /**
      * Open a customer-portal session for `$organization` where it manages its
      * subscription, payment method and invoices, returning to `$returnUrl` when done.
      */

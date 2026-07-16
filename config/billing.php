@@ -290,6 +290,14 @@ return [
      */
     'hosted' => [
         'session_ttl_minutes' => (int) env('CBOX_BILLING_HOSTED_SESSION_TTL', 30),
+
+        /*
+         * Where a hosted checkout returns once its payment settles. Used as the return
+         * URL for the pre-built upgrade deep-links an enforcement denial carries (#52) —
+         * the customer lands back here after unlocking the required plan. Defaults to the
+         * app root.
+         */
+        'upgrade_return_url' => env('CBOX_BILLING_UPGRADE_RETURN_URL'),
     ],
 
 ];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Billing\Enforcement\Contracts\ReservationStore;
+use App\Billing\Enforcement\Upgrade\UpgradeGate;
 use Cbox\Billing\Metering\Contracts\Enforcement;
 use Cbox\Billing\Metering\Enums\DenialReason;
 use Cbox\Billing\Metering\Enums\OutcomeStatus;
@@ -29,7 +30,7 @@ use Illuminate\Http\Request;
  */
 class ReserveController extends ApiController
 {
-    public function __invoke(Request $request, Enforcement $enforcement, ReservationStore $reservations, Config $config): JsonResponse
+    public function __invoke(Request $request, Enforcement $enforcement, ReservationStore $reservations, Config $config, UpgradeGate $upgrades): JsonResponse
     {
         $request->validate([
             'org' => ['required', 'string'],
@@ -70,10 +71,22 @@ class ReserveController extends ApiController
         if ($outcome->status === OutcomeStatus::Denied) {
             $reason = $outcome->reason;
 
-            return new JsonResponse([
+            $body = [
                 'outcome' => 'denied',
                 'reason' => $reason instanceof DenialReason ? $reason->value : 'denied',
-            ]);
+            ];
+
+            // The enforce→upgrade bridge (#52): a semantic denial carries the path to
+            // unlock — the minimum reachable plan that grants the blocking meter and a
+            // pre-built checkout deep-link to it. Omitted when no upgrade path exists
+            // (already on the top plan, or nothing grants it).
+            $upgrade = $upgrades->forReservation($org, $requests);
+
+            if ($upgrade !== null) {
+                $body['upgrade'] = $upgrade;
+            }
+
+            return new JsonResponse($body);
         }
 
         $fault = $outcome->fault;

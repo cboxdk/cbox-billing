@@ -23,4 +23,10 @@ interface ResolvesAccountCurrency
 {
     /** The currency `$organization` is (or will be) billed in. */
     public function for(Organization $organization): string;
+
+    /**
+     * The app's configured default currency — the last-resort fallback used before any
+     * account exists (e.g. resolving an upgrade offer for an org with no billing row yet).
+     */
+    public function default(): string;
 }

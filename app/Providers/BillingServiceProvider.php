@@ -12,12 +12,16 @@ use App\Billing\Enforcement\CacheReservationStore;
 use App\Billing\Enforcement\CentralAllowanceLeaseSource;
 use App\Billing\Enforcement\Contracts\ReservationStore;
 use App\Billing\Enforcement\EventLogUsageBuffer;
+use App\Billing\Enforcement\Upgrade\ResolvesRequiredPlan;
+use App\Billing\Enforcement\Upgrade\UpgradeGate;
 use App\Billing\Hosted\BillingSessionService;
 use App\Billing\Hosted\CheckoutActivation;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Invoicing\DatabaseInvoiceNumberSequence;
 use App\Billing\Invoicing\InvoiceService;
+use App\Billing\Metering\EntitlementsView;
+use App\Billing\Metering\UsageSummaryView;
 use App\Billing\Payments\Contracts\CreatesGatewayCustomer;
 use App\Billing\Payments\Contracts\DetachesPaymentMethod;
 use App\Billing\Payments\Contracts\PaysInvoices;
@@ -78,6 +82,7 @@ use Cbox\Billing\Subscription\PlanChange\ValueObjects\TransitionEdge;
 use Cbox\Billing\Wallet\Contracts\Wallet;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Support\ServiceProvider;
 use Stripe\StripeClient;
 
@@ -106,7 +111,28 @@ class BillingServiceProvider extends ServiceProvider
         $this->registerPaymentSeams();
         $this->registerGatewayCustomers();
         $this->registerHostedSessions();
+        $this->registerUpgradeGate();
         $this->registerApi();
+    }
+
+    /**
+     * Bind the enforce→upgrade bridge (#52). The gate resolves the minimum reachable plan
+     * that grants a refused meter and mints the pre-built checkout deep-link to buy it; its
+     * return URL is where the hosted checkout lands the customer once payment settles.
+     */
+    private function registerUpgradeGate(): void
+    {
+        $this->app->singleton(UpgradeGate::class, static function (Application $app): UpgradeGate {
+            $returnUrl = $app->make(Config::class)->get('billing.hosted.upgrade_return_url');
+
+            return new UpgradeGate(
+                $app->make(ResolvesRequiredPlan::class),
+                $app->make(ManagesBillingSessions::class),
+                $app->make(EntitlementsView::class),
+                $app->make(UsageSummaryView::class),
+                is_string($returnUrl) && $returnUrl !== '' ? $returnUrl : $app->make(UrlGenerator::class)->to('/'),
+            );
+        });
     }
 
     /**

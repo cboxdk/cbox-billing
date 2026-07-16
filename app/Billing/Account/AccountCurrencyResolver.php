@@ -28,4 +28,9 @@ readonly class AccountCurrencyResolver implements ResolvesAccountCurrency
             ?? $organization->billing_currency
             ?? $this->default;
     }
+
+    public function default(): string
+    {
+        return $this->default;
+    }
 }

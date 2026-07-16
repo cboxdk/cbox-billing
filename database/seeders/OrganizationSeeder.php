@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Billing\Wallet\WalletProvisioner;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\Organization;
@@ -56,10 +57,12 @@ class OrganizationSeeder extends Seeder
                 ? [Carbon::parse('2026-07-10'), Carbon::parse('2026-08-09')]
                 : [$periodStart, $periodEnd];
 
+            $canceled = $definition['canceled'] ?? false;
+
             Subscription::query()->updateOrCreate(
                 ['organization_id' => $organization->id, 'plan_id' => $plan->id],
                 [
-                    'status' => ($definition['canceled'] ?? false) ? SubscriptionStatus::Canceled : SubscriptionStatus::Active,
+                    'status' => $canceled ? SubscriptionStatus::Canceled : SubscriptionStatus::Active,
                     'seats' => $definition['seats'],
                     'current_period_start' => $subStart,
                     'current_period_end' => $subEnd,
@@ -67,6 +70,20 @@ class OrganizationSeeder extends Seeder
                     'created_at' => Carbon::parse($definition['created']),
                 ],
             );
+
+            // Provision the active org's wallet grants (the plan's credit pools + each
+            // meter's included allowance, ADR-0013) so the allowance resolver sources the
+            // exempt size from a real balance. A churned account holds no live allotment.
+            if (! $canceled) {
+                app(WalletProvisioner::class)->provision(
+                    $organization->id,
+                    $plan,
+                    (int) $definition['seats'],
+                    $subStart->toDateTimeImmutable(),
+                    $subEnd->toDateTimeImmutable(),
+                    Carbon::now()->toDateTimeImmutable(),
+                );
+            }
 
             foreach ($definition['invoices'] as $invoice) {
                 $this->seedInvoice($organization->id, $plan, $invoice);

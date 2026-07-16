@@ -13,6 +13,30 @@ return [
     'default_currency' => env('CBOX_BILLING_DEFAULT_CURRENCY', 'DKK'),
 
     /*
+     * The organization credit wallet. Under ADR-0013 a plan's included allowances and
+     * credits are one unified pool-grant model burned down in one order, so credit
+     * balances must survive a restart: `database` binds the durable {@see DatabaseWallet}
+     * (one row per grant lot, run the migration) instead of the in-memory reference.
+     * `memory` (zero-config) · `database` (durable, the app default).
+     */
+    'wallet' => [
+        'store' => env('CBOX_BILLING_WALLET_STORE', 'database'),
+    ],
+
+    /*
+     * Cross-family plan transitions (ADR-0010). Plans in the same family (a product's
+     * plans share their product key as their family) may be switched between freely;
+     * a move ACROSS families is deny-by-default and only permitted along an explicitly
+     * declared edge here. Each edge is `{from, to, guidance?, carry_over?}` in family
+     * keys — `carry_over` keeps the outgoing allotment instead of the reset default.
+     * Empty by default: the demo catalog is a single family, so every ladder move is a
+     * same-family change and needs no edge.
+     *
+     * @var list<array{from: string, to: string, guidance?: string, carry_over?: bool}>
+     */
+    'transitions' => [],
+
+    /*
      * Billing-account invariants.
      */
     'account' => [

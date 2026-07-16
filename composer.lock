@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "936b2d6d42e290a52a4d95e35c42690f",
+    "content-hash": "4beec879c44c2ce797c7ceb1ca44c301",
     "packages": [
         {
             "name": "brick/math",
@@ -193,16 +193,16 @@
         },
         {
             "name": "cboxdk/laravel-billing",
-            "version": "v0.2.0",
+            "version": "v0.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-billing.git",
-                "reference": "5ddc04a5fd0d57152e219a312914a613c134bc43"
+                "reference": "84d74f0d6e52101617c3e96a540bc9a58cba5f56"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/5ddc04a5fd0d57152e219a312914a613c134bc43",
-                "reference": "5ddc04a5fd0d57152e219a312914a613c134bc43",
+                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/84d74f0d6e52101617c3e96a540bc9a58cba5f56",
+                "reference": "84d74f0d6e52101617c3e96a540bc9a58cba5f56",
                 "shasum": ""
             },
             "require": {
@@ -251,9 +251,9 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-billing/issues",
-                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.2.0"
+                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.3.0"
             },
-            "time": "2026-07-15T21:20:57+00:00"
+            "time": "2026-07-15T23:57:06+00:00"
         },
         {
             "name": "cboxdk/laravel-geo",

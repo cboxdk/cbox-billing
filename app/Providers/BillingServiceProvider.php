@@ -47,6 +47,7 @@ use Cbox\Billing\Metering\Contracts\MeterPolicyResolver;
 use Cbox\Billing\Metering\Contracts\UsageBuffer;
 use Cbox\Billing\Metering\Enums\InfraFailurePolicy;
 use Cbox\Billing\Metering\LeasedEnforcement;
+use Cbox\Billing\Metering\Sources\WalletIncludedAllowanceResolver;
 use Cbox\Billing\Metering\Storage\DatabaseEventLog;
 use Cbox\Billing\Payment\Contracts\InvoicePaymentApplier;
 use Cbox\Billing\Payment\Contracts\ProcessedEventStore;
@@ -56,6 +57,10 @@ use Cbox\Billing\Payment\Dunning\Contracts\DunningStateStore;
 use Cbox\Billing\Reconciliation\Contracts\CheckpointStore;
 use Cbox\Billing\Reconciliation\Storage\DatabaseCheckpointStore;
 use Cbox\Billing\Seller\Contracts\EntityRouter;
+use Cbox\Billing\Subscription\Contracts\TransitionPolicy;
+use Cbox\Billing\Subscription\PlanChange\FamilyTransitionPolicy;
+use Cbox\Billing\Subscription\PlanChange\ValueObjects\TransitionEdge;
+use Cbox\Billing\Wallet\Contracts\Wallet;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
@@ -127,11 +132,53 @@ class BillingServiceProvider extends ServiceProvider
             $app->make('db')->connection(),
         ));
 
-        $this->app->singleton(MeterPolicyResolver::class, SubscriptionMeterPolicyResolver::class);
+        // The meter-policy resolver is the app's subscription→plan→entitlement decision
+        // (enabled? · weight · overage) DECORATED so each meter's included allowance is
+        // sourced from its `included`-pool wallet balance (ADR-0013) rather than the
+        // hand-authored scalar — the wallet is the home of the exempt size.
+        $this->app->singleton(SubscriptionMeterPolicyResolver::class);
+
+        $this->app->singleton(MeterPolicyResolver::class, static fn (Application $app): WalletIncludedAllowanceResolver => new WalletIncludedAllowanceResolver(
+            $app->make(SubscriptionMeterPolicyResolver::class),
+            $app->make(Wallet::class),
+        ));
 
         $this->app->singleton(ExpectedEntitlements::class, PlanExpectedEntitlements::class);
 
         $this->app->singleton(InvoicePaymentApplier::class, EloquentInvoicePaymentApplier::class);
+
+        $this->registerTransitionPolicy();
+    }
+
+    /**
+     * Bind the engine's {@see TransitionPolicy} to a {@see FamilyTransitionPolicy} built
+     * from the catalog's declared cross-family edges (`billing.transitions`). Plans in one
+     * product share a family and move freely; a cross-family move is deny-by-default and
+     * only allowed along a declared edge (ADR-0010).
+     */
+    private function registerTransitionPolicy(): void
+    {
+        $this->app->singleton(TransitionPolicy::class, static function (Application $app): FamilyTransitionPolicy {
+            $declared = $app->make(Config::class)->get('billing.transitions', []);
+            $edges = [];
+
+            foreach (is_array($declared) ? $declared : [] as $edge) {
+                if (! is_array($edge) || ! is_string($edge['from'] ?? null) || ! is_string($edge['to'] ?? null)) {
+                    continue;
+                }
+
+                $guidance = $edge['guidance'] ?? null;
+
+                $edges[] = new TransitionEdge(
+                    fromFamily: $edge['from'],
+                    toFamily: $edge['to'],
+                    guidance: is_string($guidance) ? $guidance : null,
+                    carryOver: (bool) ($edge['carry_over'] ?? false),
+                );
+            }
+
+            return new FamilyTransitionPolicy(...$edges);
+        });
     }
 
     /**

@@ -56,7 +56,7 @@ class CatalogSeeder extends Seeder
                 ['plan_id' => $plan->id, 'pool' => Pools::INCLUDED],
                 [
                     'kind' => GrantKind::Base,
-                    'cadence' => GrantCadence::Recurring,
+                    'cadence' => GrantCadence::Monthly,
                     'amount' => $definition['included_credits'],
                     'denomination' => 'credit',
                 ],

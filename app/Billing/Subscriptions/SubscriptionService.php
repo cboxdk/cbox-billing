@@ -7,27 +7,24 @@ namespace App\Billing\Subscriptions;
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Tax\TaxContextFactory;
+use App\Billing\Wallet\WalletProvisioner;
 use App\Models\Organization;
 use App\Models\Plan;
-use App\Models\PlanCreditGrant;
 use App\Models\Subscription;
+use Cbox\Billing\Subscription\Contracts\TransitionPolicy;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Cbox\Billing\Subscription\PlanChange\PlanChangePreview;
 use Cbox\Billing\Subscription\PlanChange\PlanChangePreviewer;
+use Cbox\Billing\Subscription\PlanChange\ValueObjects\CreditConsequenceRequest;
 use Cbox\Billing\Subscription\SubscriptionLifecycle;
 use Cbox\Billing\Subscription\ValueObjects\BillingPeriod;
 use Cbox\Billing\Subscription\ValueObjects\Subscription as EngineSubscription;
 use Cbox\Billing\Wallet\Contracts\Wallet;
-use Cbox\Billing\Wallet\Enums\GrantCadence;
-use Cbox\Billing\Wallet\Enums\GrantKind;
 use Cbox\Billing\Wallet\Support\Pools;
-use Cbox\Billing\Wallet\ValueObjects\CreditGrant;
 use Cbox\Billing\Wallet\ValueObjects\Denomination;
-use Cbox\Billing\Wallet\ValueObjects\Pool;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -36,20 +33,25 @@ use RuntimeException;
  *
  *  1. The durable {@see Subscription} row (which the meter-policy resolver already reads
  *     to answer "what is this dimension granted?").
- *  2. The org's {@see Wallet}: every plan credit-grant definition is projected into a
- *     real {@see CreditGrant} and deposited, so the plan's included allowance is spendable.
+ *  2. The org's {@see Wallet}: every plan grant — the authored credit-pool grants AND
+ *     each meter's included allowance (ADR-0013) — is projected into real wallet lots by
+ *     the {@see WalletProvisioner}, so the plan's included allowance is a spendable
+ *     balance the allowance resolver sources rather than a hand-authored scalar.
  *  3. The account's currency selection: a first subscribe pins the org's chosen currency,
  *     and every priced amount (proration, invoicing) runs in it.
- *  4. The engine's proration for a plan change — the preview IS the charge, so the amount
- *     due now is never a parallel estimate.
+ *  4. The engine's proration + {@see TransitionPolicy}
+ *     for a plan change — the transition is gated before proration (ADR-0010) and the
+ *     preview IS the charge, so the amount due now is never a parallel estimate.
  *  5. The {@see SubscriptionLifecycle}: an immediate cancel runs a transition that
- *     forfeits the org's forfeitable pools as it leaves without landing on another plan.
+ *     forfeits the org's forfeitable pools as it leaves without landing on another plan;
+ *     a plan switch resets the outgoing included allotment before regranting (ADR-0011).
  */
 readonly class SubscriptionService implements SubscribesOrganizations
 {
     public function __construct(
         private ConnectionInterface $db,
         private Wallet $wallet,
+        private WalletProvisioner $provisioner,
         private PlanChangePreviewer $previewer,
         private SubscriptionLifecycle $lifecycle,
         private TaxContextFactory $taxContexts,
@@ -74,7 +76,14 @@ readonly class SubscriptionService implements SubscribesOrganizations
                 ],
             );
 
-            $this->grantPlanCredits($organization->id, $plan, $seats, $periodStart, $periodEnd);
+            $this->provisioner->provision(
+                $organization->id,
+                $plan,
+                $seats,
+                $this->toImmutable($periodStart),
+                $this->toImmutable($periodEnd),
+                $this->toImmutable(Carbon::now()),
+            );
 
             return $subscription;
         });
@@ -90,14 +99,23 @@ readonly class SubscriptionService implements SubscribesOrganizations
         $preview = $this->buildPreview($subscription, $newPlan);
 
         $this->db->transaction(function () use ($subscription, $newPlan): void {
+            $periodStart = $subscription->current_period_start ?? Carbon::now()->startOfMonth();
+            $periodEnd = $subscription->current_period_end ?? Carbon::now()->endOfMonth();
+
             $subscription->forceFill(['plan_id' => $newPlan->id])->save();
 
-            $this->grantPlanCredits(
+            // Per-cycle reset (ADR-0011): forfeit the outgoing plan's forfeitable
+            // (`included`) allotment before the incoming plan's is granted, so the
+            // included allowance is the new plan's, never the sum of both.
+            $this->wallet->forfeit($subscription->organization_id, $this->nowMillis());
+
+            $this->provisioner->provision(
                 $subscription->organization_id,
                 $newPlan,
                 $subscription->seats,
-                $subscription->current_period_start ?? Carbon::now()->startOfMonth(),
-                $subscription->current_period_end ?? Carbon::now()->endOfMonth(),
+                $this->toImmutable($periodStart),
+                $this->toImmutable($periodEnd),
+                $this->toImmutable(Carbon::now()),
             );
         });
 
@@ -124,30 +142,69 @@ readonly class SubscriptionService implements SubscribesOrganizations
         return $subscription;
     }
 
-    /** Compute the proration consequence of a plan change in the account's currency. */
+    /** Compute the proration + credit consequence of a plan change in the account's currency. */
     private function buildPreview(Subscription $subscription, Plan $newPlan): PlanChangePreview
     {
         $organization = $subscription->organization
             ?? throw new RuntimeException(sprintf('Subscription [%d] has no organization.', $subscription->id));
+
         $currentPlan = $subscription->plan;
+
+        if (! $currentPlan instanceof Plan) {
+            throw new RuntimeException(sprintf('Subscription [%d] has no plan to change from.', $subscription->id));
+        }
+
+        $currentPlan->loadMissing('product');
+        $newPlan->loadMissing('product');
+
         $currency = $this->currencies->for($organization);
 
-        $periodStart = $subscription->current_period_start ?? Carbon::now()->startOfMonth();
-        $periodEnd = $subscription->current_period_end ?? Carbon::now()->endOfMonth();
-
         $period = new BillingPeriod(
-            $this->toImmutable($periodStart),
-            $this->toImmutable($periodEnd),
+            $this->toImmutable($subscription->current_period_start ?? Carbon::now()->startOfMonth()),
+            $this->toImmutable($subscription->current_period_end ?? Carbon::now()->endOfMonth()),
         );
 
         return $this->previewer->preview(
-            currentPrice: $currentPlan?->priceFor($currency),
+            fromPlan: $currentPlan->toCatalogProduct(),
+            toPlan: $newPlan->toCatalogProduct(),
+            currentPrice: $currentPlan->priceFor($currency),
             newPrice: $newPlan->priceFor($currency),
             period: $period,
             at: $this->toImmutable(Carbon::now()),
             context: $this->taxContexts->forOrganization($organization),
+            credit: $this->creditConsequence($organization->id, $newPlan),
             description: sprintf('Change to %s', $newPlan->name),
         );
+    }
+
+    /**
+     * The wallet-derived inputs the previewer projects the credit consequence from
+     * (ADR-0011): the outgoing plan's unspent recurring allotment, the incoming plan's
+     * allotment, and the surviving pay-as-you-go balance — all read here so the previewer
+     * stays a pure function of its inputs.
+     */
+    private function creditConsequence(string $org, Plan $newPlan): CreditConsequenceRequest
+    {
+        $now = $this->nowMillis();
+        $allotment = Denomination::unit('credit');
+
+        return new CreditConsequenceRequest(
+            outgoingAllotmentRemaining: max(0, $this->wallet->balance($org, Pools::included(), $allotment, $now)),
+            incomingAllotment: $this->includedCreditAllotment($newPlan),
+            payAsYouGoBalance: $this->wallet->balance($org, Pools::purchased(), $allotment, $now),
+        );
+    }
+
+    /** The plan's recurring `included` credit allotment (the `credit`-denominated grant), or 0. */
+    private function includedCreditAllotment(Plan $plan): int
+    {
+        foreach ($plan->creditGrants as $grant) {
+            if ($grant->pool === Pools::INCLUDED && $grant->denomination === 'credit') {
+                return $grant->amount;
+            }
+        }
+
+        return 0;
     }
 
     /** Record the account's chosen currency the first time it subscribes. */
@@ -185,63 +242,6 @@ readonly class SubscriptionService implements SubscribesOrganizations
         );
     }
 
-    /** Project a plan's credit-grant definitions into wallet deposits. */
-    private function grantPlanCredits(string $org, Plan $plan, int $seats, Carbon $periodStart, Carbon $periodEnd): void
-    {
-        foreach ($plan->creditGrants as $definition) {
-            $amount = $definition->kind === GrantKind::PerSeat
-                ? $definition->amount * max(1, $seats)
-                : $definition->amount;
-
-            if ($amount <= 0) {
-                continue;
-            }
-
-            $pool = $this->pool($definition->pool);
-
-            $this->wallet->grant(new CreditGrant(
-                id: sprintf('%s:%s:%s', $org, $plan->key, Str::random(8)),
-                org: $org,
-                pool: $pool,
-                denomination: $this->denomination($definition),
-                remaining: $amount,
-                expiresAt: $pool->requiresExpiry || $this->isRecurring($definition)
-                    ? $this->toMillis($periodEnd)
-                    : null,
-                grantedAt: $this->toMillis($periodStart),
-                kind: $definition->kind,
-                cadence: $definition->cadence,
-            ));
-        }
-    }
-
-    private function isRecurring(PlanCreditGrant $definition): bool
-    {
-        return $definition->cadence === GrantCadence::Recurring;
-    }
-
-    /** Resolve the engine {@see Pool} behaviour matrix for a catalog pool key. */
-    private function pool(string $key): Pool
-    {
-        return match ($key) {
-            Pools::PROMOTIONAL => Pools::promotional(),
-            Pools::PURCHASED => Pools::purchased(),
-            Pools::REGULATED => Pools::regulated(),
-            default => Pools::included(),
-        };
-    }
-
-    private function denomination(PlanCreditGrant $definition): Denomination
-    {
-        $code = $definition->denomination;
-
-        // A three-letter upper-case code is treated as an ISO money denomination;
-        // anything else (e.g. `credit`) is a meter/unit denomination.
-        return preg_match('/^[A-Z]{3}$/', $code) === 1
-            ? Denomination::money($code)
-            : Denomination::unit($code);
-    }
-
     /** @return array{0: Carbon, 1: Carbon} */
     private function currentPeriod(): array
     {
@@ -255,13 +255,8 @@ readonly class SubscriptionService implements SubscribesOrganizations
         return $carbon->toDateTimeImmutable();
     }
 
-    private function toMillis(Carbon $carbon): int
-    {
-        return (int) ($carbon->getTimestamp() * 1000);
-    }
-
     private function nowMillis(): int
     {
-        return $this->toMillis(Carbon::now());
+        return (int) (Carbon::now()->getTimestamp() * 1000);
     }
 }

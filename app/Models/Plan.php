@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Cbox\Billing\Catalog\Enums\PlanStatus;
+use Cbox\Billing\Catalog\ValueObjects\Product as CatalogProduct;
 use Cbox\Billing\Money\Money;
+use Cbox\Billing\Subscription\Contracts\TransitionPolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -73,6 +76,31 @@ class Plan extends Model
         }
 
         return $currencies;
+    }
+
+    /**
+     * Project this plan into the engine's catalog {@see CatalogProduct} — the shape the
+     * {@see TransitionPolicy} and plan-change
+     * previewer gate on (ADR-0010). Its **family** is the owning product's key, so every
+     * plan under one product is a single family a subscription may move within freely;
+     * an inactive plan is `Legacy` — a valid transition source but never a target.
+     */
+    public function toCatalogProduct(): CatalogProduct
+    {
+        return new CatalogProduct(
+            id: $this->key,
+            name: $this->name,
+            family: $this->family(),
+            status: $this->active ? PlanStatus::Offered : PlanStatus::Legacy,
+        );
+    }
+
+    /** The transition family this plan belongs to: its owning product's key. */
+    public function family(): string
+    {
+        $product = $this->product;
+
+        return $product instanceof Product ? $product->key : $this->key;
     }
 
     /** @return BelongsTo<Product, $this> */

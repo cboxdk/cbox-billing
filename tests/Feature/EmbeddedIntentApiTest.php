@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
-use App\Billing\Payments\Contracts\CreatesGatewayCustomer;
-use App\Billing\Payments\Contracts\DetachesPaymentMethod;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\ApiToken;
@@ -16,7 +14,6 @@ use App\Models\Plan;
 use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Database\Seeders\CatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\Support\RecordingGatewayCustomerFactory;
 use Tests\Support\VaultPaymentGateway;
 use Tests\TestCase;
 
@@ -42,17 +39,8 @@ class EmbeddedIntentApiTest extends TestCase
     {
         $gateway = new VaultPaymentGateway;
         $this->app->instance(PaymentGateway::class, $gateway);
-        $this->app->instance(DetachesPaymentMethod::class, $gateway);
 
         return $gateway;
-    }
-
-    private function recordFactory(): RecordingGatewayCustomerFactory
-    {
-        $factory = new RecordingGatewayCustomerFactory;
-        $this->app->instance(CreatesGatewayCustomer::class, $factory);
-
-        return $factory;
     }
 
     /** @return array{0: Organization, 1: array<string, string>} */
@@ -73,7 +61,6 @@ class EmbeddedIntentApiTest extends TestCase
     public function test_setup_and_payment_intents_share_one_reused_gateway_customer(): void
     {
         $gateway = $this->bindGateway();
-        $factory = $this->recordFactory();
         [, $auth] = $this->orgWithToken('org_intent');
 
         // First intent for the org: save a card off-session.
@@ -94,7 +81,7 @@ class EmbeddedIntentApiTest extends TestCase
         $this->assertStringStartsWith('cs_pi_', (string) $payment->json('client_secret'));
 
         // The gateway customer was created exactly once and stored.
-        $this->assertSame(1, $factory->calls);
+        $this->assertSame(1, $gateway->customerCalls);
         $this->assertSame(1, GatewayCustomer::query()->where('organization_id', 'org_intent')->count());
 
         $stored = GatewayCustomer::query()->where('organization_id', 'org_intent')->firstOrFail();
@@ -110,7 +97,6 @@ class EmbeddedIntentApiTest extends TestCase
     public function test_payment_intent_for_an_invoice_charges_its_total_and_carries_its_number(): void
     {
         $gateway = $this->bindGateway();
-        $this->recordFactory();
         [$organization, $auth] = $this->orgWithToken('org_invoice');
 
         $subscription = app(SubscribesOrganizations::class)
@@ -134,7 +120,6 @@ class EmbeddedIntentApiTest extends TestCase
     public function test_payment_intent_requires_an_invoice_or_an_amount(): void
     {
         $this->bindGateway();
-        $this->recordFactory();
         [, $auth] = $this->orgWithToken('org_bad');
 
         $this->postJson('/api/v1/payment-intents', ['org' => 'org_bad'], $auth)
@@ -144,7 +129,6 @@ class EmbeddedIntentApiTest extends TestCase
     public function test_payment_methods_list_default_and_remove(): void
     {
         $gateway = $this->bindGateway();
-        $this->recordFactory();
         [$organization, $auth] = $this->orgWithToken('org_pm');
 
         // Seed the vault under the org's resolved gateway customer (what a confirmed
@@ -184,7 +168,6 @@ class EmbeddedIntentApiTest extends TestCase
     public function test_embedded_intent_api_enforces_per_org_scope(): void
     {
         $this->bindGateway();
-        $this->recordFactory();
 
         Organization::query()->create(['id' => 'org_a', 'name' => 'A', 'billing_country' => 'DK']);
         Organization::query()->create(['id' => 'org_b', 'name' => 'B', 'billing_country' => 'DK']);

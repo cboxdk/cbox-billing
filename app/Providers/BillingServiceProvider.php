@@ -22,20 +22,14 @@ use App\Billing\Invoicing\DatabaseInvoiceNumberSequence;
 use App\Billing\Invoicing\InvoiceService;
 use App\Billing\Metering\EntitlementsView;
 use App\Billing\Metering\UsageSummaryView;
-use App\Billing\Payments\Contracts\CreatesGatewayCustomer;
-use App\Billing\Payments\Contracts\DetachesPaymentMethod;
 use App\Billing\Payments\Contracts\PaysInvoices;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Payments\DatabaseDunningStateStore;
 use App\Billing\Payments\DatabaseGatewayCustomerResolver;
 use App\Billing\Payments\DatabaseProcessedEventStore;
 use App\Billing\Payments\DatabaseSettledPaymentStore;
-use App\Billing\Payments\ManualGatewayCustomerFactory;
-use App\Billing\Payments\ManualPaymentMethodDetacher;
 use App\Billing\Payments\ManualWebhookVerifier;
 use App\Billing\Payments\PaymentService;
-use App\Billing\Payments\StripeGatewayCustomerFactory;
-use App\Billing\Payments\StripePaymentMethodDetacher;
 use App\Billing\Seams\DatabaseAccountStanding;
 use App\Billing\Seams\EloquentInvoicePaymentApplier;
 use App\Billing\Seams\PlanExpectedEntitlements;
@@ -84,7 +78,6 @@ use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Support\ServiceProvider;
-use Stripe\StripeClient;
 
 /**
  * Wires the billing engine to this app's DURABLE foundation. Two responsibilities,
@@ -138,28 +131,14 @@ class BillingServiceProvider extends ServiceProvider
     /**
      * Wire the gateway customer mapping (ADR-0009 Path B). Intents are created against the
      * gateway's own customer handle (`cus_…`), never the raw org id, so the resolver mints
-     * that handle once per `(org, gateway)` and reuses it. The creation half and the detach
-     * seam are gateway-specific: bound to the Stripe SDK when Stripe is configured, and to
-     * the vault-less manual implementations otherwise.
+     * that handle once per `(org, gateway)` and reuses it. Both the minting and the detach
+     * are the engine gateway's own operations (`createCustomer` / `detachPaymentMethod` on
+     * the bound {@see PaymentGateway}), so the app reaches into no gateway SDK directly.
      */
     private function registerGatewayCustomers(): void
     {
-        $config = $this->app->make(Config::class);
-
-        if ($this->stripeGatewayConfigured($config)) {
-            $secret = $config->get('billing-stripe.secret');
-            $client = new StripeClient(is_string($secret) ? $secret : '');
-
-            $this->app->singleton(CreatesGatewayCustomer::class, static fn (): StripeGatewayCustomerFactory => new StripeGatewayCustomerFactory($client));
-            $this->app->singleton(DetachesPaymentMethod::class, static fn (): StripePaymentMethodDetacher => new StripePaymentMethodDetacher($client));
-        } else {
-            $this->app->singleton(CreatesGatewayCustomer::class, ManualGatewayCustomerFactory::class);
-            $this->app->singleton(DetachesPaymentMethod::class, ManualPaymentMethodDetacher::class);
-        }
-
         $this->app->singleton(ResolvesGatewayCustomer::class, static fn (Application $app): DatabaseGatewayCustomerResolver => new DatabaseGatewayCustomerResolver(
             $app->make(PaymentGateway::class),
-            $app->make(CreatesGatewayCustomer::class),
         ));
     }
 

@@ -4,76 +4,32 @@ declare(strict_types=1);
 
 namespace Tests\Support;
 
-use App\Billing\Payments\Contracts\DetachesPaymentMethod;
 use Cbox\Billing\Payment\Enums\PaymentIntentStatus;
 use Cbox\Billing\Payment\Testing\FakePaymentGateway;
-use Cbox\Billing\Payment\ValueObjects\PaymentMethod;
 use Cbox\Billing\Payment\ValueObjects\PaymentResult;
 
 /**
- * The engine's {@see FakePaymentGateway} extended into a coherent per-account card vault
- * that also honours {@see DetachesPaymentMethod} — the one operation the engine gateway
- * contract lacks at v0.3.0. Intent creation is inherited unchanged (so setup/payment
- * intents still record their requests and return a client secret); the four stored-method
- * operations plus detach share a single vault so list → default → remove is observable
- * end-to-end in a feature test without live gateway keys.
+ * The engine's {@see FakePaymentGateway} — itself a coherent per-account card vault that at
+ * v0.4.0 also honours `createCustomer` and `detachPaymentMethod` — with one test-only twist:
+ * `createCustomer` mints a UNIQUE id per call and counts the calls. Uniqueness means a reused
+ * id can only be explained by the resolver having stored it (a deterministic id would reuse
+ * regardless), and the counter proves the customer was minted exactly once across many
+ * intents for one org. Intent creation and the stored-method + detach operations are inherited
+ * unchanged, so list → default → remove is observable end-to-end without live gateway keys.
  */
-class VaultPaymentGateway extends FakePaymentGateway implements DetachesPaymentMethod
+class VaultPaymentGateway extends FakePaymentGateway
 {
-    /** @var array<string, list<PaymentMethod>> */
-    private array $vault = [];
+    public int $customerCalls = 0;
 
     public function __construct(PaymentIntentStatus $intentStatus = PaymentIntentStatus::Succeeded)
     {
         parent::__construct(PaymentResult::succeeded('gw_ref'), null, $intentStatus);
     }
 
-    /**
-     * @return list<PaymentMethod>
-     */
-    public function paymentMethods(string $account): array
+    public function createCustomer(string $account, ?string $email = null, ?string $name = null): string
     {
-        return $this->vault[$account] ?? [];
-    }
+        $this->customerCalls++;
 
-    public function attachPaymentMethod(string $account, string $paymentMethodId): PaymentMethod
-    {
-        $isDefault = ($this->vault[$account] ?? []) === [];
-
-        $method = new PaymentMethod(
-            id: $paymentMethodId,
-            brand: 'visa',
-            last4: '4242',
-            expMonth: 12,
-            expYear: 2030,
-            isDefault: $isDefault,
-        );
-
-        $this->vault[$account][] = $method;
-
-        return $method;
-    }
-
-    public function setDefaultPaymentMethod(string $account, string $paymentMethodId): void
-    {
-        $this->vault[$account] = array_map(
-            static fn (PaymentMethod $method): PaymentMethod => new PaymentMethod(
-                id: $method->id,
-                brand: $method->brand,
-                last4: $method->last4,
-                expMonth: $method->expMonth,
-                expYear: $method->expYear,
-                isDefault: $method->id === $paymentMethodId,
-            ),
-            $this->vault[$account] ?? [],
-        );
-    }
-
-    public function detach(string $account, string $paymentMethodId): void
-    {
-        $this->vault[$account] = array_values(array_filter(
-            $this->vault[$account] ?? [],
-            static fn (PaymentMethod $method): bool => $method->id !== $paymentMethodId,
-        ));
+        return sprintf('cus_test_%s_%d', $account, $this->customerCalls);
     }
 }

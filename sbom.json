@@ -1,7 +1,7 @@
 {
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:a263ce9e-bcd0-40c0-8ee8-e9dd000b49b1",
+    "serialNumber": "urn:uuid:b679433d-81be-4812-ae4e-3c1e33af73fc",
     "version": 1,
     "metadata": {
         "tools": [
@@ -69,11 +69,11 @@
         },
         {
             "type": "library",
-            "bom-ref": "pkg:composer/cboxdk/laravel-billing@v0.3.0",
+            "bom-ref": "pkg:composer/cboxdk/laravel-billing@v0.4.0",
             "group": "cboxdk",
             "name": "laravel-billing",
-            "version": "v0.3.0",
-            "purl": "pkg:composer/cboxdk/laravel-billing@v0.3.0",
+            "version": "v0.4.0",
+            "purl": "pkg:composer/cboxdk/laravel-billing@v0.4.0",
             "description": "Cbox Billing \u2014 the billing engine for Laravel \u2014 a gateway-agnostic library: catalog, subscriptions, real-time usage metering with hard limits, a double-entry ledger, invoicing, and pricing operations.",
             "licenses": [
                 {
@@ -85,11 +85,11 @@
         },
         {
             "type": "library",
-            "bom-ref": "pkg:composer/cboxdk/laravel-billing-stripe@v0.3.0",
+            "bom-ref": "pkg:composer/cboxdk/laravel-billing-stripe@v0.4.0",
             "group": "cboxdk",
             "name": "laravel-billing-stripe",
-            "version": "v0.3.0",
-            "purl": "pkg:composer/cboxdk/laravel-billing-stripe@v0.3.0",
+            "version": "v0.4.0",
+            "purl": "pkg:composer/cboxdk/laravel-billing-stripe@v0.4.0",
             "description": "Cbox Billing \u2014 Stripe payment-gateway adapter: a PaymentGateway implementation backed by Stripe, for cboxdk/laravel-billing.",
             "licenses": [
                 {

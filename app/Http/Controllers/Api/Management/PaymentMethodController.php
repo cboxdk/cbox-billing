@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
-use App\Billing\Payments\Contracts\DetachesPaymentMethod;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization;
@@ -73,7 +72,7 @@ class PaymentMethodController extends ApiController
         return new JsonResponse(['data' => $methods]);
     }
 
-    public function destroy(Request $request, string $org, string $id, ResolvesGatewayCustomer $customers, DetachesPaymentMethod $detacher): JsonResponse
+    public function destroy(Request $request, string $org, string $id, PaymentGateway $gateway, ResolvesGatewayCustomer $customers): JsonResponse
     {
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
             return $denied;
@@ -85,7 +84,7 @@ class PaymentMethodController extends ApiController
             return new JsonResponse(['error' => 'Unknown organization.'], Response::HTTP_NOT_FOUND);
         }
 
-        $detacher->detach($customers->resolve($organization), $id);
+        $gateway->detachPaymentMethod($customers->resolve($organization), $id);
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }

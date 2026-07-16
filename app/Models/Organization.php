@@ -54,6 +54,15 @@ class Organization extends Model
         return $this->billing_country !== null;
     }
 
+    /**
+     * The billing-contact email transactional mail is sent to, or null when the account
+     * has none on file (the notifier skips — and logs — rather than inventing a recipient).
+     */
+    public function billingContact(): ?string
+    {
+        return $this->billing_email !== null && $this->billing_email !== '' ? $this->billing_email : null;
+    }
+
     /** @return HasMany<Subscription, $this> */
     public function subscriptions(): HasMany
     {

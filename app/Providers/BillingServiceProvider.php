@@ -22,6 +22,8 @@ use App\Billing\Invoicing\DatabaseInvoiceNumberSequence;
 use App\Billing\Invoicing\InvoiceService;
 use App\Billing\Metering\EntitlementsView;
 use App\Billing\Metering\UsageSummaryView;
+use App\Billing\Notifications\BillingNotifier;
+use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Payments\Contracts\PaysInvoices;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Payments\DatabaseDunningStateStore;
@@ -106,6 +108,10 @@ class BillingServiceProvider extends ServiceProvider
         $this->registerHostedSessions();
         $this->registerUpgradeGate();
         $this->registerApi();
+
+        // The customer-facing transactional mail surface: one place resolves the billing
+        // contact and queues the branded Mailable for each lifecycle event.
+        $this->app->singleton(NotifiesCustomers::class, BillingNotifier::class);
     }
 
     /**

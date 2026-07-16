@@ -4,22 +4,17 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Billing\Subscriptions\CycleRenewalService;
+use App\Jobs\RenewSubscriptionJob;
 use App\Models\Subscription;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Illuminate\Console\Command;
-use Throwable;
 
 /**
- * The scheduled cycle-renewal run (ADR-0012/0013/0014): fire each active subscription's
- * recurring per-cycle credit allotments, advance the period on its boundary, renew add-ons,
- * and issue the renewal invoice — a thin adapter over the {@see CycleRenewalService}, which
- * owns the idempotent, time-keyed granting.
- *
- * Every active, non-paused subscription is offered to the service each run: the service
- * grants only what has vested and only advances a period whose boundary has passed, so a
- * daily cadence drips finer-grained allotments and rolls periods over exactly once. Paused
- * and canceled subscriptions are skipped; a due end-of-period cancellation is enacted.
+ * The scheduled cycle-renewal pass (ADR-0012/0013/0014): dispatch one queued
+ * {@see RenewSubscriptionJob} per active, non-paused subscription. A thin dispatcher — the
+ * per-tenant renewal (grant vested allotments, advance the period, renew add-ons, issue the
+ * renewal invoice, and send the ahead-of-renewal reminder) runs in the job, isolated so one
+ * org's failure retries alone.
  *
  * `--org=` limits the run to one organization.
  */
@@ -27,14 +22,13 @@ class RenewCycles extends Command
 {
     protected $signature = 'billing:renew {--org= : Limit the run to one organization id}';
 
-    protected $description = 'Fire scheduled per-cycle credit allotments, advance periods, renew add-ons, and invoice renewals (ADR-0013/0014).';
+    protected $description = 'Dispatch per-subscription cycle-renewal jobs for active subscriptions (ADR-0013/0014).';
 
-    public function handle(CycleRenewalService $renewals): int
+    public function handle(): int
     {
         $query = Subscription::query()
             ->where('status', SubscriptionStatus::Active->value)
-            ->whereNull('paused_at')
-            ->with(['organization', 'plan.prices', 'plan.product', 'plan.creditGrants', 'plan.entitlements.meter', 'addOns']);
+            ->whereNull('paused_at');
 
         $org = $this->option('org');
 
@@ -42,52 +36,18 @@ class RenewCycles extends Command
             $query->where('organization_id', $org);
         }
 
-        $renewed = 0;
-        $addOns = 0;
-        $canceled = 0;
-        $invoices = 0;
-        $failed = 0;
+        $dispatched = 0;
 
-        foreach ($query->get() as $subscription) {
-            try {
-                $outcome = $renewals->renew($subscription);
-            } catch (Throwable $e) {
-                $failed++;
-                $this->warn(sprintf('%s failed: %s', $subscription->organization_id, $e->getMessage()));
-
+        foreach ($query->pluck('id') as $id) {
+            if (! is_int($id)) {
                 continue;
             }
 
-            $addOns += $outcome->addOnsRenewed;
-
-            if ($outcome->canceled) {
-                $canceled++;
-                $this->line(sprintf('<comment>%s</comment> ended (cancellation came due)', $subscription->organization_id));
-            }
-
-            if ($outcome->baseRenewed) {
-                $renewed++;
-                $invoice = $outcome->invoice;
-                $invoices += $invoice === null ? 0 : 1;
-                $this->line(sprintf(
-                    '<info>%s</info> renewed to %s → %s',
-                    $subscription->organization_id,
-                    $subscription->current_period_end?->format('Y-m-d') ?? 'n/a',
-                    $invoice === null ? 'invoice pending' : $invoice->number,
-                ));
-            }
+            RenewSubscriptionJob::dispatch($id);
+            $dispatched++;
         }
 
-        $this->info(sprintf(
-            'Renewed %d, %d add-on cycle%s, %d canceled, %d invoice%s, %d failed.',
-            $renewed,
-            $addOns,
-            $addOns === 1 ? '' : 's',
-            $canceled,
-            $invoices,
-            $invoices === 1 ? '' : 's',
-            $failed,
-        ));
+        $this->info(sprintf('Dispatched %d renewal job%s.', $dispatched, $dispatched === 1 ? '' : 's'));
 
         return self::SUCCESS;
     }

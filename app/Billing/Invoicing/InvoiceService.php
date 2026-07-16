@@ -6,6 +6,7 @@ namespace App\Billing\Invoicing;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Seller\SellerCatalog;
 use App\Billing\Tax\TaxContextFactory;
 use App\Models\Invoice;
@@ -47,6 +48,7 @@ readonly class InvoiceService implements GeneratesInvoices
         private SellerCatalog $sellers,
         private TaxContextFactory $taxContexts,
         private ResolvesAccountCurrency $currencies,
+        private NotifiesCustomers $notifier,
     ) {}
 
     public function quoteFor(Subscription $subscription): Quote
@@ -71,11 +73,17 @@ readonly class InvoiceService implements GeneratesInvoices
             ));
         }
 
-        return $this->db->transaction(function () use ($subscription, $organization, $seller, $quote): Invoice {
+        $invoice = $this->db->transaction(function () use ($subscription, $organization, $seller, $quote): Invoice {
             $issued = $this->invoicer->issue($quote, $seller, $organization->id, $this->issuedAt());
 
             return $this->persist($subscription, $seller->id, $issued);
         });
+
+        // Notify the billing contact once the invoice is durably finalized (outside the
+        // transaction, so a queued send never rides an uncommitted invoice).
+        $this->notifier->invoiceIssued($invoice, $subscription);
+
+        return $invoice;
     }
 
     private function organizationOf(Subscription $subscription): Organization

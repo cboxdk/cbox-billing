@@ -1,7 +1,7 @@
 {
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:60c3efff-3d67-4de7-af89-7face02c3d5f",
+    "serialNumber": "urn:uuid:9474c23d-ea66-4042-9919-17be9f8baec1",
     "version": 1,
     "metadata": {
         "tools": [
@@ -117,6 +117,22 @@
         },
         {
             "type": "library",
+            "bom-ref": "pkg:composer/cboxdk/laravel-health@v2.0.1",
+            "group": "cboxdk",
+            "name": "laravel-health",
+            "version": "v2.0.1",
+            "purl": "pkg:composer/cboxdk/laravel-health@v2.0.1",
+            "description": "Health checks, Kubernetes probes, Prometheus metrics, and system monitoring for Laravel",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "library",
             "bom-ref": "pkg:composer/cboxdk/laravel-tax@v0.1.1",
             "group": "cboxdk",
             "name": "laravel-tax",
@@ -133,12 +149,44 @@
         },
         {
             "type": "library",
+            "bom-ref": "pkg:composer/cboxdk/laravel-telemetry@v1.0.0",
+            "group": "cboxdk",
+            "name": "laravel-telemetry",
+            "version": "v1.0.0",
+            "purl": "pkg:composer/cboxdk/laravel-telemetry@v1.0.0",
+            "description": "Collector-free telemetry for Laravel: Prometheus metrics, OTLP traces and events. No C extension, no protobuf, no sidecar \u2014 metrics that actually work under FPM.",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "library",
             "bom-ref": "pkg:composer/cboxdk/license@v0.1.0",
             "group": "cboxdk",
             "name": "license",
             "version": "v0.1.0",
             "purl": "pkg:composer/cboxdk/license@v0.1.0",
             "description": "Framework-agnostic, offline license core: mint and verify compact Ed25519-signed license artifacts (EdDSA JWTs) with entitlements, limits, deployment/domain binding, grace windows and signed revocation lists. The shared leaf both a billing issuer and a self-hosted verifier depend on.",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "bom-ref": "pkg:composer/cboxdk/system-metrics@v3.0.1",
+            "group": "cboxdk",
+            "name": "system-metrics",
+            "version": "v3.0.1",
+            "purl": "pkg:composer/cboxdk/system-metrics@v3.0.1",
+            "description": "Peek into your low level system metrics with PHP",
             "licenses": [
                 {
                     "license": {
@@ -871,6 +919,22 @@
             "version": "1.9.0",
             "purl": "pkg:composer/setasign/fpdf@1.9.0",
             "description": "FPDF is a PHP class which allows to generate PDF files with pure PHP. F from FPDF stands for Free: you may use it for any kind of usage and modify it to suit your needs.",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "bom-ref": "pkg:composer/spatie/laravel-package-tools@1.93.1",
+            "group": "spatie",
+            "name": "laravel-package-tools",
+            "version": "1.93.1",
+            "purl": "pkg:composer/spatie/laravel-package-tools@1.93.1",
+            "description": "Tools for creating Laravel packages",
             "licenses": [
                 {
                     "license": {

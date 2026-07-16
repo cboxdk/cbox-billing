@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "2b3d531f5e333a1c709f40933625fce5",
+    "content-hash": "7dd94e189acaaa4100864e233acd2faa",
     "packages": [
         {
             "name": "brick/math",
@@ -377,6 +377,83 @@
             "time": "2026-07-15T08:50:18+00:00"
         },
         {
+            "name": "cboxdk/laravel-health",
+            "version": "v2.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cboxdk/laravel-health.git",
+                "reference": "837514c25e9da908f3a84766d2d9e1cde31c156f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cboxdk/laravel-health/zipball/837514c25e9da908f3a84766d2d9e1cde31c156f",
+                "reference": "837514c25e9da908f3a84766d2d9e1cde31c156f",
+                "shasum": ""
+            },
+            "require": {
+                "cboxdk/system-metrics": "^3.0",
+                "illuminate/contracts": "^11.0|^12.0|^13.0",
+                "php": "^8.3",
+                "spatie/laravel-package-tools": "^1.16"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.14",
+                "nunomaduro/collision": "^8.8",
+                "orchestra/testbench": "^11.0||^10.0||^9.0",
+                "pestphp/pest": "^4.0",
+                "pestphp/pest-plugin-arch": "^4.0",
+                "pestphp/pest-plugin-laravel": "^4.0",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "LaravelHealth": "Cbox\\LaravelHealth\\Facades\\LaravelHealth"
+                    },
+                    "providers": [
+                        "Cbox\\LaravelHealth\\LaravelHealthServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cbox\\LaravelHealth\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Sylvester Damgaard",
+                    "email": "sn@cbox.dk",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Health checks, Kubernetes probes, Prometheus metrics, and system monitoring for Laravel",
+            "homepage": "https://github.com/cboxdk/laravel-health",
+            "keywords": [
+                "Metrics",
+                "cbox",
+                "health",
+                "health-check",
+                "kubernetes",
+                "laravel",
+                "monitoring",
+                "prometheus"
+            ],
+            "support": {
+                "issues": "https://github.com/cboxdk/laravel-health/issues",
+                "source": "https://github.com/cboxdk/laravel-health/tree/v2.0.1"
+            },
+            "time": "2026-07-13T13:28:55+00:00"
+        },
+        {
             "name": "cboxdk/laravel-tax",
             "version": "v0.1.1",
             "source": {
@@ -437,6 +514,102 @@
                 "source": "https://github.com/cboxdk/laravel-tax/tree/v0.1.1"
             },
             "time": "2026-07-15T13:11:22+00:00"
+        },
+        {
+            "name": "cboxdk/laravel-telemetry",
+            "version": "v1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cboxdk/laravel-telemetry.git",
+                "reference": "dabfd740b5e491988221b9f3784310532f717a69"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cboxdk/laravel-telemetry/zipball/dabfd740b5e491988221b9f3784310532f717a69",
+                "reference": "dabfd740b5e491988221b9f3784310532f717a69",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/contracts": "^12.0|^13.0",
+                "illuminate/support": "^12.0|^13.0",
+                "php": "^8.3|^8.4|^8.5"
+            },
+            "require-dev": {
+                "cboxdk/system-metrics": "^3.0",
+                "larastan/larastan": "^3.0",
+                "laravel/horizon": "^5.47",
+                "laravel/pennant": "^1.24",
+                "laravel/pint": "^1.14",
+                "laravel/reverb": "^1.10",
+                "livewire/livewire": "^3.0|^4.0",
+                "nunomaduro/collision": "^8.8",
+                "orchestra/testbench": "^10.0|^11.0",
+                "pestphp/pest": "^4.0",
+                "pestphp/pest-plugin-arch": "^4.0",
+                "pestphp/pest-plugin-laravel": "^4.0",
+                "phpstan/extension-installer": "^1.4",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0"
+            },
+            "suggest": {
+                "cboxdk/system-metrics": "Host CPU/memory/load metrics via the built-in provider AND real per-request/per-job process footprint (peak RSS, CPU utilization) on spans.",
+                "ext-apcu": "Required when using the apcu metric store.",
+                "ext-excimer": "CPU profiling for slow requests/jobs (telemetry.instrument.profiling) — a 'top functions by sample count' event, not a full pprof export.",
+                "ext-redis": "Recommended when using the redis metric store (phpredis).",
+                "geoip2/geoip2": "Resolve client.geo.* from the IP for analytics (telemetry.analytics.geo) with a MaxMind GeoLite2 database, so the raw IP can be dropped.",
+                "laravel/horizon": "Supervisor/master state, long-wait detection, process restarts and OOM metrics when Horizon runs your queues.",
+                "laravel/pennant": "Feature flag check counters (feature.checks, feature.unknown).",
+                "laravel/reverb": "WebSocket message/channel/connection metrics when Reverb is your broadcasting server.",
+                "livewire/livewire": "Component lifecycle: mount/hydrate counters + render/update/call detail spans."
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "Telemetry": "Cbox\\Telemetry\\Facades\\Telemetry"
+                    },
+                    "providers": [
+                        "Cbox\\Telemetry\\TelemetryServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "1.0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cbox\\Telemetry\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Sylvester Damgaard",
+                    "email": "sn@cbox.dk",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Collector-free telemetry for Laravel: Prometheus metrics, OTLP traces and events. No C extension, no protobuf, no sidecar — metrics that actually work under FPM.",
+            "homepage": "https://github.com/cboxdk/laravel-telemetry",
+            "keywords": [
+                "Metrics",
+                "cbox",
+                "laravel",
+                "observability",
+                "opentelemetry",
+                "otlp",
+                "prometheus",
+                "telemetry",
+                "tracing"
+            ],
+            "support": {
+                "issues": "https://github.com/cboxdk/laravel-telemetry/issues",
+                "source": "https://github.com/cboxdk/laravel-telemetry"
+            },
+            "time": "2026-07-15T19:45:14+00:00"
         },
         {
             "name": "cboxdk/license",
@@ -501,6 +674,72 @@
                 "source": "https://github.com/cboxdk/license/tree/v0.1.0"
             },
             "time": "2026-07-16T15:07:34+00:00"
+        },
+        {
+            "name": "cboxdk/system-metrics",
+            "version": "v3.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cboxdk/system-metrics.git",
+                "reference": "af7d4e48dd04a3fb65392ee6df3a2a3ee9b6cd4b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cboxdk/system-metrics/zipball/af7d4e48dd04a3fb65392ee6df3a2a3ee9b6cd4b",
+                "reference": "af7d4e48dd04a3fb65392ee6df3a2a3ee9b6cd4b",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.0",
+                "pestphp/pest": "^4.1",
+                "phpstan/phpstan": "^2.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Cbox\\SystemMetrics\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Sylvester Damgaard",
+                    "email": "sn@cbox.dk",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Peek into your low level system metrics with PHP",
+            "homepage": "https://github.com/cboxdk/system-metrics",
+            "keywords": [
+                "CPU",
+                "linux",
+                "macos",
+                "memory",
+                "monitoring",
+                "observability",
+                "performance",
+                "php",
+                "server-monitoring",
+                "system-metrics"
+            ],
+            "support": {
+                "docs": "https://github.com/cboxdk/system-metrics/blob/main/README.md",
+                "issues": "https://github.com/cboxdk/system-metrics/issues",
+                "source": "https://github.com/cboxdk/system-metrics"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/cboxdk",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-07-13T13:47:06+00:00"
         },
         {
             "name": "commerceguys/addressing",
@@ -3983,6 +4222,67 @@
                 "source": "https://github.com/Setasign/FPDF/tree/1.9.0"
             },
             "time": "2026-05-31T14:25:29+00:00"
+        },
+        {
+            "name": "spatie/laravel-package-tools",
+            "version": "1.93.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/spatie/laravel-package-tools.git",
+                "reference": "d5552849801f2642aea710557463234b59ef65eb"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/spatie/laravel-package-tools/zipball/d5552849801f2642aea710557463234b59ef65eb",
+                "reference": "d5552849801f2642aea710557463234b59ef65eb",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/contracts": "^10.0|^11.0|^12.0|^13.0",
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "mockery/mockery": "^1.5",
+                "orchestra/testbench": "^8.0|^9.2|^10.0|^11.0",
+                "pestphp/pest": "^2.1|^3.1|^4.0",
+                "phpunit/php-code-coverage": "^10.0|^11.0|^12.0",
+                "phpunit/phpunit": "^10.5|^11.5|^12.5",
+                "spatie/pest-plugin-test-time": "^2.2|^3.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Spatie\\LaravelPackageTools\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Freek Van der Herten",
+                    "email": "freek@spatie.be",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Tools for creating Laravel packages",
+            "homepage": "https://github.com/spatie/laravel-package-tools",
+            "keywords": [
+                "laravel-package-tools",
+                "spatie"
+            ],
+            "support": {
+                "issues": "https://github.com/spatie/laravel-package-tools/issues",
+                "source": "https://github.com/spatie/laravel-package-tools/tree/1.93.1"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/spatie",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-05-19T14:06:37+00:00"
         },
         {
             "name": "stripe/stripe-php",

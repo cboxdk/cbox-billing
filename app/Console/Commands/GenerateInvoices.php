@@ -4,29 +4,27 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Jobs\IssueSubscriptionInvoiceJob;
 use App\Models\Subscription;
 use Illuminate\Console\Command;
-use Throwable;
 
 /**
- * The invoicing run: issue a period invoice for active subscriptions via the
- * {@see GeneratesInvoices} service (catalog price → tax → legal numbering → app rows).
- * A subscription whose org has no resolvable billing address is skipped with a tax-pending
- * notice rather than invoiced with a wrong amount.
+ * The invoicing pass: dispatch one queued {@see IssueSubscriptionInvoiceJob} per active
+ * subscription. A thin dispatcher — the per-tenant invoicing (catalog price → tax → legal
+ * numbering → app rows → customer email) runs in the job, isolated so one org's failure
+ * retries on its own without stalling the batch.
  *
- * `--org=` limits the run to one organization; without it every active subscription is
- * invoiced.
+ * `--org=` limits the run to one organization.
  */
 class GenerateInvoices extends Command
 {
     protected $signature = 'billing:invoice {--org= : Limit the run to one organization id}';
 
-    protected $description = 'Generate period invoices for active subscriptions (composes the tax engine).';
+    protected $description = 'Dispatch per-subscription invoicing jobs for active subscriptions.';
 
-    public function handle(GeneratesInvoices $invoices): int
+    public function handle(): int
     {
-        $query = Subscription::query()->where('status', 'active')->with(['organization', 'plan']);
+        $query = Subscription::query()->where('status', 'active');
 
         $org = $this->option('org');
 
@@ -34,22 +32,18 @@ class GenerateInvoices extends Command
             $query->where('organization_id', $org);
         }
 
-        $subscriptions = $query->get();
-        $issued = 0;
-        $skipped = 0;
+        $dispatched = 0;
 
-        foreach ($subscriptions as $subscription) {
-            try {
-                $invoice = $invoices->generate($subscription);
-                $issued++;
-                $this->line(sprintf('<info>%s</info> invoice %s total %d %s', $subscription->organization_id, $invoice->number, $invoice->total_minor, $invoice->currency));
-            } catch (Throwable $e) {
-                $skipped++;
-                $this->warn(sprintf('%s skipped: %s', $subscription->organization_id, $e->getMessage()));
+        foreach ($query->pluck('id') as $id) {
+            if (! is_int($id)) {
+                continue;
             }
+
+            IssueSubscriptionInvoiceJob::dispatch($id);
+            $dispatched++;
         }
 
-        $this->info(sprintf('Issued %d invoice%s, skipped %d.', $issued, $issued === 1 ? '' : 's', $skipped));
+        $this->info(sprintf('Dispatched %d invoicing job%s.', $dispatched, $dispatched === 1 ? '' : 's'));
 
         return self::SUCCESS;
     }

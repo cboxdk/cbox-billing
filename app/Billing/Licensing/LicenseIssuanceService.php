@@ -7,6 +7,8 @@ namespace App\Billing\Licensing;
 use App\Billing\Licensing\Contracts\IssuesLicenses;
 use App\Billing\Licensing\Contracts\LicenseRevocationRegistry;
 use App\Billing\Licensing\Exceptions\LicensingException;
+use App\Billing\Notifications\Contracts\NotifiesCustomers;
+use App\Models\Organization;
 use Cbox\Billing\Licensing\Contracts\IssuedLicenseStore;
 use Cbox\Billing\Licensing\Contracts\LicenseProfileResolver;
 use Cbox\Billing\Licensing\LicenseMint;
@@ -37,6 +39,7 @@ readonly class LicenseIssuanceService implements IssuesLicenses
         private LicenseProfileResolver $profiles,
         private LicenseRevocationRegistry $revocations,
         private Config $config,
+        private NotifiesCustomers $notifier,
     ) {}
 
     public function issue(
@@ -66,6 +69,8 @@ readonly class LicenseIssuanceService implements IssuesLicenses
 
         $this->store->save($issued);
 
+        $this->deliver($issued, reissued: false);
+
         return $issued;
     }
 
@@ -85,12 +90,28 @@ readonly class LicenseIssuanceService implements IssuesLicenses
 
         $this->store->save($renewed);
 
+        $this->deliver($renewed, reissued: true);
+
         return $renewed;
     }
 
     public function revoke(string $licenseId, ?string $reason = null): void
     {
         $this->revocations->revoke($licenseId, $reason);
+    }
+
+    /**
+     * Email the copy-pasteable license key + install notes to the customer's billing
+     * contact. The license's `customerId` is the organization id; when it maps to no known
+     * org (a bare-id issue) delivery is skipped rather than sent to a fabricated recipient.
+     */
+    private function deliver(IssuedLicense $license, bool $reissued): void
+    {
+        $organization = Organization::query()->find($license->customerId);
+
+        if ($organization instanceof Organization) {
+            $this->notifier->licenseDelivered($organization, $license, $reissued);
+        }
     }
 
     /** The configured default validity window as a date interval. */

@@ -56,6 +56,15 @@ return [
     ],
 
     /*
+     * Subscription renewal. `reminder_lead_days` is how many days ahead of a term renewal
+     * the renewal-reminder email goes out — the daily renewal pass fires it once, on the day
+     * the subscription's period end crosses into this lead window (never again inside it).
+     */
+    'renewal' => [
+        'reminder_lead_days' => (int) env('CBOX_BILLING_RENEWAL_REMINDER_DAYS', 7),
+    ],
+
+    /*
      * Payment collection, including the dunning / delinquency policy.
      */
     'payment' => [
@@ -222,6 +231,26 @@ return [
          */
         'lease_ttl_seconds' => (int) env('CBOX_BILLING_LEASE_TTL', 300),
         'reservation_ttl_seconds' => (int) env('CBOX_BILLING_RESERVATION_TTL', 300),
+    ],
+
+    /*
+     * Per-token API rate limits (requests per minute), keyed on the caller's bearer token
+     * (the IP is the fallback for an unauthenticated request). Two tiers plus the webhook:
+     *
+     *  - `enforcement` — the SDK hot path (reserve / commit / usage / leases / entitlements).
+     *    It runs on every metered operation, so it gets the higher ceiling.
+     *  - `management` — the self-service surface (subscriptions, payment intents, licenses).
+     *    Human-paced and mutating, so it gets a lower ceiling.
+     *  - `webhook` — inbound settlement callbacks from the payment gateway.
+     *
+     * These are the named limiters registered in {@see \App\Providers\AppServiceProvider}
+     * and applied as `throttle:cbox-*` on the route groups. The unauthenticated activation
+     * heartbeat keeps its own inline `throttle:30,1`.
+     */
+    'rate_limits' => [
+        'enforcement' => (int) env('CBOX_BILLING_THROTTLE_ENFORCEMENT', 600),
+        'management' => (int) env('CBOX_BILLING_THROTTLE_MANAGEMENT', 60),
+        'webhook' => (int) env('CBOX_BILLING_THROTTLE_WEBHOOK', 120),
     ],
 
     /*

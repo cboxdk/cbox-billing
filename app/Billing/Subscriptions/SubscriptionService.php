@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Subscriptions;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Tax\TaxContextFactory;
 use App\Billing\Wallet\WalletProvisioner;
@@ -56,6 +57,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
         private SubscriptionLifecycle $lifecycle,
         private TaxContextFactory $taxContexts,
         private ResolvesAccountCurrency $currencies,
+        private NotifiesCustomers $notifier,
     ) {}
 
     public function subscribe(Organization $organization, Plan $plan, int $seats = 1, ?string $currency = null): Subscription
@@ -97,6 +99,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
     public function changePlan(Subscription $subscription, Plan $newPlan): PlanChangePreview
     {
         $preview = $this->buildPreview($subscription, $newPlan);
+        $previousPlanName = $subscription->plan?->name;
 
         $this->db->transaction(function () use ($subscription, $newPlan): void {
             $periodStart = $subscription->current_period_start ?? Carbon::now()->startOfMonth();
@@ -119,6 +122,9 @@ readonly class SubscriptionService implements SubscribesOrganizations
             );
         });
 
+        // Confirm the switch to the billing contact (the new plan is now on the row).
+        $this->notifier->subscriptionChanged($subscription->refresh()->loadMissing('plan', 'organization'), 'plan_change', $previousPlanName);
+
         return $preview;
     }
 
@@ -126,6 +132,8 @@ readonly class SubscriptionService implements SubscribesOrganizations
     {
         if ($atPeriodEnd) {
             $subscription->forceFill(['cancel_at_period_end' => true])->save();
+
+            $this->notifier->subscriptionChanged($subscription->loadMissing('plan', 'organization'), 'cancel_scheduled');
 
             return $subscription;
         }
@@ -138,6 +146,8 @@ readonly class SubscriptionService implements SubscribesOrganizations
             'status' => SubscriptionStatus::Canceled,
             'cancel_at_period_end' => false,
         ])->save();
+
+        $this->notifier->subscriptionChanged($subscription->loadMissing('plan', 'organization'), 'canceled');
 
         return $subscription;
     }

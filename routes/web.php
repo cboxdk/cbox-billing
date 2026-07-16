@@ -33,11 +33,15 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->name('billing.customers.show');
 
     // --- On-prem licensing (issuer console) ---
-    Route::get('/licenses', [LicenseController::class, 'index'])->name('billing.licenses');
-    Route::get('/licenses/distribution', [LicenseController::class, 'settings'])->name('billing.licenses.settings');
-    Route::post('/licenses', [LicenseController::class, 'issue'])->name('billing.licenses.issue');
-    Route::post('/licenses/{id}/renew', [LicenseController::class, 'renew'])->name('billing.licenses.renew');
-    Route::post('/licenses/{id}/revoke', [LicenseController::class, 'revoke'])->name('billing.licenses.revoke');
+    // Gated on the `licenses` console-kit feature (presence gate): the routes 404 when
+    // the feature is off. The base registers it always-on, so it is reachable here.
+    Route::middleware('console.feature:licenses')->group(function (): void {
+        Route::get('/licenses', [LicenseController::class, 'index'])->name('billing.licenses');
+        Route::get('/licenses/distribution', [LicenseController::class, 'settings'])->name('billing.licenses.settings');
+        Route::post('/licenses', [LicenseController::class, 'issue'])->name('billing.licenses.issue');
+        Route::post('/licenses/{id}/renew', [LicenseController::class, 'renew'])->name('billing.licenses.renew');
+        Route::post('/licenses/{id}/revoke', [LicenseController::class, 'revoke'])->name('billing.licenses.revoke');
+    });
 
     Route::get('/settings', [BillingController::class, 'settings'])->name('billing.settings');
 });

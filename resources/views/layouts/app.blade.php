@@ -7,10 +7,14 @@
     <link rel="icon" href="{{ asset('cbox/assets/logo/favicon.ico') }}">
     <link rel="stylesheet" href="{{ asset('cbox/styles.css') }}">
     <link rel="stylesheet" href="{{ asset('cbox/cbox-app.css') }}">
+    {{-- Per-tenant console branding when a white-label plugin is installed; inert otherwise. --}}
+    @consoleBrandingStyle
 </head>
 <body>
 @php
-    $areas = $navAreas ?? config('cbox_nav.areas');
+    // Sourced from the shared console-kit nav registry via App\Http\View\NavigationComposer,
+    // so an installed plugin's areas/pages render here with no edit to this layout.
+    $areas = $navAreas ?? [];
     $activeArea = $activeArea ?? 'home';
     $activeNav = $activeNav ?? null;
     $current = $areas[$activeArea] ?? $areas['home'];

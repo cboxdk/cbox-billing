@@ -9,6 +9,7 @@
         "php": "^8.4",
         "cboxdk/laravel-billing": "^0.6",
         "cboxdk/laravel-billing-stripe": "^0.4",
+        "cboxdk/laravel-console-kit": "^0.2.1",
         "cboxdk/laravel-health": "^2.0",
         "cboxdk/laravel-telemetry": "^1.0",
         "cboxdk/license": "^0.1",

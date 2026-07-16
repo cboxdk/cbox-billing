@@ -1,7 +1,7 @@
 {
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:9474c23d-ea66-4042-9919-17be9f8baec1",
+    "serialNumber": "urn:uuid:bde33096-037b-49d2-94b4-48278465b417",
     "version": 1,
     "metadata": {
         "tools": [
@@ -91,6 +91,22 @@
             "version": "v0.4.1",
             "purl": "pkg:composer/cboxdk/laravel-billing-stripe@v0.4.1",
             "description": "Cbox Billing \u2014 Stripe payment-gateway adapter: a PaymentGateway implementation backed by Stripe, for cboxdk/laravel-billing.",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "bom-ref": "pkg:composer/cboxdk/laravel-console-kit@v0.2.1",
+            "group": "cboxdk",
+            "name": "laravel-console-kit",
+            "version": "v0.2.1",
+            "purl": "pkg:composer/cboxdk/laravel-console-kit@v0.2.1",
+            "description": "Extension hooks for a Cbox admin console \u2014 nav areas, feature gates, UI slots, dashboard cards and per-tenant branding that an optional package registers into via composer, with zero host edits. The plugin pattern behind billing and other drop-in modules.",
             "licenses": [
                 {
                     "license": {

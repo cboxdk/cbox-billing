@@ -12,18 +12,27 @@ use App\Models\Meter;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Product;
-use Illuminate\Contracts\Config\Repository as Config;
+use App\Platform\ConsoleNav;
+use Cbox\Console\Kit\Contracts\FeatureRegistry;
+use Cbox\Console\Kit\Contracts\NavRegistry;
 use Illuminate\Contracts\View\View;
 
 /**
- * Overlays the live, database-derived counts onto the config-defined navigation IA so
- * the shell's rail badge and tier-2 counts always show real data — the config file owns
- * the structure, this composer owns the numbers.
+ * Builds the shell's navigation from the shared console-kit {@see NavRegistry} — so an
+ * installed plugin's areas/pages appear with no edit to this app — and overlays the two
+ * things the socket does not model: the app-specific `params`/`key` enrichment
+ * ({@see ConsoleNav::pageMeta()}) and the live, database-derived counts. A page (or area)
+ * carrying a console-kit `feature` is dropped unless that feature is active, so the
+ * presence gate hides inactive capabilities from the nav.
+ *
+ * The output shape is the same `$navAreas` the layout has always consumed, so the shell
+ * renders identically for the base app's own pages.
  */
 readonly class NavigationComposer
 {
     public function __construct(
-        private Config $config,
+        private NavRegistry $nav,
+        private FeatureRegistry $features,
         private InvoiceReport $invoices,
         private SettingsReport $settings,
         private LicenseReport $licenses,
@@ -31,16 +40,75 @@ readonly class NavigationComposer
 
     public function compose(View $view): void
     {
-        $areas = $this->config->get('cbox_nav.areas');
+        $counts = $this->counts();
+        $subsAll = ($counts['subscriptions']['all'] ?? 0);
+        $subsCanceled = ($counts['subscriptions']['canceled'] ?? 0);
+        $meta = ConsoleNav::pageMeta();
 
-        if (! is_array($areas)) {
-            return;
+        $areas = [];
+
+        foreach ($this->nav->areas() as $area) {
+            // Area-level presence gate: a whole area a plugin gated on an inactive feature.
+            if ($area->feature !== null && ! $this->features->active($area->feature)) {
+                continue;
+            }
+
+            $areaMeta = $meta[$area->key] ?? [];
+            $areaCounts = $counts[$area->key] ?? [];
+            $nav = [];
+
+            foreach ($area->pages() as $page) {
+                // Page-level presence gate.
+                if ($page->feature !== null && ! $this->features->active($page->feature)) {
+                    continue;
+                }
+
+                // App-specific enrichment; a plugin's own page falls back to its route.
+                $key = $areaMeta[$page->label]['key'] ?? $page->route;
+                $params = $areaMeta[$page->label]['params'] ?? [];
+                $count = $areaCounts[$key] ?? null;
+
+                $nav[] = [
+                    'label' => $page->label,
+                    'key' => $key,
+                    'route' => $page->route,
+                    'params' => $params,
+                    'count' => $count !== null ? (string) $count : null,
+                ];
+            }
+
+            if ($nav === []) {
+                continue; // every page hidden by a gate — drop the empty area.
+            }
+
+            $rendered = [
+                'label' => $area->label,
+                'icon' => $area->icon ?? 'box',
+                'route' => $nav[0]['route'], // the rail icon links to the first visible page.
+                'nav' => $nav,
+            ];
+
+            if ($area->key === 'subscriptions') {
+                $rendered['badge'] = (string) ($subsAll - $subsCanceled);
+            }
+
+            $areas[$area->key] = $rendered;
         }
 
+        $view->with('navAreas', $areas);
+    }
+
+    /**
+     * The live, database-derived counts, keyed by area then page key.
+     *
+     * @return array<string, array<string, int>>
+     */
+    private function counts(): array
+    {
         $subs = SubscriptionStanding::counts();
         $invoiceCounts = $this->invoices->counts();
 
-        $counts = [
+        return [
             'subscriptions' => [
                 'all' => $subs['all'],
                 'active' => $subs['active'],
@@ -69,34 +137,5 @@ readonly class NavigationComposer
                 'webhooks' => 1,
             ],
         ];
-
-        if (isset($areas['subscriptions']) && is_array($areas['subscriptions'])) {
-            $areas['subscriptions']['badge'] = (string) ($subs['all'] - $subs['canceled']);
-        }
-
-        foreach ($areas as $areaKey => $area) {
-            if (! is_array($area) || ! isset($area['nav']) || ! is_array($area['nav'])) {
-                continue;
-            }
-
-            $areaCounts = is_string($areaKey) ? ($counts[$areaKey] ?? []) : [];
-            $nav = $area['nav'];
-
-            foreach ($nav as $index => $item) {
-                if (! is_array($item)) {
-                    continue;
-                }
-
-                $key = $item['key'] ?? null;
-                $value = is_string($key) ? ($areaCounts[$key] ?? null) : null;
-                $item['count'] = $value !== null ? (string) $value : null;
-                $nav[$index] = $item;
-            }
-
-            $area['nav'] = $nav;
-            $areas[$areaKey] = $area;
-        }
-
-        $view->with('navAreas', $areas);
     }
 }

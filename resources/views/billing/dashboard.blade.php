@@ -105,6 +105,8 @@
                 </a>
             @endforeach
         </section>
+        {{-- Dashboard cards an installed plugin contributes via Console::dashboardCard(); empty otherwise. --}}
+        @consoleSlot(\Cbox\Console\Kit\ConsoleManager::DASHBOARD_CARDS)
     </div>
 </div>
 @endsection

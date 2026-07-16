@@ -1,0 +1,19 @@
+# Keep the build context small + deterministic. vendor/ and node_modules are
+# rebuilt inside the image; never copy the host's.
+.git
+.github
+node_modules
+vendor
+.env
+.env.*
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+public/build
+tests
+docs
+*.md
+docker-compose*.yml
+Dockerfile
+.dockerignore

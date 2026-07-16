@@ -7,8 +7,11 @@ use App\Http\Controllers\Api\EntitlementController;
 use App\Http\Controllers\Api\LeaseController;
 use App\Http\Controllers\Api\Management\CheckoutSessionController;
 use App\Http\Controllers\Api\Management\InvoiceController;
+use App\Http\Controllers\Api\Management\PaymentIntentController;
+use App\Http\Controllers\Api\Management\PaymentMethodController;
 use App\Http\Controllers\Api\Management\PlanController;
 use App\Http\Controllers\Api\Management\PortalSessionController;
+use App\Http\Controllers\Api\Management\SetupIntentController;
 use App\Http\Controllers\Api\Management\SubscriptionController;
 use App\Http\Controllers\Api\Management\UsageController as UsageSummaryController;
 use App\Http\Controllers\Api\ReserveController;
@@ -60,3 +63,15 @@ Route::get('invoices/{org}', InvoiceController::class)->name('invoices.index');
  */
 Route::post('checkout-sessions', CheckoutSessionController::class)->name('checkout-sessions.create');
 Route::post('portal-sessions', PortalSessionController::class)->name('portal-sessions.create');
+
+/*
+ * Embedded-intent API (ADR-0009 Path B): a product mounts the gateway's own element and
+ * confirms client-side against the client secret these return. Same token auth and per-org
+ * scope; each is a thin controller over the bound PaymentGateway and the gateway-customer
+ * mapping (the gateway customer id — never the raw org id — is the account on every intent).
+ */
+Route::post('setup-intents', SetupIntentController::class)->name('setup-intents.create');
+Route::post('payment-intents', PaymentIntentController::class)->name('payment-intents.create');
+Route::get('payment-methods/{org}', [PaymentMethodController::class, 'index'])->name('payment-methods.index');
+Route::post('payment-methods/{org}/default', [PaymentMethodController::class, 'setDefault'])->name('payment-methods.default');
+Route::delete('payment-methods/{org}/{id}', [PaymentMethodController::class, 'destroy'])->name('payment-methods.destroy');

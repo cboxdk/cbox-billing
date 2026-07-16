@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Hosted;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Models\BillingSession;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -25,13 +26,16 @@ use RuntimeException;
  *
  * Card data and any SCA / 3-D Secure challenge happen on the gateway's element, never
  * here; the engine only asks the bound {@see PaymentGateway} to create the intent and
- * hands back the resulting client secret.
+ * hands back the resulting client secret. The intent's `account` is the org's gateway
+ * customer id (`cus_…`), resolved once and reused via {@see ResolvesGatewayCustomer},
+ * never the raw org id — so the gateway vaults against its own customer.
  */
 readonly class CheckoutPaymentFlow
 {
     public function __construct(
         private PaymentGateway $gateway,
         private ResolvesAccountCurrency $currencies,
+        private ResolvesGatewayCustomer $customers,
     ) {}
 
     public function intent(BillingSession $session): PaymentIntentResult
@@ -44,7 +48,7 @@ readonly class CheckoutPaymentFlow
         $reference = $this->stampReference($session);
 
         return $this->gateway->createPaymentIntent(new PaymentIntentRequest(
-            account: $organization->id,
+            account: $this->customers->resolve($organization),
             reference: $reference,
             amount: $amount,
             idempotencyKey: $reference,

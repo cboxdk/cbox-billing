@@ -5,6 +5,16 @@
 @php
     use App\Billing\Support\MoneyFormatter;
     $overagePill = ['bill' => 'info', 'block' => 'muted'];
+    // Engine PricingModel → console label. `flat` is the plain recurring amount; the rest
+    // are engine v0.8 tiered/volume/graduated/package/stairstep models.
+    $modelLabel = [
+        'flat' => 'flat', 'per_unit' => 'per unit', 'graduated' => 'graduated',
+        'volume' => 'volume', 'package' => 'package', 'stairstep' => 'stairstep', 'mixed' => 'mixed',
+    ];
+    $modelPill = [
+        'flat' => 'muted', 'per_unit' => 'info', 'graduated' => 'info',
+        'volume' => 'info', 'package' => 'info', 'stairstep' => 'info', 'mixed' => 'warning',
+    ];
 @endphp
 
 @section('screen')
@@ -23,17 +33,21 @@
                 <span class="cbx-pill cbx-pill--muted">{{ count($product['plans']) }} plans</span>
             </header>
             <table class="tbl">
-                <thead><tr><th style="width:130px">Plan</th><th>Prices</th><th>Included</th><th>Entitlements</th><th style="width:80px">Status</th></tr></thead>
+                <thead><tr><th style="width:130px">Plan</th><th style="width:110px">Model</th><th>Prices</th><th>Included</th><th>Entitlements</th><th style="width:80px">Status</th></tr></thead>
                 <tbody>
                     @foreach ($product['plans'] as $plan)
-                        <tr>
+                        @php($tieredPrices = array_values(array_filter($plan['prices'], fn ($p) => $p['tiered'])))
+                        <tr @if($tieredPrices)style="border-bottom:0"@endif>
                             <td>
                                 <span style="display:block;font-weight:600">{{ $plan['name'] }}</span>
                                 <span class="num mut" style="font-size:11px">per {{ $plan['interval'] }}</span>
                             </td>
                             <td>
+                                <span class="cbx-pill cbx-pill--{{ $modelPill[$plan['pricing_model']] ?? 'muted' }}">{{ $modelLabel[$plan['pricing_model']] ?? $plan['pricing_model'] }}</span>
+                            </td>
+                            <td>
                                 @foreach ($plan['prices'] as $price)
-                                    <span class="num" style="display:inline-block;margin-right:10px">{{ MoneyFormatter::minor($price['minor'], $price['currency']) }}</span>
+                                    <span class="num" style="display:inline-block;margin-right:10px">{{ MoneyFormatter::minor($price['minor'], $price['currency']) }}@if($price['tiered'])<span class="mut" style="font-size:10px"> base</span>@endif</span>
                                 @endforeach
                             </td>
                             <td class="num mut">
@@ -50,6 +64,35 @@
                             </td>
                             <td>@if($plan['active'])<span class="cbx-pill cbx-pill--success"><span class="dot"></span>active</span>@else<span class="cbx-pill cbx-pill--muted">off</span>@endif</td>
                         </tr>
+                        {{-- Tiered pricing: render each tiered currency's bracket table (up-to / unit / flat), read from the engine PriceTier set --}}
+                        @if ($tieredPrices)
+                            <tr style="cursor:default" onclick="event.stopPropagation()">
+                                <td colspan="6" style="padding:0 20px 14px">
+                                    <div style="display:flex;flex-wrap:wrap;gap:16px">
+                                        @foreach ($tieredPrices as $price)
+                                            <div style="flex:1;min-width:260px;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden">
+                                                <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:var(--secondary)">
+                                                    <span class="num" style="font-weight:600">{{ $price['currency'] }}</span>
+                                                    <span class="mut" style="font-size:11px">{{ $modelLabel[$price['model']] ?? $price['model'] }}@if($price['package_size']) · packs of {{ number_format($price['package_size']) }}@endif</span>
+                                                </div>
+                                                <table class="tbl" style="font-size:12px">
+                                                    <thead><tr><th style="padding:6px 12px">Up to</th><th class="right" style="padding:6px 12px">Unit</th><th class="right" style="padding:6px 12px">Flat</th></tr></thead>
+                                                    <tbody>
+                                                        @foreach ($price['tiers'] as $tier)
+                                                            <tr style="cursor:default">
+                                                                <td class="num" style="padding:6px 12px">@if($tier['up_to'] === null)∞@else{{ number_format($tier['up_to']) }}@endif</td>
+                                                                <td class="right num" style="padding:6px 12px">{{ MoneyFormatter::minor($tier['unit_minor'], $price['currency']) }}</td>
+                                                                <td class="right num" style="padding:6px 12px">@if($tier['flat_minor'] === null)<span class="mut">—</span>@else{{ MoneyFormatter::minor($tier['flat_minor'], $price['currency']) }}@endif</td>
+                                                            </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </td>
+                            </tr>
+                        @endif
                     @endforeach
                 </tbody>
             </table>

@@ -4,13 +4,15 @@
 
 @php
     use App\Billing\Support\MoneyFormatter;
-    $statusPill = ['active' => 'success', 'trialing' => 'info', 'past_due' => 'warning', 'canceled' => 'muted'];
-    $statusLabel = ['active' => 'active', 'trialing' => 'trial', 'past_due' => 'past due', 'canceled' => 'canceled'];
+    $statusPill = ['active' => 'success', 'trialing' => 'info', 'past_due' => 'warning', 'paused' => 'muted', 'non_renewing' => 'warning', 'canceled' => 'muted'];
+    $statusLabel = ['active' => 'active', 'trialing' => 'trial', 'past_due' => 'past due', 'paused' => 'paused', 'non_renewing' => 'non-renewing', 'canceled' => 'canceled'];
     $tabs = [
         ['key' => null, 'label' => 'All', 'count' => $counts['all']],
         ['key' => 'active', 'label' => 'Active', 'count' => $counts['active']],
         ['key' => 'trialing', 'label' => 'Trials', 'count' => $counts['trialing']],
         ['key' => 'past_due', 'label' => 'Past due', 'count' => $counts['past_due']],
+        ['key' => 'paused', 'label' => 'Paused', 'count' => $counts['paused']],
+        ['key' => 'non_renewing', 'label' => 'Non-renewing', 'count' => $counts['non_renewing']],
         ['key' => 'canceled', 'label' => 'Canceled', 'count' => $counts['canceled']],
     ];
 @endphp
@@ -20,7 +22,7 @@
     <header class="cbx-page-header">
         <div>
             <h1 class="cbx-page-title" style="font-size:20px">Subscriptions</h1>
-            <p class="cbx-page-desc" style="font-size:13px">{{ $counts['active'] }} active · {{ $counts['trialing'] }} trials · {{ $counts['past_due'] }} past due · {{ $counts['canceled'] }} canceled</p>
+            <p class="cbx-page-desc" style="font-size:13px">{{ $counts['active'] }} active · {{ $counts['trialing'] }} trials · {{ $counts['past_due'] }} past due · {{ $counts['paused'] }} paused · {{ $counts['non_renewing'] }} non-renewing · {{ $counts['canceled'] }} canceled</p>
         </div>
     </header>
 

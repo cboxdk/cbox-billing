@@ -8,8 +8,10 @@ use App\Billing\Wallet\WalletProvisioner;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\Organization;
+use App\Models\PaymentRetry;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\SubscriptionCancellation;
 use Cbox\Billing\Metering\Contracts\EventLog;
 use Cbox\Billing\Metering\ValueObjects\UsageEvent;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
@@ -58,15 +60,30 @@ class OrganizationSeeder extends Seeder
                 : [$periodStart, $periodEnd];
 
             $canceled = $definition['canceled'] ?? false;
+            $trial = $definition['trial'] ?? false;
+            $pastDue = $definition['past_due'] ?? false;
+            $paused = $definition['paused'] ?? false;
 
-            Subscription::query()->updateOrCreate(
+            // The real engine lifecycle state — Trialing / PastDue / Canceled / Active — plus
+            // the app-layer depth columns (trial end, pause marker) the console surfaces.
+            $status = match (true) {
+                $canceled => SubscriptionStatus::Canceled,
+                $trial => SubscriptionStatus::Trialing,
+                $pastDue => SubscriptionStatus::PastDue,
+                default => SubscriptionStatus::Active,
+            };
+
+            $subscription = Subscription::query()->updateOrCreate(
                 ['organization_id' => $organization->id, 'plan_id' => $plan->id],
                 [
-                    'status' => $canceled ? SubscriptionStatus::Canceled : SubscriptionStatus::Active,
+                    'status' => $status,
                     'seats' => $definition['seats'],
                     'current_period_start' => $subStart,
                     'current_period_end' => $subEnd,
                     'cancel_at_period_end' => $definition['cancel_at_period_end'] ?? false,
+                    'trial_ends_at' => $trial ? $subEnd : null,
+                    'canceled_at' => $canceled ? Carbon::parse($definition['created'])->addMonths(3) : null,
+                    'paused_at' => $paused ? Carbon::parse('2026-07-05') : null,
                     'created_at' => Carbon::parse($definition['created']),
                 ],
             );
@@ -89,8 +106,58 @@ class OrganizationSeeder extends Seeder
                 $this->seedInvoice($organization->id, $plan, $invoice);
             }
 
+            // A past-due account is chased by the smart-retry schedule: open a real
+            // PaymentRetry row against its outstanding invoice so the dunning view is live.
+            if ($pastDue) {
+                $this->seedDunning($organization->id, $subscription->id);
+            }
+
+            foreach ($definition['cancellations'] ?? [] as $cancellation) {
+                SubscriptionCancellation::query()->updateOrCreate(
+                    [
+                        'organization_id' => $organization->id,
+                        'mode' => $cancellation['mode'],
+                        'reason' => $cancellation['reason'] ?? null,
+                    ],
+                    [
+                        'subscription_id' => $subscription->id,
+                        'plan_id' => $plan->id,
+                        'feedback' => $cancellation['feedback'] ?? null,
+                    ],
+                );
+            }
+
             $this->seedUsage($organization->id, $definition['usage'] ?? []);
         }
+    }
+
+    /** Open a real smart-retry row against the organization's outstanding invoice. */
+    private function seedDunning(string $organizationId, int $subscriptionId): void
+    {
+        $invoice = Invoice::query()
+            ->where('organization_id', $organizationId)
+            ->where('status', 'open')
+            ->orderBy('id')
+            ->first();
+
+        if (! $invoice instanceof Invoice) {
+            return;
+        }
+
+        PaymentRetry::query()->updateOrCreate(
+            ['invoice_id' => $invoice->id],
+            [
+                'organization_id' => $organizationId,
+                'subscription_id' => $subscriptionId,
+                'attempts' => 1,
+                'max_attempts' => 4,
+                'status' => PaymentRetry::STATUS_RETRYING,
+                'first_failed_at' => $invoice->due_at ?? Carbon::parse('2026-07-05'),
+                'last_attempt_at' => Carbon::parse('2026-07-15'),
+                'next_attempt_at' => Carbon::parse('2026-07-19'),
+                'last_reference' => 'ch_seed_declined',
+            ],
+        );
     }
 
     /**
@@ -159,7 +226,8 @@ class OrganizationSeeder extends Seeder
      * @return list<array{
      *     id: string, name: string, email: string, country: string, plan: string, seats: int, created: string,
      *     invoices: list<array{month: string, status: string, due_days?: int}>,
-     *     tax_id?: string, trial?: bool, canceled?: bool, cancel_at_period_end?: bool, usage?: array<string, int>
+     *     tax_id?: string, trial?: bool, canceled?: bool, cancel_at_period_end?: bool, past_due?: bool, paused?: bool,
+     *     cancellations?: list<array{mode: string, reason?: string, feedback?: string}>, usage?: array<string, int>
      * }>
      */
     private function organizations(): array
@@ -176,7 +244,7 @@ class OrganizationSeeder extends Seeder
             ],
             [
                 'id' => 'org_nordwind', 'name' => 'Nordwind Media', 'email' => 'ap@nordwind.example',
-                'country' => 'DK', 'plan' => 'business', 'seats' => 24, 'created' => '2025-08-19',
+                'country' => 'DK', 'plan' => 'business', 'seats' => 24, 'created' => '2025-08-19', 'past_due' => true,
                 'invoices' => [
                     ['month' => '2026-06-20', 'status' => 'open', 'due_days' => 14],
                 ],
@@ -208,7 +276,7 @@ class OrganizationSeeder extends Seeder
             ],
             [
                 'id' => 'org_meridian', 'name' => 'Meridian Labs', 'email' => 'billing@meridian.example',
-                'country' => 'DK', 'plan' => 'business', 'seats' => 18, 'created' => '2025-05-14',
+                'country' => 'DK', 'plan' => 'business', 'seats' => 18, 'created' => '2025-05-14', 'paused' => true,
                 'invoices' => [
                     ['month' => '2026-07-01', 'status' => 'paid'],
                 ],
@@ -220,6 +288,9 @@ class OrganizationSeeder extends Seeder
                 'invoices' => [
                     ['month' => '2026-07-01', 'status' => 'paid'],
                 ],
+                'cancellations' => [
+                    ['mode' => 'period_end', 'reason' => 'missing_features', 'feedback' => 'Need SSO and an audit log before we can renew.'],
+                ],
                 'usage' => ['api.requests' => 410_000, 'events.ingested' => 120_000, 'storage.gb' => 22, 'seats' => 6],
             ],
             [
@@ -227,6 +298,9 @@ class OrganizationSeeder extends Seeder
                 'country' => 'DK', 'plan' => 'starter', 'seats' => 3, 'created' => '2025-09-01', 'canceled' => true,
                 'invoices' => [
                     ['month' => '2026-05-01', 'status' => 'paid'],
+                ],
+                'cancellations' => [
+                    ['mode' => 'immediate', 'reason' => 'too_expensive', 'feedback' => 'Budget cut for the quarter.'],
                 ],
             ],
         ];

@@ -9,6 +9,7 @@ use App\Models\Plan;
 use App\Models\PlanCreditGrant;
 use App\Models\PlanEntitlement;
 use App\Models\PlanPrice;
+use App\Models\PlanPriceTier;
 use App\Models\Product;
 use Cbox\Billing\Metering\Enums\OverageBehaviour;
 use Cbox\Billing\Metering\ValueObjects\MeterPolicy;
@@ -69,6 +70,101 @@ class CatalogSeeder extends Seeder
                 );
             }
         }
+
+        $this->seedTieredPricing();
+    }
+
+    /**
+     * Give a few plan prices a tiered pricing model (engine v0.8 catalog depth) so the
+     * catalog console renders real tier tables. The base `price_minor` is left unchanged —
+     * it stays the list recurring amount the MRR read model sums — and each tier set is the
+     * per-seat schedule that price scales by. One plan per tiered model so all four are
+     * exercised: Team `graduated`, Business `volume`, Scale `package`, Starter `stairstep`.
+     */
+    private function seedTieredPricing(): void
+    {
+        foreach ($this->tieredPricing() as $planKey => $spec) {
+            $plan = Plan::query()->where('key', $planKey)->first();
+
+            if (! $plan instanceof Plan) {
+                continue;
+            }
+
+            foreach ($plan->prices as $price) {
+                $tiers = $spec['tiers'][$price->currency] ?? null;
+
+                if ($tiers === null) {
+                    continue;
+                }
+
+                $price->forceFill([
+                    'pricing_model' => $spec['model'],
+                    'package_size' => $spec['package_size'] ?? null,
+                ])->save();
+
+                $price->tiers()->delete();
+
+                foreach ($tiers as $order => $tier) {
+                    PlanPriceTier::query()->create([
+                        'plan_price_id' => $price->id,
+                        'up_to' => $tier['up_to'],
+                        'unit_minor' => $tier['unit_minor'] ?? 0,
+                        'flat_minor' => $tier['flat_minor'] ?? null,
+                        'sort_order' => $order,
+                    ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * The tiered schedules, per plan then per currency. `up_to` is the inclusive seat bound
+     * (null = ∞); `unit_minor` the per-seat rate (graduated/volume); `flat_minor` the flat
+     * amount (the block price for `package`, the whole-bracket price for `stairstep`).
+     *
+     * @return array<string, array{model: string, package_size?: int, tiers: array<string, list<array{up_to: int|null, unit_minor?: int, flat_minor?: int|null}>>}>
+     */
+    private function tieredPricing(): array
+    {
+        return [
+            // Graduated: each seat slice billed at its own tier's rate.
+            'team' => [
+                'model' => 'graduated',
+                'tiers' => [
+                    'DKK' => [['up_to' => 10, 'unit_minor' => 0], ['up_to' => 50, 'unit_minor' => 9_900], ['up_to' => null, 'unit_minor' => 7_900]],
+                    'EUR' => [['up_to' => 10, 'unit_minor' => 0], ['up_to' => 50, 'unit_minor' => 1_300], ['up_to' => null, 'unit_minor' => 1_050]],
+                    'USD' => [['up_to' => 10, 'unit_minor' => 0], ['up_to' => 50, 'unit_minor' => 1_500], ['up_to' => null, 'unit_minor' => 1_200]],
+                ],
+            ],
+            // Volume: every seat billed at the single tier the total lands in.
+            'business' => [
+                'model' => 'volume',
+                'tiers' => [
+                    'DKK' => [['up_to' => 25, 'unit_minor' => 12_000], ['up_to' => 100, 'unit_minor' => 9_900], ['up_to' => null, 'unit_minor' => 7_900]],
+                    'EUR' => [['up_to' => 25, 'unit_minor' => 1_600], ['up_to' => 100, 'unit_minor' => 1_300], ['up_to' => null, 'unit_minor' => 1_050]],
+                    'USD' => [['up_to' => 25, 'unit_minor' => 1_800], ['up_to' => 100, 'unit_minor' => 1_500], ['up_to' => null, 'unit_minor' => 1_200]],
+                ],
+            ],
+            // Package: a block price per pack of 10 seats.
+            'scale' => [
+                'model' => 'package',
+                'package_size' => 10,
+                'tiers' => [
+                    'DKK' => [['up_to' => null, 'unit_minor' => 0, 'flat_minor' => 79_000]],
+                    'EUR' => [['up_to' => null, 'unit_minor' => 0, 'flat_minor' => 10_500]],
+                    'USD' => [['up_to' => null, 'unit_minor' => 0, 'flat_minor' => 11_900]],
+                ],
+            ],
+            // Stairstep: one flat price for the whole seat bracket.
+            'starter' => [
+                'model' => 'stairstep',
+                'tiers' => [
+                    'DKK' => [['up_to' => 3, 'flat_minor' => 29_000], ['up_to' => 10, 'flat_minor' => 59_000], ['up_to' => null, 'flat_minor' => 99_000]],
+                    'EUR' => [['up_to' => 3, 'flat_minor' => 3_900], ['up_to' => 10, 'flat_minor' => 7_900], ['up_to' => null, 'flat_minor' => 13_500]],
+                    'USD' => [['up_to' => 3, 'flat_minor' => 4_500], ['up_to' => 10, 'flat_minor' => 8_900], ['up_to' => null, 'flat_minor' => 14_900]],
+                ],
+            ],
+        ];
     }
 
     /**

@@ -8,7 +8,10 @@ use App\Models\Plan;
 use App\Models\PlanCreditGrant;
 use App\Models\PlanEntitlement;
 use App\Models\PlanPrice;
+use App\Models\PlanPriceTier;
 use App\Models\Product;
+use Cbox\Billing\Catalog\Enums\PricingModel;
+use Cbox\Billing\Catalog\ValueObjects\PriceTier;
 use Illuminate\Support\Collection;
 
 /**
@@ -24,7 +27,7 @@ readonly class CatalogReport
     public function products(): Collection
     {
         return Product::query()
-            ->with(['plans.prices', 'plans.entitlements.meter', 'plans.creditGrants'])
+            ->with(['plans.prices.tiers', 'plans.entitlements.meter', 'plans.creditGrants'])
             ->orderBy('name')
             ->get()
             ->map(fn (Product $product): array => $this->product($product));
@@ -59,10 +62,8 @@ readonly class CatalogReport
             'active' => $plan->active,
             'prices' => $plan->prices
                 ->sortBy('currency')
-                ->map(static fn (PlanPrice $price): array => [
-                    'currency' => $price->currency,
-                    'minor' => $price->price_minor,
-                ])->values()->all(),
+                ->map(fn (PlanPrice $price): array => $this->price($price))->values()->all(),
+            'pricing_model' => $this->planModel($plan),
             'credits' => $plan->creditGrants
                 ->map(static fn (PlanCreditGrant $grant): array => [
                     'pool' => $grant->pool,
@@ -84,5 +85,50 @@ readonly class CatalogReport
                     ];
                 })->values()->all(),
         ];
+    }
+
+    /**
+     * One price projected for display: its currency, base amount, pricing model, and — for
+     * a tiered model — the engine {@see PriceTier} set
+     * (up-to / unit / flat) plus the package size.
+     *
+     * @return array{currency: string, minor: int, model: string, tiered: bool, package_size: int|null, tiers: list<array{up_to: int|null, unit_minor: int, flat_minor: int|null}>}
+     */
+    private function price(PlanPrice $price): array
+    {
+        $model = $price->model();
+
+        return [
+            'currency' => $price->currency,
+            'minor' => $price->price_minor,
+            'model' => $model->value,
+            'tiered' => $model->isTiered(),
+            'package_size' => $price->package_size,
+            'tiers' => array_values($price->tiers
+                ->sortBy('sort_order')
+                ->map(static fn (PlanPriceTier $tier): array => [
+                    'up_to' => $tier->up_to,
+                    'unit_minor' => $tier->unit_minor,
+                    'flat_minor' => $tier->flat_minor,
+                ])->all()),
+        ];
+    }
+
+    /**
+     * The plan's headline pricing model — the model its prices share, or `mixed` when its
+     * per-currency rows disagree (they normally do not). `flat` when the plan has no price.
+     */
+    private function planModel(Plan $plan): string
+    {
+        $models = $plan->prices
+            ->map(static fn (PlanPrice $price): string => $price->model()->value)
+            ->unique()
+            ->values();
+
+        return match ($models->count()) {
+            0 => PricingModel::Flat->value,
+            1 => (string) $models->first(),
+            default => 'mixed',
+        };
     }
 }

@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\LicenseController;
+use App\Http\Controllers\RetentionController;
 use Illuminate\Support\Facades\Route;
 
 // --- Authentication (Cbox ID as OIDC provider) ---
@@ -19,7 +21,16 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/', [BillingController::class, 'dashboard'])->name('billing.dashboard');
 
     Route::get('/subscriptions', [BillingController::class, 'subscriptions'])->name('billing.subscriptions');
+    Route::get('/subscriptions/dunning', [BillingController::class, 'dunning'])->name('billing.subscriptions.dunning');
     Route::get('/subscriptions/{subscription}', [BillingController::class, 'subscription'])->name('billing.subscriptions.show');
+
+    // Retention actions (App-A ManagesRetention): cancel-with-reason / pause / reactivate.
+    Route::post('/subscriptions/{subscription}/cancel', [RetentionController::class, 'cancel'])->name('billing.subscriptions.cancel');
+    Route::post('/subscriptions/{subscription}/reactivate', [RetentionController::class, 'reactivate'])->name('billing.subscriptions.reactivate');
+
+    // --- Revenue analytics (engine Reporting module) ---
+    Route::get('/analytics/revenue', [AnalyticsController::class, 'revenue'])->name('analytics.revenue');
+    Route::get('/analytics/retention', [AnalyticsController::class, 'retention'])->name('analytics.retention');
 
     Route::get('/invoices', [BillingController::class, 'invoices'])->name('billing.invoices');
     Route::get('/invoices/{invoice}', [BillingController::class, 'invoice'])->name('billing.invoices.show');

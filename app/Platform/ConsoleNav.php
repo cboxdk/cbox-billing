@@ -40,6 +40,13 @@ class ConsoleNav
                 ['route' => 'billing.dashboard', 'label' => 'Dashboard', 'key' => 'dashboard', 'params' => [], 'feature' => null, 'order' => 10],
             ],
         ],
+        'analytics' => [
+            'label' => 'Analytics', 'icon' => 'trending-up', 'order' => 15, 'feature' => null,
+            'pages' => [
+                ['route' => 'analytics.revenue', 'label' => 'Revenue', 'key' => 'revenue', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'analytics.retention', 'label' => 'Retention', 'key' => 'retention', 'params' => [], 'feature' => null, 'order' => 20],
+            ],
+        ],
         'subscriptions' => [
             'label' => 'Subscriptions', 'icon' => 'repeat', 'order' => 20, 'feature' => null,
             'pages' => [
@@ -47,7 +54,10 @@ class ConsoleNav
                 ['route' => 'billing.subscriptions', 'label' => 'Active', 'key' => 'active', 'params' => ['status' => 'active'], 'feature' => null, 'order' => 20],
                 ['route' => 'billing.subscriptions', 'label' => 'Trials', 'key' => 'trialing', 'params' => ['status' => 'trialing'], 'feature' => null, 'order' => 30],
                 ['route' => 'billing.subscriptions', 'label' => 'Past due', 'key' => 'past_due', 'params' => ['status' => 'past_due'], 'feature' => null, 'order' => 40],
-                ['route' => 'billing.subscriptions', 'label' => 'Canceled', 'key' => 'canceled', 'params' => ['status' => 'canceled'], 'feature' => null, 'order' => 50],
+                ['route' => 'billing.subscriptions', 'label' => 'Paused', 'key' => 'paused', 'params' => ['status' => 'paused'], 'feature' => null, 'order' => 50],
+                ['route' => 'billing.subscriptions', 'label' => 'Non-renewing', 'key' => 'non_renewing', 'params' => ['status' => 'non_renewing'], 'feature' => null, 'order' => 60],
+                ['route' => 'billing.subscriptions', 'label' => 'Canceled', 'key' => 'canceled', 'params' => ['status' => 'canceled'], 'feature' => null, 'order' => 70],
+                ['route' => 'billing.subscriptions.dunning', 'label' => 'Dunning', 'key' => 'dunning', 'params' => [], 'feature' => null, 'order' => 80],
             ],
         ],
         'invoices' => [

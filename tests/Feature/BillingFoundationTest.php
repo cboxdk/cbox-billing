@@ -72,8 +72,11 @@ class BillingFoundationTest extends TestCase
     {
         $targets = iterator_to_array(app(ExpectedEntitlements::class)->targets());
 
-        // One target per active-subscription org in the seeded book (the canceled org is excluded).
-        $this->assertCount(7, $targets);
+        // One target per active, non-paused-subscription org in the seeded book. The oracle
+        // filters on `status = active` and no pause, so the canceled, trialing, past-due and
+        // paused orgs are excluded — leaving Hverdag, Klarhed, Fjord and (Active,
+        // cancel-at-period-end) Vinter.
+        $this->assertCount(4, $targets);
 
         $hverdag = collect($targets)->firstWhere('org', 'org_hverdag');
         $this->assertNotNull($hverdag);

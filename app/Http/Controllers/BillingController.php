@@ -45,7 +45,7 @@ class BillingController extends Controller
 
     public function subscriptions(Request $request, SubscriptionReport $report): View
     {
-        $status = $this->filter($request, ['active', 'trialing', 'past_due', 'canceled']);
+        $status = $this->filter($request, ['active', 'trialing', 'past_due', 'paused', 'non_renewing', 'canceled']);
 
         return view('billing.subscriptions', [
             'activeArea' => 'subscriptions',
@@ -53,6 +53,16 @@ class BillingController extends Controller
             'status' => $status,
             'counts' => $report->counts(),
             'subscriptions' => $report->list($status),
+        ]);
+    }
+
+    public function dunning(SubscriptionReport $report): View
+    {
+        return view('billing.dunning', [
+            'activeArea' => 'subscriptions',
+            'activeNav' => 'dunning',
+            'counts' => $report->counts(),
+            'retries' => $report->dunning(),
         ]);
     }
 

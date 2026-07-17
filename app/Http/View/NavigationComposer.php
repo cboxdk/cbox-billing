@@ -10,6 +10,7 @@ use App\Billing\Reporting\SettingsReport;
 use App\Billing\Support\SubscriptionStanding;
 use App\Models\Meter;
 use App\Models\Organization;
+use App\Models\PaymentRetry;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Platform\ConsoleNav;
@@ -114,7 +115,10 @@ readonly class NavigationComposer
                 'active' => $subs['active'],
                 'trialing' => $subs['trialing'],
                 'past_due' => $subs['past_due'],
+                'paused' => $subs['paused'],
+                'non_renewing' => $subs['non_renewing'],
                 'canceled' => $subs['canceled'],
+                'dunning' => PaymentRetry::query()->where('status', PaymentRetry::STATUS_RETRYING)->count(),
             ],
             'invoices' => [
                 'all' => $invoiceCounts['all'],

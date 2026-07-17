@@ -27,7 +27,7 @@ class OrganizationController extends ApiController
             return $denied;
         }
 
-        $data = $request->validate([
+        $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'billing_email' => ['sometimes', 'nullable', 'email', 'max:255'],
             'billing_country' => ['sometimes', 'nullable', 'string', 'size:2'],
@@ -37,18 +37,43 @@ class OrganizationController extends ApiController
         $existing = Organization::query()->find($org);
 
         if ($existing instanceof Organization) {
-            $existing->fill(collect($data)->except('billing_currency')->all())->save();
+            // `billing_currency` is never rewritten here — the one-way currency lock.
+            $existing->name = $request->string('name')->toString();
+            $this->applyOptionalProfile($request, $existing);
+            $existing->save();
 
             return new JsonResponse(['organization' => $this->present($existing)], Response::HTTP_OK);
         }
 
-        if (isset($data['billing_currency']) && is_string($data['billing_currency'])) {
-            $data['billing_currency'] = strtoupper($data['billing_currency']);
+        $organization = new Organization;
+        $organization->id = $org;
+        $organization->name = $request->string('name')->toString();
+        $this->applyOptionalProfile($request, $organization);
+        if ($request->filled('billing_currency')) {
+            $organization->billing_currency = strtoupper($request->string('billing_currency')->toString());
         }
-
-        $organization = Organization::query()->create(['id' => $org] + $data);
+        $organization->save();
 
         return new JsonResponse(['organization' => $this->present($organization)], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Apply the mutable, nullable profile fields (email/country) when the caller sent them.
+     * `billing_currency` is deliberately excluded — it is currency-locked on create only.
+     */
+    private function applyOptionalProfile(Request $request, Organization $organization): void
+    {
+        if ($request->has('billing_email')) {
+            $organization->billing_email = $request->filled('billing_email')
+                ? $request->string('billing_email')->toString()
+                : null;
+        }
+
+        if ($request->has('billing_country')) {
+            $organization->billing_country = $request->filled('billing_country')
+                ? $request->string('billing_country')->toString()
+                : null;
+        }
     }
 
     /** @return array<string, mixed> */

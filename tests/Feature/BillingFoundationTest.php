@@ -68,15 +68,37 @@ class BillingFoundationTest extends TestCase
         $this->assertTrue($policy->unlimited);
     }
 
+    public function test_serving_subscriptions_resolve_entitlements_paused_and_canceled_do_not(): void
+    {
+        $resolver = app(MeterPolicyResolver::class);
+
+        // Trialing (Aula) and past-due (Nordwind) are serving states — they keep their plan
+        // entitlements exactly as an active customer does.
+        $this->assertNotNull($resolver->resolve('org_aula', 'api.requests'), 'a trialing org is entitled');
+        $this->assertNotNull($resolver->resolve('org_nordwind', 'api.requests'), 'a past-due org is entitled');
+
+        // Paused (Meridian) and canceled (Söder) are not serving — deny-by-default.
+        $this->assertNull($resolver->resolve('org_meridian', 'api.requests'), 'a paused org is not entitled');
+        $this->assertNull($resolver->resolve('org_soder', 'api.requests'), 'a canceled org is not entitled');
+    }
+
     public function test_expected_entitlements_are_derived_from_the_catalog(): void
     {
         $targets = iterator_to_array(app(ExpectedEntitlements::class)->targets());
 
-        // One target per active, non-paused-subscription org in the seeded book. The oracle
-        // filters on `status = active` and no pause, so the canceled, trialing, past-due and
-        // paused orgs are excluded — leaving Hverdag, Klarhed, Fjord and (Active,
-        // cancel-at-period-end) Vinter.
-        $this->assertCount(4, $targets);
+        // One target per SERVING (not merely active) org in the seeded book. The oracle now
+        // scopes to the engine's serving-state set — Trialing / Active / PastDue /
+        // NonRenewing, minus any app-layer pause — so a trialing customer (Aula) and a
+        // past-due one (Nordwind, in dunning) are entitled and included, alongside Hverdag,
+        // Klarhed, Fjord and (Active, cancel-at-period-end) Vinter. Only the paused
+        // (Meridian) and canceled (Söder) orgs are excluded: six targets.
+        $this->assertCount(6, $targets);
+
+        $orgs = collect($targets)->pluck('org')->all();
+        $this->assertContains('org_aula', $orgs);      // trialing — served during the trial
+        $this->assertContains('org_nordwind', $orgs);  // past-due — served through dunning
+        $this->assertNotContains('org_meridian', $orgs); // paused — not served
+        $this->assertNotContains('org_soder', $orgs);    // canceled — not served
 
         $hverdag = collect($targets)->firstWhere('org', 'org_hverdag');
         $this->assertNotNull($hverdag);

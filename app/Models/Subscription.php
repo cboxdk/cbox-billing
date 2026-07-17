@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -56,6 +57,42 @@ class Subscription extends Model
             'paused_at' => 'datetime',
             'pending_effective_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The lifecycle statuses in which a subscription is serving its plan — the engine's
+     * {@see SubscriptionStatus::isServing()} set (Trialing, Active, PastDue, NonRenewing),
+     * derived from the enum so the app can never drift from the engine's definition. This
+     * is the single source of truth for "which statuses are entitled/counted as serving".
+     *
+     * @return list<string>
+     */
+    public static function servingStatuses(): array
+    {
+        return array_values(array_map(
+            static fn (SubscriptionStatus $status): string => $status->value,
+            array_filter(
+                SubscriptionStatus::cases(),
+                static fn (SubscriptionStatus $status): bool => $status->isServing(),
+            ),
+        ));
+    }
+
+    /**
+     * Constrain a query to subscriptions that are serving their plan: a serving engine
+     * status AND no app-layer pause in effect (a paused row is suspended even while its
+     * stored status is still Active). The scope every entitlement/serving decision uses so
+     * trialing, past-due and non-renewing customers keep their grants while paused and
+     * canceled ones do not.
+     *
+     * @param  Builder<Subscription>  $query
+     * @return Builder<Subscription>
+     */
+    public function scopeServing(Builder $query): Builder
+    {
+        return $query
+            ->whereIn('status', self::servingStatuses())
+            ->whereNull('paused_at');
     }
 
     /** In a trial: serving the plan but not yet charged; converts at {@see $trial_ends_at}. */

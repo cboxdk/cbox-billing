@@ -7,10 +7,14 @@ namespace App\Billing\Seams;
 use App\Models\Subscription;
 use Cbox\Billing\Entitlement\Audit\Contracts\ExpectedEntitlements;
 use Cbox\Billing\Entitlement\Audit\ValueObjects\AuditTarget;
+use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 
 /**
  * The INDEPENDENT oracle the entitlement audit checks resolved rows against: every org
- * with an active subscription, carrying the meter keys its plan is DEFINED to grant.
+ * with a serving subscription, carrying the meter keys its plan is DEFINED to grant.
+ * Serving is the engine's {@see SubscriptionStatus::isServing()}
+ * set (via {@see Subscription::scopeServing()}), so trialing, past-due and non-renewing
+ * customers are expected to hold grants; paused and canceled ones are not.
  *
  * The expected set is derived from plan/catalog definition — the plan's enabled
  * metered entitlements — and NEVER read back out of the resolved policy the audit then
@@ -24,8 +28,7 @@ readonly class PlanExpectedEntitlements implements ExpectedEntitlements
     public function targets(): iterable
     {
         $subscriptions = Subscription::query()
-            ->where('status', 'active')
-            ->whereNull('paused_at')
+            ->serving()
             ->with(['plan.entitlements.meter'])
             ->get();
 

@@ -11,13 +11,16 @@ use Cbox\Billing\Money\Money;
 use Cbox\Billing\Reporting\ChurnCalculator;
 use Cbox\Billing\Reporting\MrrCalculator;
 use Cbox\Billing\Reporting\ValueObjects\RevenueReport;
+use Cbox\Billing\Reporting\ValueObjects\SubscriptionMrr;
 use Illuminate\Support\Carbon;
 
 /**
- * The dashboard's recurring-revenue read model, computed from real rows: every active
- * {@see Subscription}'s monthly-equivalent amount is fed through the engine's
- * {@see MrrCalculator} (MRR/ARR per currency), churn through the {@see ChurnCalculator},
- * and outstanding is the live sum of open {@see Invoice}s. No figure is hand-typed.
+ * The dashboard's recurring-revenue read model, computed from real rows: every serving
+ * {@see Subscription}'s monthly-equivalent amount is fed — with its lifecycle status —
+ * through the engine's {@see MrrCalculator} (MRR/ARR per currency), which applies the
+ * state→MRR policy so a past-due or non-renewing subscription is counted while a trialing,
+ * paused or canceled one is not. Churn runs through the {@see ChurnCalculator}, and
+ * outstanding is the live sum of open {@see Invoice}s. No figure is hand-typed.
  */
 readonly class RevenueMetrics
 {
@@ -26,10 +29,10 @@ readonly class RevenueMetrics
         private ChurnCalculator $churn,
     ) {}
 
-    /** MRR/ARR per currency, summed by the engine over active subscriptions. */
+    /** MRR/ARR per currency, summed by the engine over serving subscriptions under its state→MRR policy. */
     public function revenue(): RevenueReport
     {
-        return $this->mrr->summarize($this->monthlyAmounts());
+        return $this->mrr->summarizeSubscriptions($this->subscriptionMrrs());
     }
 
     public function primaryCurrency(): string
@@ -39,16 +42,21 @@ readonly class RevenueMetrics
         return is_string($default) ? $default : 'DKK';
     }
 
-    /** @return iterable<Money> */
-    private function monthlyAmounts(): iterable
+    /**
+     * Every serving subscription paired with its status, so the engine (not a hand-written
+     * where clause) decides which lifecycle states contribute to MRR.
+     *
+     * @return iterable<SubscriptionMrr>
+     */
+    private function subscriptionMrrs(): iterable
     {
         $subscriptions = Subscription::query()
-            ->where('status', 'active')
+            ->serving()
             ->with(['organization', 'plan.prices'])
             ->cursor();
 
         foreach ($subscriptions as $subscription) {
-            yield SubscriptionRevenue::monthly($subscription);
+            yield new SubscriptionMrr($subscription->status, SubscriptionRevenue::monthly($subscription));
         }
     }
 
@@ -93,8 +101,11 @@ readonly class RevenueMetrics
     }
 
     /**
-     * Active book of business broken down by plan — count and summed monthly amount per
-     * plan, in the primary currency. Feeds the dashboard's revenue-by-plan panel.
+     * The billing book of business broken down by plan — count and summed monthly amount
+     * per plan, in the primary currency. Feeds the dashboard's revenue-by-plan panel and
+     * is kept consistent with the MRR tile: the serving subscriptions that actually
+     * contribute to MRR (the engine's state→MRR policy), so past-due and non-renewing
+     * accounts appear while trialing, paused and canceled ones do not.
      *
      * @return list<array{plan: string, count: int, minor: int, currency: string}>
      */
@@ -104,11 +115,15 @@ readonly class RevenueMetrics
         $breakdown = [];
 
         $subscriptions = Subscription::query()
-            ->where('status', 'active')
+            ->serving()
             ->with(['organization', 'plan.prices'])
             ->get();
 
         foreach ($subscriptions as $subscription) {
+            if (! $this->mrr->contributes($subscription->status)) {
+                continue;
+            }
+
             $monthly = SubscriptionRevenue::monthly($subscription);
 
             if ($monthly->currency() !== $currency) {

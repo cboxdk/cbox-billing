@@ -11,12 +11,18 @@ use App\Billing\Licensing\DatabaseRevocationRegistry;
 use App\Billing\Licensing\LicenseIssuanceService;
 use Cbox\Billing\Licensing\Contracts\IssuedLicenseStore;
 use Cbox\Billing\Licensing\Contracts\RevocationRegistry;
+use Cbox\License\Contracts\CapabilityGate;
 use Cbox\License\Contracts\LicenseIssuer;
 use Cbox\License\Contracts\RevocationListIssuer;
+use Cbox\License\DenyingCapabilityGate;
 use Cbox\License\Ed25519LicenseIssuer;
+use Cbox\License\Ed25519LicenseVerifier;
 use Cbox\License\Ed25519RevocationListIssuer;
+use Cbox\License\LicenseCapabilityGate;
+use Cbox\License\ValueObjects\VerificationContext;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -34,6 +40,16 @@ use RuntimeException;
  *     revocation registry — to their database-backed implementations, so minted licenses
  *     and revocations survive a restart. The engine already binds the profile resolver
  *     from `billing.licensing.profiles` (deny-by-default), so that is left untouched.
+ *  3. Bind the single {@see CapabilityGate} that a COMPOSED deployment (this base app plus
+ *     private commercial plugins baked into the cloud image) reads to decide whether a paid
+ *     capability is unlocked. Deny-by-default: with no consume-license configured every
+ *     capability stays locked (the free tier). When `consume_key` IS set, its artifact is
+ *     verified offline against the issuer public key and a {@see LicenseCapabilityGate} over
+ *     the fresh result is bound — so plugins unlock exactly the license's entitlements.
+ *
+ * Two DISTINCT keys live here: this app is the license ISSUER (it signs licenses for
+ * customers with `signing_key`); the `consume_key` is the license THIS deployment installs
+ * to unlock its OWN commercial plugins. They are separate concerns and separate keys.
  *
  * The signing key is never logged and never leaves config; only the public key is ever
  * displayed.
@@ -64,6 +80,38 @@ class LicensingServiceProvider extends ServiceProvider
         $this->app->singleton(RevocationRegistry::class, static fn (Application $app): DatabaseRevocationRegistry => $app->make(LicenseRevocationRegistry::class));
 
         $this->app->singleton(IssuesLicenses::class, LicenseIssuanceService::class);
+
+        // The single seam every commercial plugin reads. Resolved LAZILY (a singleton
+        // closure only runs on first resolution), so an unconfigured deployment never
+        // verifies at boot and simply denies by default.
+        $this->app->singleton(CapabilityGate::class, static function (Application $app): CapabilityGate {
+            $config = $app->make(Config::class);
+            $consumeKey = $config->get('billing.licensing.consume_key');
+
+            // Deny-by-default: no consume-license → the free tier, and no plugin
+            // capability unlocks by omission.
+            if (! is_string($consumeKey) || $consumeKey === '') {
+                return new DenyingCapabilityGate;
+            }
+
+            // Verify the installed license offline against the ISSUER public key, reusing
+            // the same grace/skew the verifier deployment honours. An unlicensed result
+            // (expired-beyond-grace, wrong deployment, bad signature, …) naturally grants
+            // nothing.
+            $verifier = new Ed25519LicenseVerifier(
+                self::stringConfig($config, 'billing.licensing.public_key'),
+                self::intConfig($config, 'billing.licensing.grace_seconds', 0),
+                self::intConfig($config, 'billing.licensing.clock_skew_seconds', 60),
+            );
+
+            $result = $verifier->verify($consumeKey, new VerificationContext(
+                self::stringConfig($config, 'billing.licensing.deployment_id'),
+                null,
+                Carbon::now()->toDateTimeImmutable(),
+            ));
+
+            return new LicenseCapabilityGate($result);
+        });
     }
 
     /**
@@ -83,5 +131,26 @@ class LicensingServiceProvider extends ServiceProvider
         }
 
         return $key;
+    }
+
+    /**
+     * A string config value, or '' when unset/non-string. An empty deployment id or
+     * public key naturally yields a denying verification result (grants nothing).
+     */
+    private static function stringConfig(Config $config, string $key): string
+    {
+        $value = $config->get($key);
+
+        return is_string($value) ? $value : '';
+    }
+
+    /**
+     * An int config value, or the supplied default when unset/non-int.
+     */
+    private static function intConfig(Config $config, string $key, int $default): int
+    {
+        $value = $config->get($key);
+
+        return is_int($value) ? $value : $default;
     }
 }

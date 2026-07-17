@@ -1,7 +1,7 @@
 {
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:9b9b4380-3018-4765-a85e-244f15cb2592",
+    "serialNumber": "urn:uuid:21a4e94c-21fd-4df7-8482-b22da921bf99",
     "version": 1,
     "metadata": {
         "tools": [
@@ -181,11 +181,11 @@
         },
         {
             "type": "library",
-            "bom-ref": "pkg:composer/cboxdk/license@v0.1.0",
+            "bom-ref": "pkg:composer/cboxdk/license@v0.1.1",
             "group": "cboxdk",
             "name": "license",
-            "version": "v0.1.0",
-            "purl": "pkg:composer/cboxdk/license@v0.1.0",
+            "version": "v0.1.1",
+            "purl": "pkg:composer/cboxdk/license@v0.1.1",
             "description": "Framework-agnostic, offline license core: mint and verify compact Ed25519-signed license artifacts (EdDSA JWTs) with entitlements, limits, deployment/domain binding, grace windows and signed revocation lists. The shared leaf both a billing issuer and a self-hosted verifier depend on.",
             "licenses": [
                 {

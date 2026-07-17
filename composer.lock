@@ -674,16 +674,16 @@
         },
         {
             "name": "cboxdk/license",
-            "version": "v0.1.0",
+            "version": "v0.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/license.git",
-                "reference": "0ef7d1860118ab39a9af894ba82bd43c7500ac46"
+                "reference": "1f370f5d30c064e3b39a1444abfedf1ee325cfd9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/license/zipball/0ef7d1860118ab39a9af894ba82bd43c7500ac46",
-                "reference": "0ef7d1860118ab39a9af894ba82bd43c7500ac46",
+                "url": "https://api.github.com/repos/cboxdk/license/zipball/1f370f5d30c064e3b39a1444abfedf1ee325cfd9",
+                "reference": "1f370f5d30c064e3b39a1444abfedf1ee325cfd9",
                 "shasum": ""
             },
             "require": {
@@ -732,9 +732,9 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/license/issues",
-                "source": "https://github.com/cboxdk/license/tree/v0.1.0"
+                "source": "https://github.com/cboxdk/license/tree/v0.1.1"
             },
-            "time": "2026-07-16T15:07:34+00:00"
+            "time": "2026-07-16T22:25:40+00:00"
         },
         {
             "name": "cboxdk/system-metrics",

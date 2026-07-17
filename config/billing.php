@@ -360,6 +360,27 @@ return [
         'public_key' => env('CBOX_LICENSE_PUBLIC_KEY'),
 
         /*
+         * The consume-license THIS deployment installs to unlock its OWN commercial
+         * plugins — the flip side of the issuer keys above. `signing_key`/`public_key`
+         * are the ISSUER pair this app uses to sign licenses FOR customers; `consume_key`
+         * is a license (signed by that same issuer) that a composed deployment installs
+         * so its bundled paid plugins light up. When set, the LicensingServiceProvider
+         * verifies it offline against `public_key` and binds a license-backed
+         * CapabilityGate; when empty, the gate denies by default and the deployment runs
+         * the free tier. NEVER commit a real key — `.env` is gitignored and `.env.example`
+         * carries only an empty placeholder.
+         */
+        'consume_key' => env('CBOX_BILLING_LICENSE_KEY'),
+
+        /*
+         * This deployment's stable identity, matched against the consume-license's
+         * deployment binding when verifying `consume_key`. A mismatch — or an absent id —
+         * unlocks nothing (deny-by-default), so a license minted for one deployment cannot
+         * light up another.
+         */
+        'deployment_id' => env('CBOX_BILLING_DEPLOYMENT_ID'),
+
+        /*
          * How long a freshly-issued license lasts when its window is NOT derived from a
          * subscription's paid period (the console/API issue flow default). A
          * subscription-driven reissue instead tracks the paid-period end via the engine's

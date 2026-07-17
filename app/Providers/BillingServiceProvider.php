@@ -26,21 +26,27 @@ use App\Billing\Notifications\BillingNotifier;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Payments\Contracts\PaysInvoices;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
+use App\Billing\Payments\Contracts\RetriesPayments;
 use App\Billing\Payments\DatabaseDunningStateStore;
 use App\Billing\Payments\DatabaseGatewayCustomerResolver;
 use App\Billing\Payments\DatabaseProcessedEventStore;
 use App\Billing\Payments\DatabaseSettledPaymentStore;
 use App\Billing\Payments\ManualWebhookVerifier;
+use App\Billing\Payments\PaymentRetryService;
 use App\Billing\Payments\PaymentService;
+use App\Billing\Retention\Contracts\ManagesRetention;
+use App\Billing\Retention\RetentionService;
 use App\Billing\Seams\DatabaseAccountStanding;
 use App\Billing\Seams\EloquentInvoicePaymentApplier;
 use App\Billing\Seams\PlanExpectedEntitlements;
 use App\Billing\Seams\SubscriptionMeterPolicyResolver;
 use App\Billing\Seller\ConfiguredEntityRouter;
+use App\Billing\Subscriptions\Contracts\ConvertsTrials;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\SubscriptionDepthService;
 use App\Billing\Subscriptions\SubscriptionService;
+use App\Billing\Subscriptions\TrialService;
 use Cbox\Billing\Account\Contracts\AccountStanding;
 use Cbox\Billing\Account\Contracts\BillingCurrencyLock;
 use Cbox\Billing\Account\CurrencyLock\DatabaseBillingCurrencyLock;
@@ -310,9 +316,17 @@ class BillingServiceProvider extends ServiceProvider
 
         $this->app->singleton(ManagesSubscriptionDepth::class, SubscriptionDepthService::class);
 
+        $this->app->singleton(ManagesRetention::class, RetentionService::class);
+
         $this->app->singleton(GeneratesInvoices::class, InvoiceService::class);
 
         $this->app->singleton(PaysInvoices::class, PaymentService::class);
+
+        // The smart-retry dunning collector (failed renewal → PastDue → backoff retries →
+        // recover or terminal action) and the trial-conversion service.
+        $this->app->singleton(RetriesPayments::class, PaymentRetryService::class);
+
+        $this->app->singleton(ConvertsTrials::class, TrialService::class);
     }
 
     /**

@@ -27,6 +27,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $current_period_start
  * @property Carbon|null $current_period_end
  * @property bool $cancel_at_period_end
+ * @property Carbon|null $trial_ends_at
+ * @property Carbon|null $canceled_at
  * @property Carbon|null $paused_at
  * @property int|null $pending_plan_id
  * @property Carbon|null $pending_effective_at
@@ -36,6 +38,7 @@ class Subscription extends Model
     protected $fillable = [
         'organization_id', 'plan_id', 'status', 'seats',
         'current_period_start', 'current_period_end', 'cancel_at_period_end',
+        'trial_ends_at', 'canceled_at',
         'paused_at', 'pending_plan_id', 'pending_effective_at',
     ];
 
@@ -48,9 +51,29 @@ class Subscription extends Model
             'current_period_start' => 'datetime',
             'current_period_end' => 'datetime',
             'cancel_at_period_end' => 'boolean',
+            'trial_ends_at' => 'datetime',
+            'canceled_at' => 'datetime',
             'paused_at' => 'datetime',
             'pending_effective_at' => 'datetime',
         ];
+    }
+
+    /** In a trial: serving the plan but not yet charged; converts at {@see $trial_ends_at}. */
+    public function isTrialing(): bool
+    {
+        return $this->status === SubscriptionStatus::Trialing;
+    }
+
+    /** A payment failed and the smart-retry (dunning) schedule is chasing the charge. */
+    public function isPastDue(): bool
+    {
+        return $this->status === SubscriptionStatus::PastDue;
+    }
+
+    /** Terminally canceled — the org is on no plan. */
+    public function isCanceled(): bool
+    {
+        return $this->status === SubscriptionStatus::Canceled;
     }
 
     /** Paused: access and metering are suspended until the subscription is resumed. */

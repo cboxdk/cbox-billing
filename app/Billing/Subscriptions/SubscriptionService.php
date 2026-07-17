@@ -18,6 +18,7 @@ use Cbox\Billing\Subscription\PlanChange\PlanChangePreview;
 use Cbox\Billing\Subscription\PlanChange\PlanChangePreviewer;
 use Cbox\Billing\Subscription\PlanChange\ValueObjects\CreditConsequenceRequest;
 use Cbox\Billing\Subscription\SubscriptionLifecycle;
+use Cbox\Billing\Subscription\SubscriptionManager;
 use Cbox\Billing\Subscription\ValueObjects\BillingPeriod;
 use Cbox\Billing\Subscription\ValueObjects\Subscription as EngineSubscription;
 use Cbox\Billing\Wallet\Contracts\Wallet;
@@ -55,6 +56,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
         private WalletProvisioner $provisioner,
         private PlanChangePreviewer $previewer,
         private SubscriptionLifecycle $lifecycle,
+        private SubscriptionManager $manager,
         private TaxContextFactory $taxContexts,
         private ResolvesAccountCurrency $currencies,
         private NotifiesCustomers $notifier,
@@ -62,22 +64,87 @@ readonly class SubscriptionService implements SubscribesOrganizations
 
     public function subscribe(Organization $organization, Plan $plan, int $seats = 1, ?string $currency = null): Subscription
     {
+        return $this->open($organization, $plan, $seats, $currency, null);
+    }
+
+    public function subscribeWithTrial(Organization $organization, Plan $plan, ?int $trialDays = null, int $seats = 1, ?string $currency = null): Subscription
+    {
+        $trialDays ??= $this->configuredTrialDays();
+
+        // Deny-by-default on a nonsensical length: a zero/negative trial is an ordinary
+        // paid subscribe (Active from the start), never a Trialing row that converts in
+        // the past.
+        $trialEndsAt = $trialDays > 0 ? Carbon::now()->addDays($trialDays)->toDateTimeImmutable() : null;
+
+        return $this->open($organization, $plan, $seats, $currency, $trialEndsAt);
+    }
+
+    /**
+     * Convert a due trial to a paying subscription (first charge is raised by the caller):
+     * the engine's `Trialing` → `Active` transition, then the durable row is stamped
+     * `Active` and the trial marker cleared. Refuses (via the engine machine) to convert a
+     * subscription that is not `Trialing`.
+     */
+    public function convertTrial(Subscription $subscription): Subscription
+    {
+        $converted = $this->manager->convertTrial($this->toEngineSubscription($subscription), $this->now());
+
+        $subscription->forceFill([
+            'status' => $converted->status,
+            'trial_ends_at' => null,
+        ])->save();
+
+        return $subscription;
+    }
+
+    /**
+     * A failed renewal charge: move a serving subscription to the engine's `PastDue` state
+     * so the smart-retry schedule can chase it. Idempotent — an already-`PastDue`
+     * subscription is left as-is (the machine permits the `PastDue` → `PastDue` self-loop).
+     */
+    public function markPastDue(Subscription $subscription): Subscription
+    {
+        $updated = $this->manager->markPastDue($this->toEngineSubscription($subscription));
+
+        $subscription->forceFill(['status' => $updated->status])->save();
+
+        return $subscription;
+    }
+
+    /** A recovered payment: the engine's `PastDue` → `Active` transition, persisted. */
+    public function recover(Subscription $subscription): Subscription
+    {
+        $updated = $this->manager->recover($this->toEngineSubscription($subscription));
+
+        $subscription->forceFill(['status' => $updated->status])->save();
+
+        return $subscription;
+    }
+
+    /** Open a subscription for the current period, optionally opening it in a trial. */
+    private function open(Organization $organization, Plan $plan, int $seats, ?string $currency, ?DateTimeImmutable $trialEndsAt): Subscription
+    {
         [$periodStart, $periodEnd] = $this->currentPeriod();
 
-        return $this->db->transaction(function () use ($organization, $plan, $seats, $currency, $periodStart, $periodEnd): Subscription {
+        return $this->db->transaction(function () use ($organization, $plan, $seats, $currency, $periodStart, $periodEnd, $trialEndsAt): Subscription {
             $this->pinCurrency($organization, $currency);
 
             $subscription = Subscription::query()->updateOrCreate(
                 ['organization_id' => $organization->id, 'plan_id' => $plan->id],
                 [
-                    'status' => SubscriptionStatus::Active,
+                    // A trial opens Trialing (serving, charging nothing); otherwise Active.
+                    'status' => $trialEndsAt !== null ? SubscriptionStatus::Trialing : SubscriptionStatus::Active,
                     'seats' => $seats,
                     'current_period_start' => $periodStart,
                     'current_period_end' => $periodEnd,
                     'cancel_at_period_end' => false,
+                    'trial_ends_at' => $trialEndsAt !== null ? Carbon::instance($trialEndsAt) : null,
+                    'canceled_at' => null,
                 ],
             );
 
+            // A trial is a serving state, so its plan grants are provisioned exactly as a
+            // paid subscribe's are — the customer gets full entitlements during the trial.
             $this->provisioner->provision(
                 $organization->id,
                 $plan,
@@ -145,6 +212,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
         $subscription->forceFill([
             'status' => SubscriptionStatus::Canceled,
             'cancel_at_period_end' => false,
+            'canceled_at' => Carbon::now(),
         ])->save();
 
         $this->notifier->subscriptionChanged($subscription->loadMissing('plan', 'organization'), 'canceled');
@@ -249,7 +317,25 @@ readonly class SubscriptionService implements SubscribesOrganizations
             productId: (string) $plan->product_id,
             priceId: $plan->key,
             period: $period,
+            // Carry the durable row's real state so an engine transition is validated
+            // against where the subscription actually is (a Trialing → Active convert, a
+            // PastDue → Active recover), not an assumed Active.
+            status: $subscription->status,
+            cancelAtPeriodEnd: $subscription->cancel_at_period_end,
+            trialEndsAt: $subscription->trial_ends_at?->toDateTimeImmutable(),
         );
+    }
+
+    private function configuredTrialDays(): int
+    {
+        $days = config('billing.trial.default_days', 14);
+
+        return is_numeric($days) ? (int) $days : 14;
+    }
+
+    private function now(): DateTimeImmutable
+    {
+        return Carbon::now()->toDateTimeImmutable();
     }
 
     /** @return array{0: Carbon, 1: Carbon} */

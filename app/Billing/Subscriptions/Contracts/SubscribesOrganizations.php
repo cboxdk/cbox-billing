@@ -28,6 +28,32 @@ interface SubscribesOrganizations
     public function subscribe(Organization $organization, Plan $plan, int $seats = 1, ?string $currency = null): Subscription;
 
     /**
+     * Subscribe `$organization` to `$plan` in a FREE TRIAL: open the subscription
+     * `Trialing` (serving the plan and provisioning its grants, but charging nothing) with
+     * the trial due to convert `$trialDays` days out (or the configured default when null).
+     * A zero/negative length is an ordinary paid subscribe. Conversion — the first charge —
+     * is enacted later by {@see convertTrial()} on the scheduled convert pass.
+     */
+    public function subscribeWithTrial(Organization $organization, Plan $plan, ?int $trialDays = null, int $seats = 1, ?string $currency = null): Subscription;
+
+    /**
+     * Convert a due trial to a paying subscription via the engine's `Trialing` → `Active`
+     * transition and clear its trial marker. The first charge is raised by the caller (the
+     * convert pass), not here. Refuses a subscription that is not `Trialing`.
+     */
+    public function convertTrial(Subscription $subscription): Subscription;
+
+    /**
+     * A failed renewal charge: move a serving subscription to the engine's `PastDue` state
+     * so the smart-retry schedule can chase the payment. Idempotent on an already-`PastDue`
+     * subscription.
+     */
+    public function markPastDue(Subscription $subscription): Subscription;
+
+    /** A recovered payment: the engine's `PastDue` → `Active` transition, persisted. */
+    public function recover(Subscription $subscription): Subscription;
+
+    /**
      * The confirmable consequence of moving `$subscription` onto `$newPlan`, WITHOUT
      * applying it. Computed by the engine's proration in the account's currency; the
      * returned {@see PlanChangePreview} is the exact charge {@see changePlan()} will make

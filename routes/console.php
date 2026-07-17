@@ -32,6 +32,22 @@ Schedule::command('billing:invoice')->monthlyOn(1, '02:00')->withoutOverlapping(
 Schedule::command('billing:dunning')->dailyAt('06:00')->withoutOverlapping();
 
 /*
+ * Smart-retry dunning for failed renewal charges: chase each PastDue invoice on its backoff
+ * schedule. Run daily — each attempt is idempotent per (invoice, attempt) and only fires
+ * when its next offset has come due, so a daily cadence enacts the [1,3,5,7]-day schedule
+ * without ever double-charging.
+ */
+Schedule::command('billing:retry-payments')->dailyAt('06:30')->withoutOverlapping();
+
+/*
+ * Convert due free trials: after the renewal pass, take each Trialing subscription whose
+ * trial end has passed to a paying Active (first charge), and send the trial-ending reminder
+ * as a trial crosses into its lead window. Idempotent — a converted trial is never
+ * re-selected.
+ */
+Schedule::command('billing:convert-trials')->dailyAt('04:00')->withoutOverlapping();
+
+/*
  * (Re)issue on-prem licenses for active subscriptions on a licensable plan, after the
  * daily renewal so a rolled-over paid period is reflected in the license expiry. The run
  * is idempotent (one active license per deployment), so a deployment already covering the

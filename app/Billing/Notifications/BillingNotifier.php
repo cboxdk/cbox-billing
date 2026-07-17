@@ -10,8 +10,10 @@ use App\Mail\InvoiceIssuedMail;
 use App\Mail\LicenseDeliveryMail;
 use App\Mail\PaymentFailedMail;
 use App\Mail\PaymentReceiptMail;
+use App\Mail\PaymentRetryMail;
 use App\Mail\RenewalReminderMail;
 use App\Mail\SubscriptionChangedMail;
+use App\Mail\TrialEndingMail;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -79,6 +81,44 @@ readonly class BillingNotifier implements NotifiesCustomers
             suspended: $suspended,
             oldestDueLabel: $oldestDueAt?->format('j M Y'),
         ), 'dunning.notice', $organization->id);
+    }
+
+    public function paymentRetryFailed(Subscription $subscription, Invoice $invoice, int $attempt, int $maxAttempts, ?DateTimeInterface $nextAttemptAt, bool $exhausted): void
+    {
+        $organization = $invoice->organization ?? $subscription->organization;
+
+        if (! $organization instanceof Organization) {
+            return;
+        }
+
+        $this->send($organization, new PaymentRetryMail(
+            organizationName: $organization->name,
+            invoiceNumber: $invoice->number,
+            amountFormatted: MoneyFormatter::money($invoice->total()),
+            attempt: $attempt,
+            maxAttempts: $maxAttempts,
+            nextAttemptLabel: $nextAttemptAt?->format('j M Y'),
+            exhausted: $exhausted,
+        ), 'payment.retry', $invoice->number);
+    }
+
+    public function trialEnding(Subscription $subscription, DateTimeInterface $trialEndsAt): void
+    {
+        $organization = $subscription->organization;
+        $plan = $subscription->plan;
+
+        if (! $organization instanceof Organization || ! $plan instanceof Plan) {
+            return;
+        }
+
+        $currency = $organization->billing_currency ?? 'DKK';
+
+        $this->send($organization, new TrialEndingMail(
+            organizationName: $organization->name,
+            planName: $plan->name,
+            endsAtLabel: $trialEndsAt->format('j M Y'),
+            amountFormatted: $this->recurringAmount($plan, $currency),
+        ), 'trial.ending', $subscription->organization_id);
     }
 
     public function renewalReminder(Subscription $subscription): void

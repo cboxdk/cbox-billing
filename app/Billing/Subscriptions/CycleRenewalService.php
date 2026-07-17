@@ -94,6 +94,7 @@ readonly class CycleRenewalService
                 $subscription->forceFill([
                     'status' => SubscriptionStatus::Canceled,
                     'cancel_at_period_end' => false,
+                    'canceled_at' => Carbon::now(),
                 ])->save();
             });
 

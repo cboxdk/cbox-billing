@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Licensing\Contracts\IssuesLicenses;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
+use App\Billing\Payments\Contracts\RetriesPayments;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\CycleRenewalService;
 use App\Jobs\RenewSubscriptionJob;
@@ -141,6 +142,7 @@ class TransactionalMailTest extends TestCase
             app(CycleRenewalService::class),
             app(NotifiesCustomers::class),
             app('config'),
+            app(RetriesPayments::class),
         );
 
         Mail::assertQueued(RenewalReminderMail::class, function (RenewalReminderMail $mail): bool {
@@ -158,6 +160,7 @@ class TransactionalMailTest extends TestCase
             app(CycleRenewalService::class),
             app(NotifiesCustomers::class),
             app('config'),
+            app(RetriesPayments::class),
         );
 
         Mail::assertNotQueued(RenewalReminderMail::class);

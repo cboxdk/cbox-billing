@@ -65,6 +65,58 @@ return [
     ],
 
     /*
+     * Free trials. A subscribe-with-trial opens the subscription `Trialing` (serving its
+     * plan, charging nothing) until `trial_ends_at`, when the scheduled
+     * `billing:convert-trials` pass converts it to a paying `Active` (first charge).
+     */
+    'trial' => [
+
+        /*
+         * The default trial length, in days, when a subscribe-with-trial does not specify
+         * its own. The trial ends this many days after the subscription opens.
+         */
+        'default_days' => (int) env('CBOX_BILLING_TRIAL_DAYS', 14),
+
+        /*
+         * How many days ahead of a trial's conversion the trial-ending reminder email goes
+         * out — the daily convert pass fires it once, on the day the trial end crosses into
+         * this lead window (never again inside it).
+         */
+        'reminder_lead_days' => (int) env('CBOX_BILLING_TRIAL_REMINDER_DAYS', 3),
+
+        /*
+         * Whether a due trial requires a payment method on file before it converts. When
+         * true, a trial with no vaulted method at conversion is NOT charged — it takes the
+         * `no_payment_method_action` below instead. When false (the default, matching a
+         * manual / out-of-band gateway that vaults nothing), a due trial always converts and
+         * its first invoice is collected on the ordinary charge/renewal path.
+         */
+        'require_payment_method' => env('CBOX_BILLING_TRIAL_REQUIRE_PM', false),
+
+        /*
+         * What to do with a due trial that has no payment method when one is required:
+         * `cancel` (end the subscription — deny-by-default) or `pause` (suspend it so the
+         * customer can add a method and resume). Only consulted when
+         * `require_payment_method` is true.
+         */
+        'no_payment_method_action' => env('CBOX_BILLING_TRIAL_NO_PM_ACTION', 'cancel'),
+    ],
+
+    /*
+     * Retention. Captured churn reasons live in the `subscription_cancellations` log; this
+     * governs win-back.
+     */
+    'retention' => [
+
+        /*
+         * How many days after a subscription is canceled it may still be reactivated
+         * (re-subscribed to the same plan) through the win-back path. A cancellation older
+         * than this is a fresh subscribe, not a reactivation.
+         */
+        'reactivation_window_days' => (int) env('CBOX_BILLING_REACTIVATION_WINDOW_DAYS', 30),
+    ],
+
+    /*
      * Payment collection, including the dunning / delinquency policy.
      */
     'payment' => [
@@ -104,6 +156,35 @@ return [
              * suspended account suspended.
              */
             'grace_hours' => (int) env('CBOX_BILLING_DUNNING_GRACE_HOURS', 24),
+        ],
+
+        /*
+         * Smart-retry dunning — how a FAILED renewal charge is chased. On a failure the
+         * subscription moves to the engine's `PastDue` state and the invoice is retried on
+         * the gateway on this backoff, a payment-failed email going out each attempt. A
+         * retry that settles recovers the subscription to `Active` (+ receipt); an exhausted
+         * schedule runs the `terminal_action`. This is the money-collection counterpart to
+         * the access-gating `dunning` policy above — the two run independently.
+         */
+        'retry' => [
+
+            /*
+             * The backoff schedule as day-offsets from the initial failure: attempt N fires
+             * `schedule[N-1]` days after the charge first failed. The number of entries is
+             * the maximum number of retries — once the last offset's attempt fails, the
+             * schedule is exhausted. Default: retry on days 1, 3, 5 and 7.
+             *
+             * @var list<int>
+             */
+            'schedule' => [1, 3, 5, 7],
+
+            /*
+             * What to do when the retry schedule is exhausted without recovering the
+             * payment: `cancel` (cancel the subscription immediately — the engine's
+             * forfeiture-on-transition fires) or `none` (leave it `PastDue` for manual
+             * handling; the access-gating dunning pass still governs suspension).
+             */
+            'terminal_action' => env('CBOX_BILLING_RETRY_TERMINAL_ACTION', 'cancel'),
         ],
     ],
 

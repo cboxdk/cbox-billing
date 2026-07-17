@@ -53,6 +53,7 @@ Route::middleware('throttle:cbox-management')->group(function (): void {
     Route::post('subscriptions/{org}/preview', [SubscriptionController::class, 'preview'])->name('subscriptions.preview');
     Route::post('subscriptions/{org}/change', [SubscriptionController::class, 'change'])->middleware('idempotency')->name('subscriptions.change');
     Route::post('subscriptions/{org}/cancel', [SubscriptionController::class, 'cancel'])->name('subscriptions.cancel');
+    Route::post('subscriptions/{org}/reactivate', [SubscriptionController::class, 'reactivate'])->name('subscriptions.reactivate');
 
     /*
      * Subscription-management depth (ADR-0012): pause/resume, seat-quantity changes with

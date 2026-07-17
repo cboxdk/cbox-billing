@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
+use App\Billing\Payments\Contracts\RetriesPayments;
 use App\Billing\Subscriptions\CycleRenewalService;
 use App\Models\Subscription;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
@@ -32,7 +33,7 @@ class RenewSubscriptionJob implements ShouldQueue
 
     public function __construct(public int $subscriptionId) {}
 
-    public function handle(CycleRenewalService $renewals, NotifiesCustomers $notifier, Config $config): void
+    public function handle(CycleRenewalService $renewals, NotifiesCustomers $notifier, Config $config, RetriesPayments $retries): void
     {
         $subscription = Subscription::query()
             ->with(['organization', 'plan.prices', 'plan.product', 'plan.creditGrants', 'plan.entitlements.meter', 'addOns'])
@@ -46,7 +47,14 @@ class RenewSubscriptionJob implements ShouldQueue
 
         $this->maybeRemind($subscription, $notifier, $config);
 
-        $renewals->renew($subscription);
+        $outcome = $renewals->renew($subscription);
+
+        // Collect the freshly-issued renewal invoice through the gateway. A hard decline
+        // enters the smart-retry (PastDue) flow; an out-of-band gateway simply reports
+        // pending and the settlement webhook resolves it later.
+        if ($outcome->invoice !== null) {
+            $retries->chargeRenewal($outcome->invoice, $subscription->refresh()->loadMissing('organization', 'plan'));
+        }
     }
 
     /**

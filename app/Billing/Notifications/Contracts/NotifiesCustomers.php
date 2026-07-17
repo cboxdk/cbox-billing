@@ -32,6 +32,17 @@ interface NotifiesCustomers
     /** A dunning step fired → notify the account of the past-due balance (and any suspension). */
     public function dunningNotice(Organization $organization, Money $amountDue, bool $suspended, ?DateTimeInterface $oldestDueAt): void;
 
+    /**
+     * A renewal charge failed and the smart-retry schedule is chasing it → tell the customer
+     * their payment failed, when the next attempt is (or that retries are exhausted).
+     * `$attempt` is 0 for the initial failure notice, then the attempt number for each
+     * retry; `$exhausted` is true on the final, give-up notice.
+     */
+    public function paymentRetryFailed(Subscription $subscription, Invoice $invoice, int $attempt, int $maxAttempts, ?DateTimeInterface $nextAttemptAt, bool $exhausted): void;
+
+    /** Ahead of a trial's conversion → remind the customer their trial ends (and will charge). */
+    public function trialEnding(Subscription $subscription, DateTimeInterface $trialEndsAt): void;
+
     /** Ahead of a term renewal → remind the customer their subscription renews. */
     public function renewalReminder(Subscription $subscription): void;
 

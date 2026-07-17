@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Billing\Retention\Contracts\ManagesRetention;
+use App\Billing\Retention\Enums\CancellationMode;
+use App\Billing\Retention\Exceptions\RetentionException;
+use App\Billing\Retention\ValueObjects\CancellationRequest;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
@@ -48,7 +52,11 @@ class SubscriptionController extends ApiController
         return new JsonResponse($this->present($subscription));
     }
 
-    /** `POST /api/v1/subscriptions` {org, plan} — subscribe the org to a plan. */
+    /**
+     * `POST /api/v1/subscriptions` {org, plan, trial?, trial_days?} — subscribe the org to a
+     * plan. With `trial: true` (or a positive `trial_days`) the subscription opens in a free
+     * trial (`Trialing`, charging nothing) that converts on the scheduled trial pass.
+     */
     public function store(Request $request, SubscribesOrganizations $subscriptions): JsonResponse
     {
         $request->validate([
@@ -56,6 +64,8 @@ class SubscriptionController extends ApiController
             'plan' => ['required', 'string'],
             'seats' => ['sometimes', 'integer', 'min:1'],
             'currency' => ['sometimes', 'string', 'size:3'],
+            'trial' => ['sometimes', 'boolean'],
+            'trial_days' => ['sometimes', 'integer', 'min:1'],
         ]);
 
         $org = $request->string('org')->toString();
@@ -77,13 +87,19 @@ class SubscriptionController extends ApiController
         }
 
         $currency = $request->has('currency') ? strtoupper($request->string('currency')->toString()) : null;
+        $seats = $request->integer('seats', 1);
 
-        $subscription = $subscriptions->subscribe(
-            $organization,
-            $plan,
-            $request->integer('seats', 1),
-            $currency,
-        );
+        $wantsTrial = $request->boolean('trial') || $request->has('trial_days');
+
+        $subscription = $wantsTrial
+            ? $subscriptions->subscribeWithTrial(
+                $organization,
+                $plan,
+                $request->has('trial_days') ? $request->integer('trial_days') : null,
+                $seats,
+                $currency,
+            )
+            : $subscriptions->subscribe($organization, $plan, $seats, $currency);
 
         return new JsonResponse([
             'subscription' => $this->present($subscription),
@@ -151,10 +167,21 @@ class SubscriptionController extends ApiController
         return new JsonResponse(['scheduled' => false] + $this->presentPreview($subscriptions->changePlan($subscription, $newPlan)));
     }
 
-    /** `POST /api/v1/subscriptions/{org}/cancel` {at_period_end?} — schedule or immediately cancel. */
-    public function cancel(Request $request, string $org, SubscribesOrganizations $subscriptions): JsonResponse
+    /**
+     * `POST /api/v1/subscriptions/{org}/cancel` {mode?, at_period_end?, reason?, feedback?} —
+     * the retention fork. `mode` is `immediate`, `period_end`, or `pause` (a
+     * pause-instead-of-cancel save); when absent it derives from the legacy `at_period_end`
+     * flag (default true → period-end). The `reason`/`feedback` are captured for churn
+     * analytics regardless of mode.
+     */
+    public function cancel(Request $request, string $org, ManagesRetention $retention): JsonResponse
     {
-        $request->validate(['at_period_end' => ['sometimes', 'boolean']]);
+        $request->validate([
+            'mode' => ['sometimes', 'in:immediate,period_end,pause'],
+            'at_period_end' => ['sometimes', 'boolean'],
+            'reason' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'feedback' => ['sometimes', 'nullable', 'string', 'max:2000'],
+        ]);
 
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
             return $denied;
@@ -166,11 +193,41 @@ class SubscriptionController extends ApiController
             return $this->notFound('This organization has no active subscription.');
         }
 
-        // Default to a graceful period-end cancellation; an explicit `false` cancels now
-        // and drives the engine's forfeiture-on-transition.
-        $atPeriodEnd = $request->boolean('at_period_end', true);
+        $mode = $request->has('mode')
+            ? CancellationMode::from($request->string('mode')->toString())
+            : ($request->boolean('at_period_end', true) ? CancellationMode::PeriodEnd : CancellationMode::Immediate);
 
-        $subscription = $subscriptions->cancel($subscription, $atPeriodEnd);
+        $subscription = $retention->cancel($subscription, new CancellationRequest(
+            mode: $mode,
+            reason: $this->nullableString($request, 'reason'),
+            feedback: $this->nullableString($request, 'feedback'),
+        ));
+
+        return new JsonResponse($this->present($subscription->refresh()));
+    }
+
+    /**
+     * `POST /api/v1/subscriptions/{org}/reactivate` — win-back: resume a paused subscription,
+     * undo a scheduled period-end cancel, or re-activate one canceled within the win-back
+     * window. 409 when the subscription is in none of those reactivatable states.
+     */
+    public function reactivate(Request $request, string $org, ManagesRetention $retention): JsonResponse
+    {
+        if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        $subscription = $this->latestSubscription($org);
+
+        if (! $subscription instanceof Subscription) {
+            return $this->notFound('This organization has no subscription.');
+        }
+
+        try {
+            $subscription = $retention->reactivate($subscription);
+        } catch (RetentionException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
 
         return new JsonResponse($this->present($subscription->refresh()));
     }
@@ -329,6 +386,31 @@ class SubscriptionController extends ApiController
             ->first();
     }
 
+    /**
+     * The org's most recent subscription regardless of status — the lookup reactivation
+     * uses, since a paused or canceled subscription is exactly what win-back acts on.
+     */
+    private function latestSubscription(string $org): ?Subscription
+    {
+        return Subscription::query()
+            ->with(['plan', 'organization', 'pendingPlan', 'addOns'])
+            ->where('organization_id', $org)
+            ->latest('id')
+            ->first();
+    }
+
+    /** A trimmed request string, or null when absent/blank — for the optional reason fields. */
+    private function nullableString(Request $request, string $key): ?string
+    {
+        if (! $request->filled($key)) {
+            return null;
+        }
+
+        $value = trim($request->string($key)->toString());
+
+        return $value === '' ? null : $value;
+    }
+
     private function planByKey(string $key): ?Plan
     {
         return Plan::query()->with(['prices', 'product'])->where('key', $key)->first();
@@ -347,6 +429,8 @@ class SubscriptionController extends ApiController
             'renews_at' => $subscription->cancel_at_period_end || $subscription->isPaused()
                 ? null
                 : $subscription->current_period_end?->toIso8601String(),
+            'trial_ends_at' => $subscription->trial_ends_at?->toIso8601String(),
+            'canceled_at' => $subscription->canceled_at?->toIso8601String(),
             'pending_change' => $subscription->hasPendingChange()
                 ? [
                     'plan' => $subscription->pendingPlan?->key,

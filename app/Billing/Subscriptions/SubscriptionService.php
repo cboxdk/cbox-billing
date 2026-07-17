@@ -6,12 +6,14 @@ namespace App\Billing\Subscriptions;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
+use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Tax\TaxContextFactory;
 use App\Billing\Wallet\WalletProvisioner;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
+use Cbox\Billing\Money\Money;
 use Cbox\Billing\Subscription\Contracts\TransitionPolicy;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Cbox\Billing\Subscription\PlanChange\PlanChangePreview;
@@ -60,6 +62,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
         private TaxContextFactory $taxContexts,
         private ResolvesAccountCurrency $currencies,
         private NotifiesCustomers $notifier,
+        private SubscriptionMrrMovementRecorder $movements,
     ) {}
 
     public function subscribe(Organization $organization, Plan $plan, int $seats = 1, ?string $currency = null): Subscription
@@ -87,12 +90,19 @@ readonly class SubscriptionService implements SubscribesOrganizations
      */
     public function convertTrial(Subscription $subscription): Subscription
     {
+        $subscription->loadMissing('plan', 'organization');
+        $previousMrr = $this->movements->contributing($subscription);
+
         $converted = $this->manager->convertTrial($this->toEngineSubscription($subscription), $this->now());
 
         $subscription->forceFill([
             'status' => $converted->status,
             'trial_ends_at' => null,
         ])->save();
+
+        // The trial converting to Active is the new-logo (or win-back) moment: contributing
+        // MRR moves 0 → the plan amount.
+        $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
 
         return $subscription;
     }
@@ -129,6 +139,17 @@ readonly class SubscriptionService implements SubscribesOrganizations
         return $this->db->transaction(function () use ($organization, $plan, $seats, $currency, $periodStart, $periodEnd, $trialEndsAt): Subscription {
             $this->pinCurrency($organization, $currency);
 
+            // The contributing MRR before this subscribe: a re-subscribe of an existing row
+            // (a win-back of a canceled sub, an idempotent re-run) starts from its current
+            // amount, a brand-new one from zero.
+            $existing = Subscription::query()
+                ->where('organization_id', $organization->id)
+                ->where('plan_id', $plan->id)
+                ->first();
+            $previousMrr = $existing !== null
+                ? $this->movements->contributing($existing)
+                : Money::zero($this->currencies->for($organization));
+
             $subscription = Subscription::query()->updateOrCreate(
                 ['organization_id' => $organization->id, 'plan_id' => $plan->id],
                 [
@@ -154,6 +175,15 @@ readonly class SubscriptionService implements SubscribesOrganizations
                 $this->toImmutable(Carbon::now()),
             );
 
+            // Record the MRR movement: a paid subscribe is a new logo (0→amount), or a
+            // reactivation when the org has a recorded win-back; a trial subscribe is 0→0
+            // (Trialing does not contribute) and records nothing until it converts. Reuse
+            // the fully-loaded plan (with prices) but load the org from the database so the
+            // returned row does not carry a partial in-memory organization.
+            $subscription->setRelation('plan', $plan);
+            $subscription->loadMissing('organization');
+            $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
+
             return $subscription;
         });
     }
@@ -167,6 +197,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
     {
         $preview = $this->buildPreview($subscription, $newPlan);
         $previousPlanName = $subscription->plan?->name;
+        $previousMrr = $this->movements->contributing($subscription);
 
         $this->db->transaction(function () use ($subscription, $newPlan): void {
             $periodStart = $subscription->current_period_start ?? Carbon::now()->startOfMonth();
@@ -190,7 +221,12 @@ readonly class SubscriptionService implements SubscribesOrganizations
         });
 
         // Confirm the switch to the billing contact (the new plan is now on the row).
-        $this->notifier->subscriptionChanged($subscription->refresh()->loadMissing('plan', 'organization'), 'plan_change', $previousPlanName);
+        $subscription->refresh()->loadMissing('plan', 'organization');
+        $this->notifier->subscriptionChanged($subscription, 'plan_change', $previousPlanName);
+
+        // Record the MRR movement: an upgrade is expansion, a downgrade contraction (the
+        // recorder no-ops when the two amounts are equal).
+        $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
 
         return $preview;
     }
@@ -198,12 +234,18 @@ readonly class SubscriptionService implements SubscribesOrganizations
     public function cancel(Subscription $subscription, bool $atPeriodEnd): Subscription
     {
         if ($atPeriodEnd) {
+            // A scheduled cancel does not move MRR yet — the subscription keeps serving and
+            // billing until the period renews, where the churn movement is recorded as it
+            // lands ({@see CycleRenewalService}).
             $subscription->forceFill(['cancel_at_period_end' => true])->save();
 
             $this->notifier->subscriptionChanged($subscription->loadMissing('plan', 'organization'), 'cancel_scheduled');
 
             return $subscription;
         }
+
+        $subscription->loadMissing('plan', 'organization');
+        $previousMrr = $this->movements->contributing($subscription);
 
         // Immediate: run the engine transition so forfeiture fires off the cancel-to-null
         // transition, then stamp the durable row canceled.
@@ -214,6 +256,9 @@ readonly class SubscriptionService implements SubscribesOrganizations
             'cancel_at_period_end' => false,
             'canceled_at' => Carbon::now(),
         ])->save();
+
+        // Churn: contributing MRR moves amount → 0.
+        $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
 
         $this->notifier->subscriptionChanged($subscription->loadMissing('plan', 'organization'), 'canceled');
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Subscriptions;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
@@ -52,12 +53,20 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         private ProrationCalculator $proration,
         private ResolvesAccountCurrency $currencies,
         private SubscribesOrganizations $subscriptions,
+        private SubscriptionMrrMovementRecorder $movements,
     ) {}
 
     public function pause(Subscription $subscription): Subscription
     {
         if (! $subscription->isPaused()) {
+            $subscription->loadMissing('plan', 'organization');
+            $previousMrr = $this->movements->contributing($subscription);
+
             $subscription->forceFill(['paused_at' => Carbon::now()])->save();
+
+            // Pausing suspends billing: contributing MRR moves amount → 0 (recorded as churn,
+            // the recoverable counterpart to the reactivation recorded when it resumes).
+            $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
         }
 
         return $subscription;
@@ -66,7 +75,14 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
     public function resume(Subscription $subscription): Subscription
     {
         if ($subscription->isPaused()) {
+            $subscription->loadMissing('plan', 'organization');
+            $previousMrr = $this->movements->contributing($subscription); // Paused → 0.
+
             $subscription->forceFill(['paused_at' => null])->save();
+
+            // Resuming from pause restores previously-suspended MRR — a reactivation
+            // (0 → the plan amount), the win-back counterpart to a churn.
+            $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription), returning: true);
         }
 
         return $subscription;
@@ -93,6 +109,8 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
     {
         $preview = $this->previewQuantity($subscription, $seats);
         $plan = $this->planOf($subscription);
+        $subscription->loadMissing('organization');
+        $previousMrr = $this->movements->contributing($subscription);
 
         $this->db->transaction(function () use ($subscription, $plan, $seats): void {
             $periodStart = $subscription->current_period_start ?? Carbon::now()->startOfMonth();
@@ -114,6 +132,11 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
                 $this->now(),
             );
         });
+
+        // Record any resulting MRR movement. Under the flat per-plan MRR model a seat change
+        // does not move contributing MRR, so this is a no-op today; it is wired so that if
+        // the monthly amount ever becomes seat-scaled, seat expansion/contraction is logged.
+        $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription->loadMissing('plan')));
 
         return $preview;
     }

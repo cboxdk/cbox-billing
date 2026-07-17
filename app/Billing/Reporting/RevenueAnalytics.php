@@ -6,7 +6,7 @@ namespace App\Billing\Reporting;
 
 use App\Billing\Support\SubscriptionRevenue;
 use App\Models\Subscription;
-use App\Models\SubscriptionCancellation;
+use App\Models\SubscriptionMrrMovement;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Reporting\ChurnCalculator;
 use Cbox\Billing\Reporting\CohortRetention;
@@ -33,13 +33,13 @@ use Illuminate\Support\Collection;
  *
  * A subscription's monthly-recurring amount is its plan's normalised monthly price
  * ({@see SubscriptionRevenue}); the engine's state→MRR policy decides which lifecycle
- * states contribute. Movement across a window is reconstructed from each subscription's
- * contributing amount at the window's two edges — derived from its lifecycle timestamps
- * (`created_at`, `canceled_at`, `paused_at`, `trial_ends_at`) — and a `returning` signal
- * read from the append-only reactivation log, so new logos, churn and win-backs are real
- * events rather than snapshots the base app does not yet store. Expansion/contraction are
- * zero unless a subscription's amount differs between the edges (no plan-change history is
- * recorded yet), and the waterfall still reconciles exactly by construction.
+ * states contribute. The MRR-movement waterfall across a window is built from the
+ * append-only {@see SubscriptionMrrMovement} log — one row per real change in a
+ * subscription's contributing amount, written by the lifecycle services as it happens —
+ * so expansion and contraction are genuine plan/seat-change events rather than always
+ * zero. Each subscription's in-window rows collapse to a single net prev→end movement fed
+ * to the engine {@see MrrMovement}, which classifies new/expansion/contraction/churn/
+ * reactivation and guarantees the start + movements = end identity by construction.
  */
 readonly class RevenueAnalytics
 {
@@ -75,31 +75,84 @@ readonly class RevenueAnalytics
 
     /**
      * The MRR-movement decomposition (new / expansion / contraction / churn / reactivation)
-     * per currency between `$start` and `$end`, computed by the engine from each
-     * subscription's contributing amount at the two edges.
+     * per currency over `(start, end]`, computed by the engine from the append-only
+     * {@see SubscriptionMrrMovement} log. Every in-window row for a subscription collapses to
+     * one net prev→end movement (earliest previous amount → latest new amount), so a
+     * subscription is counted once. Subscriptions that are serving and did NOT move in the
+     * window are added as a flat prev == new contribution, so the waterfall's start and end
+     * are the full book MRR (not only the part that moved) and NRR/GRR stay meaningful — the
+     * engine still guarantees the start + movements = end identity by construction.
      */
     public function movement(Carbon $start, Carbon $end): MrrMovementReport
     {
-        $reactivatedOrgs = $this->reactivatedOrganizations();
+        $rows = SubscriptionMrrMovement::query()
+            ->whereNotNull('subscription_id')
+            ->where('occurred_at', '>', $start)
+            ->where('occurred_at', '<=', $end)
+            ->orderBy('occurred_at')
+            ->orderBy('id')
+            ->get();
+
+        /** @var array<int, array{first: SubscriptionMrrMovement, last: SubscriptionMrrMovement, returning: bool}> $bySubscription */
+        $bySubscription = [];
+
+        foreach ($rows as $row) {
+            $key = (int) $row->subscription_id;
+
+            if (! isset($bySubscription[$key])) {
+                $bySubscription[$key] = ['first' => $row, 'last' => $row, 'returning' => false];
+            }
+
+            $bySubscription[$key]['last'] = $row;
+            $bySubscription[$key]['returning'] = $bySubscription[$key]['returning']
+                || $row->kind === SubscriptionMrrMovement::KIND_REACTIVATION;
+        }
+
         $movements = [];
 
-        foreach ($this->subscriptions() as $subscription) {
-            $startMrr = $this->mrrAt($subscription, $start);
-            $endMrr = $this->mrrAt($subscription, $end);
+        foreach ($bySubscription as $key => $group) {
+            $previous = Money::ofMinor($group['first']->previous_mrr_minor, $group['first']->currency);
+            $new = Money::ofMinor($group['last']->new_mrr_minor, $group['last']->currency);
 
-            if ($startMrr->isZero() && $endMrr->isZero()) {
+            if ($previous->isZero() && $new->isZero()) {
                 continue;
             }
 
-            $movements[] = new SubscriptionMovement(
-                (string) $subscription->id,
-                $startMrr,
-                $endMrr,
-                returning: in_array($subscription->organization_id, $reactivatedOrgs, true),
-            );
+            $movements[] = new SubscriptionMovement((string) $key, $previous, $new, returning: $group['returning']);
+        }
+
+        // Steady book: a subscription serving now with no in-window movement was contributing
+        // its full amount at both edges — add it as a no-bucket prev == new movement so the
+        // waterfall's start/end reflect the whole book.
+        foreach ($this->subscriptions() as $subscription) {
+            if (isset($bySubscription[$subscription->id])) {
+                continue;
+            }
+
+            $mrr = $this->currentContribution($subscription);
+
+            if ($mrr->isZero()) {
+                continue;
+            }
+
+            $movements[] = new SubscriptionMovement((string) $subscription->id, $mrr, $mrr);
         }
 
         return $this->movement->waterfall($movements);
+    }
+
+    /**
+     * The subscription's contributing monthly MRR right now under the engine's state→MRR
+     * policy: zero for a paused, trialing or canceled subscription (not billing), its full
+     * monthly amount otherwise.
+     */
+    private function currentContribution(Subscription $subscription): Money
+    {
+        $monthly = SubscriptionRevenue::monthly($subscription);
+
+        return $this->mrr->contributes($this->effectiveStatus($subscription))
+            ? $monthly
+            : Money::zero($monthly->currency());
     }
 
     /** The ARR bridge for `$currency` over the window, or null when that currency has no movement. */
@@ -246,28 +299,6 @@ readonly class RevenueAnalytics
     private function effectiveStatus(Subscription $subscription): SubscriptionStatus
     {
         return $subscription->isPaused() ? SubscriptionStatus::Paused : $subscription->status;
-    }
-
-    /**
-     * The organizations that have a recorded win-back reactivation — the `returning` signal
-     * that classifies a zero→positive movement as reactivation rather than a new logo.
-     *
-     * @return list<string>
-     */
-    private function reactivatedOrganizations(): array
-    {
-        $orgs = [];
-
-        foreach (SubscriptionCancellation::query()
-            ->where('mode', SubscriptionCancellation::MODE_REACTIVATE)
-            ->distinct()
-            ->pluck('organization_id') as $organizationId) {
-            if (is_string($organizationId)) {
-                $orgs[] = $organizationId;
-            }
-        }
-
-        return $orgs;
     }
 
     /** @return Collection<int, Subscription> */

@@ -77,8 +77,11 @@ readonly class RetentionService implements ManagesRetention
                 $plan = $subscription->plan;
 
                 if ($organization instanceof Organization && $plan instanceof Plan) {
-                    $this->subscriptions->subscribe($organization, $plan, max(1, $subscription->seats));
+                    // Capture the win-back FIRST, so the re-subscribe's MRR movement (0→amount)
+                    // is classified as a reactivation rather than a new logo — the recorder
+                    // reads this reactivation event as the org's `returning` signal.
                     $this->record($subscription, SubscriptionCancellation::MODE_REACTIVATE, null, null);
+                    $this->subscriptions->subscribe($organization, $plan, max(1, $subscription->seats));
 
                     return $subscription->refresh();
                 }

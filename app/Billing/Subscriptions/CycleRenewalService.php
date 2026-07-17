@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Subscriptions;
 
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
 use App\Billing\Subscriptions\ValueObjects\RenewalOutcome;
 use App\Billing\Wallet\WalletProvisioner;
 use App\Models\Invoice;
@@ -63,6 +64,7 @@ readonly class CycleRenewalService
         private Wallet $wallet,
         private WalletProvisioner $provisioner,
         private GeneratesInvoices $invoices,
+        private SubscriptionMrrMovementRecorder $movements,
     ) {}
 
     /**
@@ -89,6 +91,8 @@ readonly class CycleRenewalService
         // A due end-of-period cancellation ends the subscription instead of renewing it:
         // forfeit the forfeitable allotment and stamp it canceled.
         if ($baseDue && $subscription->cancel_at_period_end) {
+            $previousMrr = $this->movements->contributing($subscription);
+
             $this->db->transaction(function () use ($subscription, $org, $nowMs): void {
                 $this->wallet->forfeit($org, $nowMs);
                 $subscription->forceFill([
@@ -97,6 +101,9 @@ readonly class CycleRenewalService
                     'canceled_at' => Carbon::now(),
                 ])->save();
             });
+
+            // Churn recorded as the scheduled cancel lands: contributing MRR moves amount → 0.
+            $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
 
             return RenewalOutcome::canceled();
         }

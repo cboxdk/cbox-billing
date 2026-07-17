@@ -12,6 +12,7 @@ use App\Models\PaymentRetry;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\SubscriptionCancellation;
+use App\Models\SubscriptionMrrMovement;
 use Cbox\Billing\Metering\Contracts\EventLog;
 use Cbox\Billing\Metering\ValueObjects\UsageEvent;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
@@ -128,6 +129,44 @@ class OrganizationSeeder extends Seeder
             }
 
             $this->seedUsage($organization->id, $definition['usage'] ?? []);
+        }
+
+        $this->seedMrrMovements();
+    }
+
+    /**
+     * Seed a couple of real MRR movements into the append-only log so the revenue-analytics
+     * waterfall shows non-zero expansion and contraction bars over the trailing-month window
+     * (the recorded movements the app now writes at each real lifecycle change). Hverdag
+     * upgraded Starter → Team (expansion); Vinter downgraded Business → Team (contraction).
+     */
+    private function seedMrrMovements(): void
+    {
+        $movements = [
+            ['org' => 'org_hverdag', 'previous' => 29_000, 'new' => 124_000, 'kind' => SubscriptionMrrMovement::KIND_EXPANSION, 'days_ago' => 10],
+            ['org' => 'org_vinter', 'previous' => 349_000, 'new' => 124_000, 'kind' => SubscriptionMrrMovement::KIND_CONTRACTION, 'days_ago' => 20],
+        ];
+
+        foreach ($movements as $movement) {
+            $subscription = Subscription::query()->where('organization_id', $movement['org'])->first();
+
+            if (! $subscription instanceof Subscription) {
+                continue;
+            }
+
+            SubscriptionMrrMovement::query()->updateOrCreate(
+                [
+                    'subscription_id' => $subscription->id,
+                    'occurred_at' => Carbon::now()->subDays($movement['days_ago']),
+                    'kind' => $movement['kind'],
+                ],
+                [
+                    'organization_id' => $movement['org'],
+                    'currency' => self::CURRENCY,
+                    'previous_mrr_minor' => $movement['previous'],
+                    'new_mrr_minor' => $movement['new'],
+                ],
+            );
         }
     }
 

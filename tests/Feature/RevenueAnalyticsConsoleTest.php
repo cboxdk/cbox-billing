@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Reporting\RevenueAnalytics;
+use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
+use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
-use App\Models\SubscriptionCancellation;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\OrganizationSeeder;
@@ -52,30 +53,68 @@ class RevenueAnalyticsConsoleTest extends TestCase
         $this->assertSame(5, $line->subscriptions);
     }
 
-    public function test_mrr_movement_and_retention_are_decomposed_by_the_engine(): void
+    public function test_mrr_movement_waterfall_reads_recorded_plan_changes(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00'));
-        $this->seed(CatalogSeeder::class);
+        $subscriber = app(SubscribesOrganizations::class);
 
+        $this->seed(CatalogSeeder::class);
+        $team = Plan::query()->where('key', 'team')->firstOrFail();
+        $scale = Plan::query()->where('key', 'scale')->firstOrFail();
+        $starter = Plan::query()->where('key', 'starter')->firstOrFail();
+
+        // Subscribe before the window (these "new" movements fall outside it)…
+        Carbon::setTestNow(Carbon::parse('2026-07-18 12:00:00'));
+        $up = $subscriber->subscribe($this->org('org_up'), $team);
+        $down = $subscriber->subscribe($this->org('org_down'), $scale);
+
+        // …then a real upgrade (expansion) and downgrade (contraction) inside it.
+        Carbon::setTestNow(Carbon::parse('2026-07-28 12:00:00'));
+        $subscriber->changePlan($up->refresh()->loadMissing('plan', 'organization'), $scale);
+        $subscriber->changePlan($down->refresh()->loadMissing('plan', 'organization'), $starter);
+
+        $waterfall = app(RevenueAnalytics::class)
+            ->movement(Carbon::parse('2026-07-23 00:00:00'), Carbon::parse('2026-07-28 23:59:59'))
+            ->waterfallFor('DKK');
+
+        $this->assertNotNull($waterfall);
+        $this->assertTrue($waterfall->reconciles());
+
+        // Team 124.000 → Scale 990.000 = +866.000 expansion; Scale 990.000 → Starter
+        // 29.000 = −961.000 contraction. The subscribe "new" rows are outside the window.
+        $this->assertSame(866_000, $waterfall->expansion->minor());
+        $this->assertSame(961_000, $waterfall->contraction->minor());
+        $this->assertSame(0, $waterfall->new->minor());
+        $this->assertSame(1_114_000, $waterfall->startMrr->minor()); // 124.000 + 990.000
+        $this->assertSame(1_019_000, $waterfall->endMrr->minor());   // 990.000 + 29.000
+    }
+
+    public function test_mrr_movement_classifies_new_churn_reactivation_and_retention(): void
+    {
+        $subscriber = app(SubscribesOrganizations::class);
+        $depth = app(ManagesSubscriptionDepth::class);
+
+        $this->seed(CatalogSeeder::class);
         $team = Plan::query()->where('key', 'team')->firstOrFail();
 
-        // A controlled book: one steady account, one new logo, one churn, one win-back —
-        // so the engine waterfall has a known new / churn / reactivation decomposition.
-        $this->account('org_steady', $team, SubscriptionStatus::Active, created: '2026-01-01');
-        $this->account('org_new', $team, SubscriptionStatus::Active, created: '2026-07-10');
-        $this->account('org_churn', $team, SubscriptionStatus::Canceled, created: '2025-02-01', canceled: '2026-07-05');
+        // Before the window: a steady account, a to-be-churned account, and an account that
+        // pauses (its pause churn lands outside the window).
+        Carbon::setTestNow(Carbon::parse('2026-06-15 12:00:00'));
+        $subscriber->subscribe($this->org('org_steady'), $team);
+        $churn = $subscriber->subscribe($this->org('org_churn'), $team);
+        $winback = $subscriber->subscribe($this->org('org_winback'), $team);
 
-        $winback = $this->account('org_winback', $team, SubscriptionStatus::Active, created: '2026-07-08');
-        SubscriptionCancellation::query()->create([
-            'subscription_id' => $winback->id,
-            'organization_id' => 'org_winback',
-            'plan_id' => $team->id,
-            'mode' => SubscriptionCancellation::MODE_REACTIVATE,
-        ]);
+        Carbon::setTestNow(Carbon::parse('2026-06-20 12:00:00'));
+        $depth->pause($winback->refresh()->loadMissing('plan', 'organization'));
+
+        // Inside the window: a new logo, a churn, and a win-back (resume from pause).
+        Carbon::setTestNow(Carbon::parse('2026-07-10 12:00:00'));
+        $subscriber->subscribe($this->org('org_new'), $team);
+        $subscriber->cancel($churn->refresh()->loadMissing('plan', 'organization'), atPeriodEnd: false);
+        $depth->resume($winback->refresh()->loadMissing('plan', 'organization'));
 
         $analytics = app(RevenueAnalytics::class);
-        $end = Carbon::now();
-        $start = $end->copy()->subMonthNoOverflow(1);
+        $start = Carbon::parse('2026-07-01 00:00:00');
+        $end = Carbon::parse('2026-07-15 00:00:00');
 
         $waterfall = $analytics->movement($start, $end)->waterfallFor('DKK');
         $this->assertNotNull($waterfall);
@@ -133,6 +172,14 @@ class RevenueAnalyticsConsoleTest extends TestCase
             ->assertOk()
             ->assertSee('Net revenue retention')
             ->assertSee('Cohort retention');
+    }
+
+    private function org(string $id): Organization
+    {
+        return Organization::query()->updateOrCreate(
+            ['id' => $id],
+            ['name' => ucfirst($id), 'billing_currency' => 'DKK', 'billing_country' => 'DK'],
+        );
     }
 
     private function account(string $orgId, Plan $plan, SubscriptionStatus $status, string $created, ?string $canceled = null): Subscription

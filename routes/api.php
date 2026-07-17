@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Management\CheckoutSessionController;
 use App\Http\Controllers\Api\Management\InvoiceController;
 use App\Http\Controllers\Api\Management\LicenseController;
 use App\Http\Controllers\Api\Management\PaymentIntentController;
+use App\Http\Controllers\Api\Management\OrganizationController;
 use App\Http\Controllers\Api\Management\PaymentMethodController;
 use App\Http\Controllers\Api\Management\PlanController;
 use App\Http\Controllers\Api\Management\PortalSessionController;
@@ -43,6 +44,9 @@ Route::middleware('throttle:cbox-enforcement')->group(function (): void {
  */
 Route::middleware('throttle:cbox-management')->group(function (): void {
     Route::get('plans', [PlanController::class, 'index'])->name('plans.index');
+
+    // Merchant platforms provision the orgs they bill for on demand (idempotent upsert).
+    Route::put('organizations/{org}', [OrganizationController::class, 'upsert'])->name('organizations.upsert');
 
     Route::get('subscriptions/{org}', [SubscriptionController::class, 'show'])->name('subscriptions.show');
     Route::post('subscriptions', [SubscriptionController::class, 'store'])->middleware('idempotency')->name('subscriptions.store');

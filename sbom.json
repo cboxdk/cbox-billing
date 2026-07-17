@@ -1,7 +1,7 @@
 {
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:cd5a9765-55e0-4333-b3e3-2d01b858bbae",
+    "serialNumber": "urn:uuid:3d536756-f7ff-4e16-af3d-9d0e6a370edb",
     "version": 1,
     "metadata": {
         "tools": [
@@ -139,6 +139,22 @@
             "version": "v2.0.1",
             "purl": "pkg:composer/cboxdk/laravel-health@v2.0.1",
             "description": "Health checks, Kubernetes probes, Prometheus metrics, and system monitoring for Laravel",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "bom-ref": "pkg:composer/cboxdk/laravel-id-client@v0.2.0",
+            "group": "cboxdk",
+            "name": "laravel-id-client",
+            "version": "v0.2.0",
+            "purl": "pkg:composer/cboxdk/laravel-id-client@v0.2.0",
+            "description": "Laravel/PHP consumer SDK for Cbox ID \u2014 turnkey OIDC login, hosted profile-management redirect, machine tokens, and webhook verification against a Cbox ID instance.",
             "licenses": [
                 {
                     "license": {

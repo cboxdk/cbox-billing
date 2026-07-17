@@ -11,6 +11,7 @@
         "cboxdk/laravel-billing-stripe": "^0.4",
         "cboxdk/laravel-console-kit": "^0.2.1",
         "cboxdk/laravel-health": "^2.0",
+        "cboxdk/laravel-id-client": "^0.2",
         "cboxdk/laravel-telemetry": "^1.0",
         "cboxdk/license": "^0.1",
         "firebase/php-jwt": "^7.1",
@@ -48,6 +49,13 @@
             "@php artisan migrate --force",
             "npm install --ignore-scripts",
             "npm run build"
+        ],
+        "deploy": [
+            "@php artisan migrate --force",
+            "@php artisan config:cache",
+            "@php artisan route:cache",
+            "@php artisan view:cache",
+            "@php artisan cbox-id:publish-manifest"
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",

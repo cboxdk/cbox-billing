@@ -1,0 +1,143 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+
+    /*
+     * The base URL (issuer) of the Cbox ID instance you authenticate against, e.g.
+     * https://id.acme.com. The SDK discovers every endpoint (authorize, token,
+     * userinfo, jwks, end-session) from `{issuer}/.well-known/openid-configuration`,
+     * so this is usually the only endpoint you configure.
+     */
+    'issuer' => env('CBOX_ID_ISSUER'),
+
+    /*
+     * Your OAuth client credentials, registered on the Cbox ID instance. The secret
+     * is required for confidential clients (server-side apps) and for machine tokens
+     * and introspection.
+     */
+    'client_id' => env('CBOX_ID_CLIENT_ID'),
+    'client_secret' => env('CBOX_ID_CLIENT_SECRET'),
+
+    /*
+     * Your app's callback URL — must exactly match one registered on the client.
+     */
+    'redirect' => env('CBOX_ID_REDIRECT'),
+
+    /*
+     * The scopes requested at login. `openid` is required for an id_token.
+     *
+     * @var list<string>
+     */
+    'scopes' => ['openid', 'profile', 'email'],
+
+    /*
+     * The path of the hosted account / profile page on the Cbox ID instance that
+     * `profileUrl()` / `redirectToProfile()` send a signed-in user to (self-service
+     * password, MFA, passkeys, sessions). A `return_to` is appended so the page can
+     * offer a link back to your app.
+     */
+    'account_path' => '/settings',
+
+    /*
+     * HTTP timeout (seconds) for back-channel calls, and how long the discovery
+     * document and JWKS are cached.
+     */
+    'http_timeout' => (int) env('CBOX_ID_HTTP_TIMEOUT', 10),
+    'cache_ttl' => (int) env('CBOX_ID_CACHE_TTL', 3600),
+
+    /*
+     * Authorization manifest — declare this app's ROLES and PERMISSIONS in code, and
+     * `php artisan cbox-id:publish-manifest` (e.g. on deploy) pushes them to Cbox ID.
+     * Cbox ID owns identity + assignment; your app owns what a role means. Assigned
+     * roles then arrive in the token's `roles`/`permissions` claims for you to enforce.
+     * Requires the app's client to hold the `apps.manifest` scope.
+     *
+     * Permissions are `feature:action` keys; each role grants a subset of them.
+     */
+    'authz' => [
+        // Billing's real capability catalog — every `feature:action` maps to an actual
+        // console screen / management-API operation. Cbox ID assigns the roles below to
+        // users; this app enforces the permissions they carry.
+        'permissions' => [
+            ['key' => 'invoices:read', 'description' => 'View invoices and credit notes'],
+            ['key' => 'invoices:refund', 'description' => 'Issue refunds and credit notes'],
+
+            ['key' => 'subscriptions:read', 'description' => 'View subscriptions'],
+            ['key' => 'subscriptions:manage', 'description' => 'Create, change, pause, cancel and reactivate subscriptions'],
+
+            ['key' => 'usage:read', 'description' => 'View metered usage'],
+            ['key' => 'usage:ingest', 'description' => 'Reserve, commit and record usage on the enforcement hot path'],
+
+            ['key' => 'catalog:read', 'description' => 'View products, plans, prices and meters'],
+            ['key' => 'catalog:manage', 'description' => 'Create and edit products, plans, prices and meters'],
+
+            ['key' => 'customers:read', 'description' => 'View billing organizations and their entitlements'],
+            ['key' => 'customers:manage', 'description' => 'Provision and edit billing organizations'],
+
+            ['key' => 'payments:read', 'description' => 'View payment methods and gateway state'],
+            ['key' => 'payments:manage', 'description' => 'Manage payment methods, checkout, portal and intents'],
+
+            ['key' => 'licenses:read', 'description' => 'View issued on-prem licenses'],
+            ['key' => 'licenses:issue', 'description' => 'Issue and renew on-prem licenses'],
+            ['key' => 'licenses:revoke', 'description' => 'Revoke on-prem licenses'],
+
+            ['key' => 'analytics:read', 'description' => 'View revenue, retention and usage analytics'],
+
+            ['key' => 'settings:read', 'description' => 'View seller entities, tax, gateways, API tokens and webhooks'],
+            ['key' => 'settings:manage', 'description' => 'Configure seller entities, tax, gateways, API tokens and webhooks'],
+        ],
+        'roles' => [
+            [
+                'key' => 'billing-admin',
+                'name' => 'Billing Admin',
+                'description' => 'Full access to every billing capability, including catalog and settings configuration.',
+                'permissions' => [
+                    'invoices:read', 'invoices:refund',
+                    'subscriptions:read', 'subscriptions:manage',
+                    'usage:read', 'usage:ingest',
+                    'catalog:read', 'catalog:manage',
+                    'customers:read', 'customers:manage',
+                    'payments:read', 'payments:manage',
+                    'licenses:read', 'licenses:issue', 'licenses:revoke',
+                    'analytics:read',
+                    'settings:read', 'settings:manage',
+                ],
+            ],
+            [
+                'key' => 'billing-operator',
+                'name' => 'Billing Operator',
+                'description' => 'Day-to-day billing operations — manage subscriptions, refunds, customers, payments and licenses — without catalog or platform-settings changes.',
+                'permissions' => [
+                    'invoices:read', 'invoices:refund',
+                    'subscriptions:read', 'subscriptions:manage',
+                    'usage:read', 'usage:ingest',
+                    'catalog:read',
+                    'customers:read', 'customers:manage',
+                    'payments:read', 'payments:manage',
+                    'licenses:read', 'licenses:issue', 'licenses:revoke',
+                    'analytics:read',
+                    'settings:read',
+                ],
+            ],
+            [
+                'key' => 'billing-viewer',
+                'name' => 'Billing Viewer',
+                'description' => 'Read-only access to billing data and analytics.',
+                'permissions' => [
+                    'invoices:read',
+                    'subscriptions:read',
+                    'usage:read',
+                    'catalog:read',
+                    'customers:read',
+                    'payments:read',
+                    'licenses:read',
+                    'analytics:read',
+                    'settings:read',
+                ],
+            ],
+        ],
+    ],
+
+];

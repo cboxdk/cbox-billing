@@ -45,7 +45,8 @@ class CheckoutSessionController extends ApiController
 
         $plan = Plan::query()->with('prices')->where('key', $request->string('plan')->toString())->first();
 
-        if (! $plan instanceof Plan) {
+        // A product-bound token can only sell its own product's plans (shared instance).
+        if (! $plan instanceof Plan || ! $this->identity($request)->mayUseProduct((int) $plan->product_id)) {
             return new JsonResponse(['error' => 'Unknown plan.'], Response::HTTP_NOT_FOUND);
         }
 

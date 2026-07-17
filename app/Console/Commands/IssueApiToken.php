@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Models\ApiToken;
 use App\Models\Organization;
+use App\Models\Product;
 use Illuminate\Console\Command;
 
 /**
@@ -16,7 +17,7 @@ use Illuminate\Console\Command;
  */
 class IssueApiToken extends Command
 {
-    protected $signature = 'billing:token {name : A recognizable label, e.g. "cbox-assistant prod"} {--org= : Scope the token to one organization id (omit for an operator token)}';
+    protected $signature = 'billing:token {name : A recognizable label, e.g. "cbox-assistant prod"} {--org= : Scope the token to one organization id (omit for an operator token)} {--product= : Bind the token to one product key (it only sees/sells that catalog)}';
 
     protected $description = 'Issue an API bearer token (operator-wide, or scoped to one organization)';
 
@@ -31,11 +32,32 @@ class IssueApiToken extends Command
             return self::FAILURE;
         }
 
-        ['plaintext' => $plaintext] = ApiToken::issue($this->argument('name'), $org);
+        $productKey = $this->option('product');
+        $productId = null;
 
-        $this->info($org === null
-            ? 'Operator token issued (acts for every organization):'
-            : "Token issued, scoped to organization [{$org}]:");
+        if (is_string($productKey) && $productKey !== '') {
+            $product = Product::query()->where('key', $productKey)->first();
+
+            if ($product === null) {
+                $this->error("Unknown product [{$productKey}] — seed its catalog first.");
+
+                return self::FAILURE;
+            }
+
+            $productId = (int) $product->id;
+        }
+
+        ['plaintext' => $plaintext] = ApiToken::issue($this->argument('name'), $org, $productId);
+
+        $scope = $org === null
+            ? 'Operator token issued (acts for every organization)'
+            : "Token issued, scoped to organization [{$org}]";
+
+        if ($productId !== null) {
+            $scope .= ", bound to product [{$productKey}]";
+        }
+
+        $this->info($scope.':');
         $this->newLine();
         $this->line('  '.$plaintext);
         $this->newLine();

@@ -23,7 +23,7 @@ use Illuminate\Support\Str;
  */
 class ApiToken extends Model
 {
-    protected $fillable = ['name', 'organization_id', 'hash', 'last_used_at'];
+    protected $fillable = ['name', 'organization_id', 'product_id', 'hash', 'last_used_at'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -38,13 +38,14 @@ class ApiToken extends Model
      *
      * @return array{token: self, plaintext: string}
      */
-    public static function issue(string $name, ?string $organizationId = null): array
+    public static function issue(string $name, ?string $organizationId = null, ?int $productId = null): array
     {
         $plaintext = Str::random(48);
 
         $token = self::query()->create([
             'name' => $name,
             'organization_id' => $organizationId,
+            'product_id' => $productId,
             'hash' => hash('sha256', $plaintext),
         ]);
 

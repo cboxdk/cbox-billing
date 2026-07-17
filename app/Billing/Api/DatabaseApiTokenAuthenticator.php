@@ -40,8 +40,10 @@ readonly class DatabaseApiTokenAuthenticator implements ApiTokenAuthenticator
 
         $token->forceFill(['last_used_at' => Carbon::now()])->save();
 
+        $productId = $token->product_id !== null ? (int) $token->product_id : null;
+
         return $token->organization_id === null
-            ? ApiIdentity::operator()
-            : ApiIdentity::forOrganization($token->organization_id);
+            ? ApiIdentity::operator($productId)
+            : ApiIdentity::forOrganization($token->organization_id, $productId);
     }
 }

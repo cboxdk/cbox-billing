@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\ApiToken;
 use App\Models\Organization;
+use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -20,6 +21,18 @@ class IssueApiTokenCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertSame(1, ApiToken::query()->whereNull('organization_id')->count());
+    }
+
+    public function test_binds_a_token_to_a_product(): void
+    {
+        $this->artisan('billing:token', ['name' => 'x', '--product' => 'nope'])->assertExitCode(1);
+
+        $product = Product::query()->create(['key' => 'cbox-assistant', 'name' => 'Cbox Assistant']);
+        $this->artisan('billing:token', ['name' => 'assistant prod', '--product' => 'cbox-assistant'])
+            ->expectsOutputToContain('bound to product [cbox-assistant]')
+            ->assertExitCode(0);
+
+        $this->assertSame(1, ApiToken::query()->where('product_id', $product->id)->count());
     }
 
     public function test_scoped_token_requires_an_existing_organization(): void

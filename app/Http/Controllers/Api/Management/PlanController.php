@@ -26,9 +26,13 @@ class PlanController extends ApiController
     {
         $currency = $this->currency($request, $currencies, $config);
 
+        $productId = $this->identity($request)->productId;
+
         $plans = Plan::query()
             ->with(['prices', 'entitlements.meter'])
             ->where('active', true)
+            // A product-bound token sees only its own product's catalog (shared instance).
+            ->when($productId !== null, static fn ($query) => $query->where('product_id', $productId))
             ->orderBy('id')
             ->get()
             ->filter(static fn (Plan $plan): bool => $plan->prices->contains('currency', $currency));

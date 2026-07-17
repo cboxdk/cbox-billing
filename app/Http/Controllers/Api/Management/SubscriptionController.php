@@ -80,7 +80,7 @@ class SubscriptionController extends ApiController
             return $this->notFound('Unknown organization.');
         }
 
-        $plan = $this->planByKey($request->string('plan')->toString());
+        $plan = $this->planByKey($request, $request->string('plan')->toString());
 
         if (! $plan instanceof Plan) {
             return $this->notFound('Unknown plan.');
@@ -373,7 +373,7 @@ class SubscriptionController extends ApiController
     {
         $request->validate(['plan' => ['required', 'string']]);
 
-        return $this->planByKey($request->string('plan')->toString());
+        return $this->planByKey($request, $request->string('plan')->toString());
     }
 
     private function activeSubscription(string $org): ?Subscription
@@ -411,9 +411,16 @@ class SubscriptionController extends ApiController
         return $value === '' ? null : $value;
     }
 
-    private function planByKey(string $key): ?Plan
+    /** Resolve a plan key, refusing another product's plan for a product-bound token. */
+    private function planByKey(Request $request, string $key): ?Plan
     {
-        return Plan::query()->with(['prices', 'product'])->where('key', $key)->first();
+        $plan = Plan::query()->with(['prices', 'product'])->where('key', $key)->first();
+
+        if ($plan !== null && ! $this->identity($request)->mayUseProduct((int) $plan->product_id)) {
+            return null;
+        }
+
+        return $plan;
     }
 
     /** @return array<string, mixed> */

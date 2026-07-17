@@ -23,9 +23,10 @@ use Illuminate\Database\Seeder;
  * operator can assign it, but carries no self-serve price (and is therefore
  * omitted from `GET /api/v1/plans`, deny-by-default).
  *
- * Run on a billing instance DEDICATED to the assistant SaaS — plan keys are
- * global, so don't combine with the demo {@see CatalogSeeder} (both define
- * `starter`).
+ * Plan keys are GLOBALLY unique and this catalog coexists with other products on a
+ * shared instance (cboxbilling.com), so every key carries the `assistant-` prefix —
+ * the assistant app maps its local plan keys (`starter`/`growth`) to these via its
+ * config/plans.php `billing_key`. Safe to run on the shared production instance.
  */
 class AssistantCatalogSeeder extends Seeder
 {
@@ -87,7 +88,7 @@ class AssistantCatalogSeeder extends Seeder
     {
         return [
             [
-                'key' => 'starter',
+                'key' => 'assistant-starter',
                 'name' => 'Starter',
                 'prices' => ['USD' => 4_900, 'EUR' => 4_500, 'DKK' => 34_900],
                 'included_conversations' => 1_000,
@@ -100,7 +101,7 @@ class AssistantCatalogSeeder extends Seeder
                 ],
             ],
             [
-                'key' => 'growth',
+                'key' => 'assistant-growth',
                 'name' => 'Growth',
                 'prices' => ['USD' => 19_900, 'EUR' => 18_500, 'DKK' => 139_900],
                 'included_conversations' => 10_000,
@@ -114,7 +115,7 @@ class AssistantCatalogSeeder extends Seeder
             ],
             [
                 // Sales-led: no self-serve price → invisible in the sellable catalog.
-                'key' => 'enterprise',
+                'key' => 'assistant-enterprise',
                 'name' => 'Enterprise',
                 'prices' => [],
                 'included_conversations' => null,

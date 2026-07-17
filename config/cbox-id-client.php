@@ -23,7 +23,7 @@ return [
     /*
      * Your app's callback URL — must exactly match one registered on the client.
      */
-    'redirect' => env('CBOX_ID_REDIRECT'),
+    'redirect' => env('CBOX_ID_REDIRECT_URI'),
 
     /*
      * The scopes requested at login. `openid` is required for an id_token.

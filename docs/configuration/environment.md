@@ -114,11 +114,10 @@ See [Tax & seller entities](tax-and-sellers.md).
 | `CBOX_ID_SCOPES` | `openid profile email` | Scopes requested at login. |
 | `CBOX_ID_HTTP_TIMEOUT` / `CBOX_ID_CACHE_TTL` | `10` / `3600` | Back-channel timeout and discovery/JWKS cache. |
 
-> **Seam to know:** the login flow (`config/services.php`) reads
-> `CBOX_ID_REDIRECT_URI`, while the RBAC-manifest config (`config/cbox-id-client.php`)
-> reads `CBOX_ID_REDIRECT` for its own `redirect` value. `.env.example` documents
-> `CBOX_ID_REDIRECT_URI` — set that for sign-in. The manifest publish does not depend
-> on the redirect value. See [Identity](../identity/_index.md).
+> Both the login flow (`config/services.php`) and the RBAC-manifest config
+> (`config/cbox-id-client.php`) read `CBOX_ID_REDIRECT_URI` for the OIDC callback URL.
+> The manifest publish itself does not depend on the redirect value. See
+> [Identity](../identity/_index.md).
 
 ## On-prem licensing (issuer + consume)
 

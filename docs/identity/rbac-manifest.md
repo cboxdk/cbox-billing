@@ -79,11 +79,10 @@ what Cbox ID assigns.
 
 ## A configuration seam to know
 
-`config/cbox-id-client.php` reads `CBOX_ID_REDIRECT` for its own `redirect` value,
-whereas the sign-in flow (`config/services.php`) reads `CBOX_ID_REDIRECT_URI`. The
-manifest publish itself does not depend on the redirect value, so set
-`CBOX_ID_REDIRECT_URI` (documented in `.env.example`) for login; the manifest keys
-you need are the issuer and client credentials plus the `apps.manifest` scope.
+The manifest publish itself does not depend on the redirect value — set
+`CBOX_ID_REDIRECT_URI` (documented in `.env.example`, and read by both the sign-in flow
+and `config/cbox-id-client.php`) for login. The keys the manifest publish needs are the
+issuer and client credentials plus the `apps.manifest` scope.
 
 ## Related documentation
 

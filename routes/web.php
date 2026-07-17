@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
+use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\RetentionController;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +40,12 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/usage', [BillingController::class, 'usage'])->name('billing.usage');
     Route::get('/catalog', [BillingController::class, 'catalog'])->name('billing.catalog');
     Route::get('/pricing', [BillingController::class, 'pricing'])->name('billing.pricing');
+
+    // Catalog authoring: create/edit a plan price and (for tiered models) its tier table.
+    Route::get('/catalog/prices/new', [CatalogController::class, 'create'])->name('billing.catalog.prices.create');
+    Route::post('/catalog/prices', [CatalogController::class, 'store'])->name('billing.catalog.prices.store');
+    Route::get('/catalog/prices/{price}/edit', [CatalogController::class, 'edit'])->name('billing.catalog.prices.edit');
+    Route::put('/catalog/prices/{price}', [CatalogController::class, 'update'])->name('billing.catalog.prices.update');
 
     Route::get('/customers', [BillingController::class, 'customers'])->name('billing.customers');
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->name('billing.customers.show');

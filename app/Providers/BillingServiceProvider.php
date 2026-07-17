@@ -8,6 +8,8 @@ use App\Billing\Account\AccountCurrencyResolver;
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Api\Contracts\ApiTokenAuthenticator;
 use App\Billing\Api\DatabaseApiTokenAuthenticator;
+use App\Billing\Catalog\Contracts\AuthorsPlanPrices;
+use App\Billing\Catalog\PlanPriceAuthoring;
 use App\Billing\Enforcement\CacheReservationStore;
 use App\Billing\Enforcement\CentralAllowanceLeaseSource;
 use App\Billing\Enforcement\Contracts\ReservationStore;
@@ -313,6 +315,8 @@ class BillingServiceProvider extends ServiceProvider
         $this->app->singleton(EntityRouter::class, ConfiguredEntityRouter::class);
 
         $this->app->singleton(SubscribesOrganizations::class, SubscriptionService::class);
+
+        $this->app->singleton(AuthorsPlanPrices::class, PlanPriceAuthoring::class);
 
         $this->app->singleton(ManagesSubscriptionDepth::class, SubscriptionDepthService::class);
 

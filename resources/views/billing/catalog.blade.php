@@ -24,7 +24,20 @@
             <h1 class="cbx-page-title" style="font-size:20px">Catalog</h1>
             <p class="cbx-page-desc" style="font-size:13px">Products, plans, per-currency prices and metered entitlements</p>
         </div>
+        <a href="{{ route('billing.catalog.prices.create') }}" class="cbx-btn cbx-btn--primary">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New price</a>
     </header>
+
+    @if (session('catalog_error'))
+        <div class="cbx-panel" style="padding:12px 20px;margin-bottom:14px;border-left:3px solid var(--destructive)">
+            <strong style="color:var(--destructive)">Could not save the price.</strong> <span class="mut">{{ session('catalog_error') }}</span>
+        </div>
+    @endif
+
+    @if (session('catalog_notice'))
+        <div class="cbx-panel" style="padding:12px 20px;margin-bottom:14px;border-left:3px solid var(--success)">
+            <span class="mut">{{ session('catalog_notice') }}</span>
+        </div>
+    @endif
 
     @foreach ($products as $product)
         <section class="cbx-panel">
@@ -47,7 +60,7 @@
                             </td>
                             <td>
                                 @foreach ($plan['prices'] as $price)
-                                    <span class="num" style="display:inline-block;margin-right:10px">{{ MoneyFormatter::minor($price['minor'], $price['currency']) }}@if($price['tiered'])<span class="mut" style="font-size:10px"> base</span>@endif</span>
+                                    <a href="{{ route('billing.catalog.prices.edit', $price['id']) }}" class="num" style="display:inline-block;margin-right:10px;color:var(--foreground);text-decoration:none;border-bottom:1px dashed var(--border)" title="Edit price">{{ MoneyFormatter::minor($price['minor'], $price['currency']) }}@if($price['tiered'])<span class="mut" style="font-size:10px"> base</span>@endif</a>
                                 @endforeach
                             </td>
                             <td class="num mut">

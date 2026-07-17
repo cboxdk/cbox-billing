@@ -92,13 +92,14 @@ readonly class CatalogReport
      * a tiered model — the engine {@see PriceTier} set
      * (up-to / unit / flat) plus the package size.
      *
-     * @return array{currency: string, minor: int, model: string, tiered: bool, package_size: int|null, tiers: list<array{up_to: int|null, unit_minor: int, flat_minor: int|null}>}
+     * @return array{id: int, currency: string, minor: int, model: string, tiered: bool, package_size: int|null, tiers: list<array{up_to: int|null, unit_minor: int, flat_minor: int|null}>}
      */
     private function price(PlanPrice $price): array
     {
         $model = $price->model();
 
         return [
+            'id' => $price->id,
             'currency' => $price->currency,
             'minor' => $price->price_minor,
             'model' => $model->value,

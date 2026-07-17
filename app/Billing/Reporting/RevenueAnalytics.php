@@ -305,7 +305,7 @@ readonly class RevenueAnalytics
     private function subscriptions(): Collection
     {
         return Subscription::query()
-            ->with(['organization', 'plan.prices'])
+            ->with(['organization', 'plan.prices.tiers'])
             ->get();
     }
 }

@@ -52,7 +52,7 @@ readonly class RevenueMetrics
     {
         $subscriptions = Subscription::query()
             ->serving()
-            ->with(['organization', 'plan.prices'])
+            ->with(['organization', 'plan.prices.tiers'])
             ->cursor();
 
         foreach ($subscriptions as $subscription) {
@@ -116,7 +116,7 @@ readonly class RevenueMetrics
 
         $subscriptions = Subscription::query()
             ->serving()
-            ->with(['organization', 'plan.prices'])
+            ->with(['organization', 'plan.prices.tiers'])
             ->get();
 
         foreach ($subscriptions as $subscription) {

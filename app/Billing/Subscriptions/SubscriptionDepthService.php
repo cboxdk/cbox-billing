@@ -133,10 +133,11 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
             );
         });
 
-        // Record any resulting MRR movement. Under the flat per-plan MRR model a seat change
-        // does not move contributing MRR, so this is a no-op today; it is wired so that if
-        // the monthly amount ever becomes seat-scaled, seat expansion/contraction is logged.
-        $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription->loadMissing('plan')));
+        // Record the resulting MRR movement. Contributing MRR is seat-aware, so a seat change
+        // on a per-unit/tiered plan moves it: this logs the expansion (seats up) or
+        // contraction (seats down), prev seats → new seats priced by the engine. A flat plan
+        // does not move (seats do not change its amount), so record() no-ops on the equal edges.
+        $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription->loadMissing('plan.prices.tiers')));
 
         return $preview;
     }
@@ -288,7 +289,7 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
             throw new RuntimeException(sprintf('Subscription [%d] has no plan.', $subscription->id));
         }
 
-        $plan->loadMissing(['prices', 'product']);
+        $plan->loadMissing(['prices.tiers', 'product']);
 
         return $plan;
     }

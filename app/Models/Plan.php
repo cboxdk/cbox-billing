@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Cbox\Billing\Catalog\Enums\PlanStatus;
+use Cbox\Billing\Catalog\ValueObjects\PlanRetirement;
 use Cbox\Billing\Catalog\ValueObjects\Product as CatalogProduct;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Subscription\Contracts\TransitionPolicy;
+use DateTimeImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use RuntimeException;
 
 /**
@@ -26,11 +29,14 @@ use RuntimeException;
  * @property string $name
  * @property string $interval
  * @property bool $active
+ * @property Carbon|null $retires_at
+ * @property int|null $default_successor_plan_id
  */
 class Plan extends Model
 {
     protected $fillable = [
         'product_id', 'key', 'name', 'interval', 'active',
+        'retires_at', 'default_successor_plan_id',
     ];
 
     /** @return array<string, string> */
@@ -38,6 +44,7 @@ class Plan extends Model
     {
         return [
             'active' => 'boolean',
+            'retires_at' => 'datetime',
         ];
     }
 
@@ -92,7 +99,44 @@ class Plan extends Model
             name: $this->name,
             family: $this->family(),
             status: $this->active ? PlanStatus::Offered : PlanStatus::Legacy,
+            retirement: $this->retirement(),
         );
+    }
+
+    /**
+     * The plan's sunset projected into the engine {@see PlanRetirement} value object, or
+     * null when the plan is not being retired. The default successor is carried as the
+     * successor plan's KEY — the id the engine catalog keys products by (ADR-0016), never
+     * the durable numeric id — so the engine resolver can look it up as a catalog product.
+     */
+    public function retirement(): ?PlanRetirement
+    {
+        if ($this->retires_at === null) {
+            return null;
+        }
+
+        return new PlanRetirement(
+            retiresAt: $this->retires_at->toDateTimeImmutable(),
+            defaultSuccessorPlanId: $this->defaultSuccessor?->key,
+        );
+    }
+
+    /** Whether the plan carries a retirement cutoff (it is being sunset). */
+    public function isRetiring(): bool
+    {
+        return $this->retires_at !== null;
+    }
+
+    /** Whether the plan's retirement cutoff has passed as of `$at` (default: now). */
+    public function isRetiredAt(?DateTimeImmutable $at = null): bool
+    {
+        if ($this->retires_at === null) {
+            return false;
+        }
+
+        $at ??= Carbon::now()->toDateTimeImmutable();
+
+        return $at >= $this->retires_at->toDateTimeImmutable();
     }
 
     /** The transition family this plan belongs to: its owning product's key. */
@@ -107,6 +151,13 @@ class Plan extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /** The plan a subscriber falls to at renewal when this plan retires and they make no choice. */
+    /** @return BelongsTo<Plan, $this> */
+    public function defaultSuccessor(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class, 'default_successor_plan_id');
     }
 
     /** @return HasMany<PlanPrice, $this> */

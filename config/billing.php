@@ -117,6 +117,15 @@ return [
     ],
 
     /*
+     * Plan retirement (ADR-0016): a plan's sunset flow. When a plan is marked retiring the
+     * migration pass moves its subscribers off it at renewal; ahead of the cutoff, affected
+     * subscribers are reminded this many days in advance (once per subscription per window).
+     */
+    'retirement' => [
+        'reminder_lead_days' => (int) env('CBOX_BILLING_RETIREMENT_REMINDER_LEAD_DAYS', 14),
+    ],
+
+    /*
      * Payment collection, including the dunning / delinquency policy.
      */
     'payment' => [

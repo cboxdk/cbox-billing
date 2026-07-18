@@ -13,10 +13,13 @@ use App\Billing\Reporting\RevenueMetrics;
 use App\Billing\Reporting\SettingsReport;
 use App\Billing\Reporting\SubscriptionReport;
 use App\Billing\Reporting\UsageReport;
+use App\Billing\Retirement\PlanRetirementService;
 use App\Billing\Support\SubscriptionStanding;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Subscription;
+use Cbox\Billing\Retention\Contracts\CancellationSurvey;
+use Cbox\Billing\Retention\Contracts\RetentionOffers;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -43,7 +46,7 @@ class BillingController extends Controller
         ]);
     }
 
-    public function subscriptions(Request $request, SubscriptionReport $report): View
+    public function subscriptions(Request $request, SubscriptionReport $report, PlanRetirementService $retirements): View
     {
         $status = $this->filter($request, ['active', 'trialing', 'past_due', 'paused', 'non_renewing', 'canceled']);
 
@@ -53,6 +56,7 @@ class BillingController extends Controller
             'status' => $status,
             'counts' => $report->counts(),
             'subscriptions' => $report->list($status),
+            'unresolvedRetirements' => $this->unresolvedRetirements($retirements),
         ]);
     }
 
@@ -66,12 +70,24 @@ class BillingController extends Controller
         ]);
     }
 
-    public function subscription(Subscription $subscription, SubscriptionReport $report): View
-    {
+    public function subscription(
+        Subscription $subscription,
+        SubscriptionReport $report,
+        CancellationSurvey $survey,
+        RetentionOffers $offers,
+        PlanRetirementService $retirements,
+    ): View {
+        $subscription->loadMissing(['plan.defaultSuccessor', 'organization', 'pendingPlan']);
+
         return view('billing.subscription-detail', [
             'activeArea' => 'subscriptions',
             'activeNav' => 'all',
             'subscription' => $report->find($subscription->id),
+            // The cancel UI renders whatever the bound retention seam returns — the app's
+            // basic survey/offers by default, the plugin's rich flow when composed in.
+            'retentionReasons' => $this->retentionReasons($survey, $subscription),
+            'retentionOffers' => $this->retentionOffers($offers, $subscription),
+            'sunset' => $retirements->noticeFor($subscription),
         ]);
     }
 
@@ -126,6 +142,7 @@ class BillingController extends Controller
             'activeArea' => 'catalog',
             'activeNav' => 'products',
             'products' => $report->products(),
+            'successorChoices' => $report->successorChoices(),
         ]);
     }
 
@@ -173,6 +190,60 @@ class BillingController extends Controller
             'apiTokens' => $report->apiTokens(),
             'webhook' => $report->webhook(),
         ]);
+    }
+
+    /**
+     * The churn reasons the bound {@see CancellationSurvey} offers for this subscription.
+     *
+     * @return list<array{key: string, label: string, requires_comment: bool}>
+     */
+    private function retentionReasons(CancellationSurvey $survey, Subscription $subscription): array
+    {
+        return array_map(
+            static fn ($reason): array => [
+                'key' => $reason->key,
+                'label' => $reason->label,
+                'requires_comment' => $reason->requiresComment,
+            ],
+            $survey->reasonsFor($subscription->organization_id, (string) $subscription->id),
+        );
+    }
+
+    /**
+     * The save-offers the bound {@see RetentionOffers} presents for this subscription.
+     *
+     * @return list<array{key: string, label: string, type: string}>
+     */
+    private function retentionOffers(RetentionOffers $offers, Subscription $subscription): array
+    {
+        return array_map(
+            static fn ($offer): array => [
+                'key' => $offer->key,
+                'label' => $offer->label,
+                'type' => $offer->type->value,
+            ],
+            $offers->offersFor($subscription->organization_id, (string) $subscription->id),
+        );
+    }
+
+    /**
+     * The subscriptions ops must still resolve — flagged unresolved by the retirement
+     * migration (a retired plan with no choice and no default), for the console banner.
+     *
+     * @return list<array{id: int, org: string}>
+     */
+    private function unresolvedRetirements(PlanRetirementService $retirements): array
+    {
+        return array_values($retirements->unresolved()
+            ->map(static function ($event): array {
+                $organization = $event->subscription?->organization;
+
+                return [
+                    'id' => (int) $event->subscription_id,
+                    'org' => $organization !== null ? $organization->name : $event->organization_id,
+                ];
+            })
+            ->all());
     }
 
     /**

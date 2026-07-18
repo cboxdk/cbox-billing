@@ -10,14 +10,12 @@
     $overagePill = ['bill' => 'info', 'block' => 'muted'];
     $retryPill = ['retrying' => 'warning', 'recovered' => 'success', 'exhausted' => 'destructive'];
     $modeLabel = ['immediate' => 'canceled (immediate)', 'period_end' => 'scheduled cancel', 'pause' => 'paused', 'reactivate' => 'reactivated'];
-    $reasonOptions = [
-        'too_expensive' => 'Too expensive',
-        'missing_features' => 'Missing features',
-        'switching_provider' => 'Switching provider',
-        'no_longer_needed' => 'No longer needed',
-        'technical_issues' => 'Technical issues',
-        'other' => 'Other',
-    ];
+    // The reason labels come from the bound retention survey (the app's basic default, or a
+    // plugin's rich flow) — the same seam the cancel select renders from.
+    $reasonOptions = [];
+    foreach ($retentionReasons ?? [] as $reason) {
+        $reasonOptions[$reason['key']] = $reason['label'];
+    }
 @endphp
 
 @section('screen')
@@ -50,6 +48,40 @@
             <a class="cbx-btn cbx-btn--secondary cbx-btn--sm" href="{{ route('billing.customers.show', $s['org_id']) }}">View customer</a>
         </div>
     </header>
+
+    {{-- Plan-sunset notice (ADR-0016): the subscription is on a retiring plan --}}
+    @if (!empty($sunset))
+        <section class="cbx-panel" style="border-left:3px solid {{ $sunset->unresolved ? 'var(--destructive)' : 'var(--warning, #b3651f)' }}">
+            <header class="cbx-panel-header" style="padding:12px 20px">
+                <div>
+                    <h2 class="cbx-panel-title" style="font-size:14px">Plan retiring</h2>
+                    <p class="cbx-panel-desc" style="font-size:12px">{{ $sunset->planName }} retires on {{ $sunset->retiresAt }}. Next renewal is {{ $sunset->renewalDue }} — the deadline to choose a new plan.</p>
+                </div>
+                @if ($sunset->unresolved)
+                    <span class="cbx-pill cbx-pill--destructive"><span class="dot"></span>unresolved</span>
+                @elseif ($sunset->election === 'successor')
+                    <span class="cbx-pill cbx-pill--success"><span class="dot"></span>successor chosen</span>
+                @elseif ($sunset->election === 'cancel')
+                    <span class="cbx-pill cbx-pill--warning"><span class="dot"></span>cancel scheduled</span>
+                @else
+                    <span class="cbx-pill cbx-pill--muted"><span class="dot"></span>undecided</span>
+                @endif
+            </header>
+            <div style="padding:12px 20px;font-size:13px;color:var(--muted-foreground)">
+                @if ($sunset->unresolved)
+                    <strong style="color:var(--destructive)">This subscription cannot renew on the retired plan and has no successor or default.</strong> It is blocked from charging until resolved.
+                @elseif ($sunset->election === 'successor')
+                    Moves to <strong>{{ $sunset->electedSuccessorName }}</strong> at the next renewal.
+                @elseif ($sunset->election === 'cancel')
+                    Cancels at the next renewal.
+                @elseif ($sunset->hasDefault())
+                    If the customer does nothing, they move to the default plan <strong>{{ $sunset->defaultSuccessorName }}</strong> at renewal.
+                @else
+                    No default is configured — the customer must choose a successor or cancel before renewal, or it is flagged unresolved.
+                @endif
+            </div>
+        </section>
+    @endif
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
         <section class="cbx-panel">
@@ -127,14 +159,23 @@
                     <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted-foreground)">Reason
                         <select name="reason" style="height:32px;min-width:190px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 8px;font-family:var(--font-sans)">
                             <option value="">—</option>
-                            @foreach ($reasonOptions as $value => $label)
-                                <option value="{{ $value }}">{{ $label }}</option>
+                            @foreach ($retentionReasons as $reason)
+                                <option value="{{ $reason['key'] }}">{{ $reason['label'] }}</option>
                             @endforeach
                         </select>
                     </label>
                     <input name="feedback" placeholder="Feedback (optional)" style="height:32px;flex:1;min-width:200px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 10px;font-family:var(--font-sans);font-size:13px">
                     <button type="submit" class="cbx-btn cbx-btn--destructive cbx-btn--sm">@include('partials.icon', ['name' => 'x', 'size' => 14, 'sw' => 1.7]) Apply</button>
                 </form>
+                {{-- Save-offers the bound retention seam presents (basic default: pause instead of cancel) --}}
+                @if (!empty($retentionOffers))
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid var(--border);padding-top:12px">
+                        <span class="mut" style="font-size:12px">Save offers</span>
+                        @foreach ($retentionOffers as $offer)
+                            <span class="cbx-pill cbx-pill--info" title="{{ $offer['type'] }}">{{ $offer['label'] }}</span>
+                        @endforeach
+                    </div>
+                @endif
                 @if ($s['reactivatable'])
                     <form method="POST" action="{{ route('billing.subscriptions.reactivate', $s['id']) }}" style="margin:0">
                         @csrf

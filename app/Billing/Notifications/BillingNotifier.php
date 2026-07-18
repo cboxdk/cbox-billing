@@ -11,6 +11,7 @@ use App\Mail\LicenseDeliveryMail;
 use App\Mail\PaymentFailedMail;
 use App\Mail\PaymentReceiptMail;
 use App\Mail\PaymentRetryMail;
+use App\Mail\PlanRetiringMail;
 use App\Mail\RenewalReminderMail;
 use App\Mail\SubscriptionChangedMail;
 use App\Mail\TrialEndingMail;
@@ -158,6 +159,23 @@ readonly class BillingNotifier implements NotifiesCustomers
                 ? $this->date($subscription->current_period_end)
                 : null,
         ), 'subscription.'.$changeType, $subscription->organization_id);
+    }
+
+    public function planRetiring(Subscription $subscription, Plan $plan, string $retiresAtLabel, string $renewalDueLabel, ?string $defaultSuccessorName): void
+    {
+        $organization = $subscription->organization;
+
+        if (! $organization instanceof Organization) {
+            return;
+        }
+
+        $this->send($organization, new PlanRetiringMail(
+            organizationName: $organization->name,
+            planName: $plan->name,
+            retiresAtLabel: $retiresAtLabel,
+            renewalDueLabel: $renewalDueLabel,
+            defaultSuccessorName: $defaultSuccessorName,
+        ), 'plan.retiring', $subscription->organization_id);
     }
 
     public function licenseDelivered(Organization $organization, IssuedLicense $license, bool $reissued): void

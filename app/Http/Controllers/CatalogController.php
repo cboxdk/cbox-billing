@@ -42,6 +42,39 @@ class CatalogController extends Controller
         return $this->persist($request, $authoring, $price);
     }
 
+    /**
+     * Mark a plan retiring (ADR-0016): set its sunset cutoff and, optionally, the default
+     * successor its subscribers fall to at renewal if they make no choice. A successor must
+     * be a different, active plan; without one, an unresolved subscriber is flagged rather
+     * than migrated.
+     */
+    public function retire(Request $request, Plan $plan): RedirectResponse
+    {
+        $request->validate([
+            'retires_at' => ['required', 'date'],
+            'default_successor_plan_id' => ['nullable', 'integer', Rule::notIn([$plan->id]), Rule::exists('plans', 'id')->where('active', true)],
+        ]);
+
+        $plan->forceFill([
+            'retires_at' => $request->date('retires_at'),
+            'default_successor_plan_id' => $request->filled('default_successor_plan_id') ? $request->integer('default_successor_plan_id') : null,
+        ])->save();
+
+        return redirect()
+            ->route('billing.catalog')
+            ->with('catalog_notice', sprintf('%s is retiring on %s.', $plan->name, $plan->retires_at?->format('j M Y')));
+    }
+
+    /** Un-retire a plan: clear its sunset cutoff and default successor. */
+    public function unretire(Plan $plan): RedirectResponse
+    {
+        $plan->forceFill(['retires_at' => null, 'default_successor_plan_id' => null])->save();
+
+        return redirect()
+            ->route('billing.catalog')
+            ->with('catalog_notice', sprintf('%s is no longer retiring.', $plan->name));
+    }
+
     /** Render the price form, pre-filled from an existing price when editing. */
     private function form(?PlanPrice $price): View
     {

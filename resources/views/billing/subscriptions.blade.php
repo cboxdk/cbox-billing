@@ -26,6 +26,17 @@
         </div>
     </header>
 
+    @if (!empty($unresolvedRetirements) && count($unresolvedRetirements) > 0)
+        <div class="cbx-panel" style="padding:12px 20px;border-left:3px solid var(--destructive)">
+            <strong style="color:var(--destructive)">{{ count($unresolvedRetirements) }} subscription{{ count($unresolvedRetirements) === 1 ? '' : 's' }} on a retired plan need resolution.</strong>
+            <span class="mut" style="font-size:12px">
+                @foreach ($unresolvedRetirements as $u)
+                    <a href="{{ route('billing.subscriptions.show', $u['id']) }}" style="color:var(--foreground)">{{ $u['org'] }}</a>@if(!$loop->last), @endif
+                @endforeach
+            </span>
+        </div>
+    @endif
+
     <div class="cbx-tabs" style="min-height:40px;padding:4px 8px">
         <nav style="display:flex;flex:1;align-items:center;gap:2px">
             @foreach ($tabs as $tab)

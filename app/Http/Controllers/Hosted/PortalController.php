@@ -8,6 +8,10 @@ use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
 use App\Billing\Invoicing\InvoicePdfRenderer;
+use App\Billing\Retention\Contracts\ManagesRetention;
+use App\Billing\Retention\Enums\CancellationMode;
+use App\Billing\Retention\ValueObjects\CancellationRequest;
+use App\Billing\Retirement\PlanRetirementService;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\BillingSession;
@@ -18,6 +22,8 @@ use App\Models\Subscription;
 use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Cbox\Billing\Payment\ValueObjects\PaymentMethod;
 use Cbox\Billing\Payment\ValueObjects\SetupIntentRequest;
+use Cbox\Billing\Retention\Contracts\CancellationSurvey;
+use Cbox\Billing\Retention\Contracts\RetentionOffers;
 use Cbox\Billing\Subscription\PlanChange\PlanChangePreview;
 use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
@@ -46,6 +52,10 @@ class PortalController extends HostedController
         private readonly SubscribesOrganizations $subscriptions,
         private readonly PaymentGateway $gateway,
         private readonly ResolvesAccountCurrency $currencies,
+        private readonly ManagesRetention $retention,
+        private readonly PlanRetirementService $retirements,
+        private readonly CancellationSurvey $survey,
+        private readonly RetentionOffers $offers,
     ) {
         parent::__construct($sessions);
     }
@@ -66,6 +76,10 @@ class PortalController extends HostedController
             'plans' => $this->availablePlans($currency, $subscription),
             'invoices' => $this->invoices($session->organization_id),
             'methods' => $this->gateway->paymentMethods($organization->id),
+            // The sunset notice (ADR-0016) and the retention seam the cancel UI renders from.
+            'sunset' => $subscription instanceof Subscription ? $this->retirements->noticeFor($subscription) : null,
+            'reasons' => $this->cancellationReasons($session->organization_id, $subscription),
+            'offers' => $this->saveOffers($session->organization_id, $subscription),
         ]);
     }
 
@@ -112,10 +126,19 @@ class PortalController extends HostedController
         return new JsonResponse($this->presentPreview($this->subscriptions->changePlan($subscription, $plan)));
     }
 
-    /** `POST` {at_period_end?} — schedule or immediately cancel the subscription. */
+    /**
+     * `POST` {at_period_end?, reason?, comment?} — schedule or immediately cancel the
+     * subscription, consulting the retention seam: the captured reason flows through the
+     * app's {@see ManagesRetention} service, which records it and emits the retention domain
+     * events a plugin can react to.
+     */
     public function cancel(Request $request, string $token): JsonResponse
     {
-        $request->validate(['at_period_end' => ['sometimes', 'boolean']]);
+        $request->validate([
+            'at_period_end' => ['sometimes', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:255'],
+            'comment' => ['nullable', 'string', 'max:2000'],
+        ]);
 
         $session = $this->require($token, SessionType::Portal);
         $subscription = $this->activeSubscription($session->organization_id);
@@ -124,7 +147,11 @@ class PortalController extends HostedController
             return new JsonResponse(['error' => 'No active subscription.'], Response::HTTP_NOT_FOUND);
         }
 
-        $subscription = $this->subscriptions->cancel($subscription, $request->boolean('at_period_end', true));
+        $subscription = $this->retention->cancel($subscription, new CancellationRequest(
+            mode: $request->boolean('at_period_end', true) ? CancellationMode::PeriodEnd : CancellationMode::Immediate,
+            reason: $request->filled('reason') ? $request->string('reason')->toString() : null,
+            feedback: $request->filled('comment') ? $request->string('comment')->toString() : null,
+        ));
 
         return new JsonResponse([
             'status' => $subscription->refresh()->standing(),
@@ -132,6 +159,33 @@ class PortalController extends HostedController
                 ? null
                 : $subscription->current_period_end?->toIso8601String(),
         ]);
+    }
+
+    /**
+     * `POST` {plan} — the sunset "pick a successor" choice (ADR-0016): schedule a plan
+     * change onto the chosen successor for the period end, so the retirement resolves to
+     * that successor at renewal rather than the default.
+     */
+    public function chooseSuccessor(Request $request, string $token): JsonResponse
+    {
+        $request->validate(['plan' => ['required', 'string']]);
+
+        $session = $this->require($token, SessionType::Portal);
+        $subscription = $this->activeSubscription($session->organization_id);
+
+        if (! $subscription instanceof Subscription) {
+            return new JsonResponse(['error' => 'No active subscription.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $plan = Plan::query()->with(['prices', 'product'])->where('key', $request->string('plan')->toString())->first();
+
+        if (! $plan instanceof Plan) {
+            return new JsonResponse(['error' => 'Unknown plan.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $this->retirements->electSuccessor($subscription, $plan);
+
+        return new JsonResponse(['status' => 'scheduled', 'successor' => $plan->name]);
     }
 
     /**
@@ -198,6 +252,50 @@ class PortalController extends HostedController
         return [$session, $subscription, $plan, null];
     }
 
+    /**
+     * The churn reasons the bound survey offers, or an empty list when there is no active
+     * subscription.
+     *
+     * @return list<array{key: string, label: string, requires_comment: bool}>
+     */
+    private function cancellationReasons(string $org, ?Subscription $subscription): array
+    {
+        if (! $subscription instanceof Subscription) {
+            return [];
+        }
+
+        return array_map(
+            static fn ($reason): array => [
+                'key' => $reason->key,
+                'label' => $reason->label,
+                'requires_comment' => $reason->requiresComment,
+            ],
+            $this->survey->reasonsFor($org, (string) $subscription->id),
+        );
+    }
+
+    /**
+     * The save-offers the bound seam presents, or an empty list when there is no active
+     * subscription.
+     *
+     * @return list<array{key: string, label: string, type: string}>
+     */
+    private function saveOffers(string $org, ?Subscription $subscription): array
+    {
+        if (! $subscription instanceof Subscription) {
+            return [];
+        }
+
+        return array_map(
+            static fn ($offer): array => [
+                'key' => $offer->key,
+                'label' => $offer->label,
+                'type' => $offer->type->value,
+            ],
+            $this->offers->offersFor($org, (string) $subscription->id),
+        );
+    }
+
     private function organization(BillingSession $session): Organization
     {
         $organization = Organization::query()->find($session->organization_id);
@@ -208,7 +306,7 @@ class PortalController extends HostedController
     private function activeSubscription(string $org): ?Subscription
     {
         return Subscription::query()
-            ->with(['plan', 'pendingPlan'])
+            ->with(['plan.defaultSuccessor', 'plan.prices', 'pendingPlan', 'organization'])
             ->where('organization_id', $org)
             ->where('status', 'active')
             ->latest('current_period_start')

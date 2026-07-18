@@ -36,6 +36,8 @@ use App\Billing\Payments\DatabaseSettledPaymentStore;
 use App\Billing\Payments\ManualWebhookVerifier;
 use App\Billing\Payments\PaymentRetryService;
 use App\Billing\Payments\PaymentService;
+use App\Billing\Retention\BasicCancellationSurvey;
+use App\Billing\Retention\BasicRetentionOffers;
 use App\Billing\Retention\Contracts\ManagesRetention;
 use App\Billing\Retention\RetentionService;
 use App\Billing\Seams\DatabaseAccountStanding;
@@ -79,6 +81,8 @@ use Cbox\Billing\Payment\Dunning\Contracts\DunningStateStore;
 use Cbox\Billing\Payment\Gateways\ManualPaymentGateway;
 use Cbox\Billing\Reconciliation\Contracts\CheckpointStore;
 use Cbox\Billing\Reconciliation\Storage\DatabaseCheckpointStore;
+use Cbox\Billing\Retention\Contracts\CancellationSurvey;
+use Cbox\Billing\Retention\Contracts\RetentionOffers;
 use Cbox\Billing\Seller\Contracts\EntityRouter;
 use Cbox\Billing\Subscription\Contracts\TransitionPolicy;
 use Cbox\Billing\Subscription\PlanChange\FamilyTransitionPolicy;
@@ -116,6 +120,7 @@ class BillingServiceProvider extends ServiceProvider
         $this->registerHostedSessions();
         $this->registerUpgradeGate();
         $this->registerApi();
+        $this->registerRetentionSeam();
 
         // The customer-facing transactional mail surface: one place resolves the billing
         // contact and queues the branded Mailable for each lifecycle event.
@@ -393,6 +398,24 @@ class BillingServiceProvider extends ServiceProvider
         $secret = $config->get('billing-stripe.webhook_secret');
 
         return is_string($secret) && $secret !== '';
+    }
+
+    /**
+     * Bind the engine's retention seam to the app's own basic defaults (a built-in reason
+     * survey + a pause save-offer), so the cancel flow consults a real survey/offers rather
+     * than the engine's inert Null defaults. These are plain (unconditional) bindings — the
+     * same override pattern every host seam here uses — over the engine's `bindIf` Nulls; a
+     * composed `cbox-billing-retention` plugin rebinds both contracts to its rich flow (its
+     * provider boots after this one), enriching the flow with zero app edits.
+     *
+     * The {@see RetentionRecorder} the cancel path emits through stays the engine's — it is
+     * bound with the real dispatcher by the engine's RetentionServiceProvider — so the app
+     * emits the retention domain events a plugin listens for.
+     */
+    private function registerRetentionSeam(): void
+    {
+        $this->app->singleton(CancellationSurvey::class, BasicCancellationSurvey::class);
+        $this->app->singleton(RetentionOffers::class, BasicRetentionOffers::class);
     }
 
     /** Bind the pluggable API token authenticator (operator static token + per-org rows). */

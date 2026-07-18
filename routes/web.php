@@ -47,6 +47,10 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/catalog/prices/{price}/edit', [CatalogController::class, 'edit'])->name('billing.catalog.prices.edit');
     Route::put('/catalog/prices/{price}', [CatalogController::class, 'update'])->name('billing.catalog.prices.update');
 
+    // Plan retirement authoring (ADR-0016): mark a plan retiring / un-retire it.
+    Route::post('/catalog/plans/{plan}/retire', [CatalogController::class, 'retire'])->name('billing.catalog.plans.retire');
+    Route::post('/catalog/plans/{plan}/unretire', [CatalogController::class, 'unretire'])->name('billing.catalog.plans.unretire');
+
     Route::get('/customers', [BillingController::class, 'customers'])->name('billing.customers');
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->name('billing.customers.show');
 

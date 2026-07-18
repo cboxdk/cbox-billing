@@ -27,6 +27,15 @@ Artisan::command('inspire', function () {
  */
 Schedule::command('billing:reconcile-active')->everyFifteenMinutes()->withoutOverlapping();
 Schedule::command('billing:apply-scheduled-changes')->hourly()->withoutOverlapping();
+
+/*
+ * Migrate subscriptions off retiring plans (ADR-0016) BEFORE the daily renewal, so a
+ * subscriber whose renewal is due is moved onto their chosen successor / the default (or
+ * flagged unresolved) and never renews on the retired plan. Also sends the plan-retiring
+ * reminder ahead of each cutoff. Idempotent — recorded per subscription per window.
+ */
+Schedule::command('billing:migrate-retiring-plans')->dailyAt('02:45')->withoutOverlapping();
+
 Schedule::command('billing:renew')->dailyAt('03:00')->withoutOverlapping();
 Schedule::command('billing:invoice')->monthlyOn(1, '02:00')->withoutOverlapping();
 Schedule::command('billing:dunning')->dailyAt('06:00')->withoutOverlapping();

@@ -75,7 +75,34 @@
                                     </span>
                                 @endforeach
                             </td>
-                            <td>@if($plan['active'])<span class="cbx-pill cbx-pill--success"><span class="dot"></span>active</span>@else<span class="cbx-pill cbx-pill--muted">off</span>@endif</td>
+                            <td>
+                                @if($plan['active'])<span class="cbx-pill cbx-pill--success"><span class="dot"></span>active</span>@else<span class="cbx-pill cbx-pill--muted">off</span>@endif
+                                @if($plan['retiring'])<span class="cbx-pill cbx-pill--warning" title="Retires {{ $plan['retires_at'] }}"><span class="dot"></span>retiring {{ $plan['retires_at'] }}</span>@endif
+                            </td>
+                        </tr>
+                        {{-- Plan retirement authoring (ADR-0016): mark retiring (cutoff + default successor) or un-retire --}}
+                        <tr style="cursor:default" onclick="event.stopPropagation()">
+                            <td colspan="6" style="padding:2px 20px 12px">
+                                @if ($plan['retiring'])
+                                    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px;color:var(--muted-foreground)">
+                                        <span>Retires <strong style="color:var(--foreground)">{{ $plan['retires_at'] }}</strong>@if($plan['default_successor']) · default successor <strong style="color:var(--foreground)">{{ $plan['default_successor'] }}</strong>@else · <span style="color:var(--destructive)">no default (unresolved subscribers flagged)</span>@endif</span>
+                                        <form method="POST" action="{{ route('billing.catalog.plans.unretire', $plan['id']) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Un-retire</button></form>
+                                    </div>
+                                @else
+                                    <form method="POST" action="{{ route('billing.catalog.plans.retire', $plan['id']) }}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                                        @csrf
+                                        <span class="mut" style="font-size:12px">Retire this plan</span>
+                                        <input type="date" name="retires_at" required style="height:30px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 8px;font-family:var(--font-sans);font-size:12px">
+                                        <select name="default_successor_plan_id" style="height:30px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 8px;font-family:var(--font-sans);font-size:12px">
+                                            <option value="">Default successor — none</option>
+                                            @foreach ($successorChoices as $choice)
+                                                @if ($choice['id'] !== $plan['id'])<option value="{{ $choice['id'] }}">{{ $choice['name'] }}</option>@endif
+                                            @endforeach
+                                        </select>
+                                        <button type="submit" class="cbx-btn cbx-btn--secondary cbx-btn--sm">Mark retiring</button>
+                                    </form>
+                                @endif
+                            </td>
                         </tr>
                         {{-- Tiered pricing: render each tiered currency's bracket table (up-to / unit / flat), read from the engine PriceTier set --}}
                         @if ($tieredPrices)

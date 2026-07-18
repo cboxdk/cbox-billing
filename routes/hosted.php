@@ -24,6 +24,7 @@ Route::prefix('billing')->name('hosted.')->group(function (): void {
     Route::post('portal/{token}/preview', [PortalController::class, 'preview'])->name('portal.preview');
     Route::post('portal/{token}/change', [PortalController::class, 'change'])->name('portal.change');
     Route::post('portal/{token}/cancel', [PortalController::class, 'cancel'])->name('portal.cancel');
+    Route::post('portal/{token}/retirement/successor', [PortalController::class, 'chooseSuccessor'])->name('portal.retirement.successor');
     Route::post('portal/{token}/setup-intent', [PortalController::class, 'setupIntent'])->name('portal.setup-intent');
     Route::post('portal/{token}/payment-method', [PortalController::class, 'paymentMethod'])->name('portal.payment-method');
 });

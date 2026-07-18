@@ -27,10 +27,26 @@ readonly class CatalogReport
     public function products(): Collection
     {
         return Product::query()
-            ->with(['plans.prices.tiers', 'plans.entitlements.meter', 'plans.creditGrants'])
+            ->with(['plans.prices.tiers', 'plans.entitlements.meter', 'plans.creditGrants', 'plans.defaultSuccessor'])
             ->orderBy('name')
             ->get()
             ->map(fn (Product $product): array => $this->product($product));
+    }
+
+    /**
+     * The active plans a retiring plan may name as its default successor (every active plan
+     * but the one being authored), for the retirement form's picker.
+     *
+     * @return list<array{id: int, name: string}>
+     */
+    public function successorChoices(): array
+    {
+        return array_values(Plan::query()
+            ->where('active', true)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(static fn (Plan $plan): array => ['id' => $plan->id, 'name' => $plan->name])
+            ->all());
     }
 
     /**
@@ -56,10 +72,14 @@ readonly class CatalogReport
     private function plan(Plan $plan): array
     {
         return [
+            'id' => $plan->id,
             'key' => $plan->key,
             'name' => $plan->name,
             'interval' => $plan->interval,
             'active' => $plan->active,
+            'retiring' => $plan->isRetiring(),
+            'retires_at' => $plan->retires_at?->format('j M Y'),
+            'default_successor' => $plan->defaultSuccessor?->name,
             'prices' => $plan->prices
                 ->sortBy('currency')
                 ->map(fn (PlanPrice $price): array => $this->price($price))->values()->all(),

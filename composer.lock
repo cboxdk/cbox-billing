@@ -193,16 +193,16 @@
         },
         {
             "name": "cboxdk/laravel-billing",
-            "version": "v0.8.0",
+            "version": "v0.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-billing.git",
-                "reference": "94fc62dd5f85b3e0f40e4a0ea3ba65188df996f5"
+                "reference": "94d7b827371224e9a84c3b92ad70edb0fdad43f3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/94fc62dd5f85b3e0f40e4a0ea3ba65188df996f5",
-                "reference": "94fc62dd5f85b3e0f40e4a0ea3ba65188df996f5",
+                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/94d7b827371224e9a84c3b92ad70edb0fdad43f3",
+                "reference": "94d7b827371224e9a84c3b92ad70edb0fdad43f3",
                 "shasum": ""
             },
             "require": {
@@ -252,9 +252,9 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-billing/issues",
-                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.8.0"
+                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.8.1"
             },
-            "time": "2026-07-17T09:29:40+00:00"
+            "time": "2026-07-18T07:25:26+00:00"
         },
         {
             "name": "cboxdk/laravel-billing-stripe",

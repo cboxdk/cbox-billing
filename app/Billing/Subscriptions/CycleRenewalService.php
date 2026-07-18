@@ -108,6 +108,14 @@ readonly class CycleRenewalService
             return RenewalOutcome::canceled();
         }
 
+        // Deny-by-default (ADR-0016): never renew — and so never charge — a subscription
+        // still on a retired plan. Retiring plans' subscribers are migrated off by
+        // `billing:migrate-retiring-plans` before renewal; any left on a past-cutoff plan at
+        // its boundary is unresolved and must be surfaced, not billed on the retired plan.
+        if ($baseDue && $plan->isRetiredAt($now)) {
+            return RenewalOutcome::skipped();
+        }
+
         $baseRenewed = false;
         $addOnsRenewed = 0;
 

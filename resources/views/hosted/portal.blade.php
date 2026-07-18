@@ -35,6 +35,50 @@
     </div>
 </div>
 
+@if ($subscription && $sunset)
+<div class="hosted-card" style="border-left:3px solid {{ $sunset->unresolved ? 'var(--destructive)' : '#b3651f' }}">
+    <header>
+        <h1>{{ $sunset->planName }} is being retired</h1>
+        <p>{{ $sunset->planName }} retires on {{ $sunset->retiresAt }}. Your next renewal is {{ $sunset->renewalDue }} — choose your new plan by then.</p>
+    </header>
+    <div class="hosted-body">
+        @if ($sunset->unresolved)
+            <div class="alert show" style="margin-top:0"><span>Your plan has retired and no new plan is chosen. Please pick a plan below to keep your subscription — it can't renew on the retired plan.</span></div>
+        @endif
+
+        {{-- Choice 1: pick a successor plan (schedules the change at renewal) --}}
+        @if (count($sunset->successors) > 0)
+            <div class="line" style="flex-direction:column;align-items:stretch;gap:8px">
+                <span class="k">1 · Pick a new plan</span>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <select id="sunset-plan" style="flex:1;min-width:200px;height:34px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 10px;font-family:var(--font-sans)">
+                        @foreach ($sunset->successors as $successor)
+                            <option value="{{ $successor['key'] }}">{{ $successor['name'] }} · {{ $successor['price'] }}</option>
+                        @endforeach
+                    </select>
+                    <button class="cbx-btn cbx-btn--primary" id="sunset-choose" style="width:auto">Switch at renewal</button>
+                </div>
+                @if ($sunset->election === 'successor')<span class="note" style="margin-top:0">You've chosen to move to <strong>{{ $sunset->electedSuccessorName }}</strong> at your next renewal.</span>@endif
+            </div>
+        @endif
+
+        {{-- Choice 2: cancel at period end --}}
+        <div class="line"><span class="k">2 · Cancel instead</span><button class="cbx-btn cbx-btn--ghost" id="sunset-cancel" style="width:auto;color:var(--destructive)">Cancel at period end</button></div>
+
+        {{-- Choice 3: do nothing — the default is stated explicitly --}}
+        <div class="note" style="margin-top:6px">
+            3 · Do nothing —
+            @if ($sunset->hasDefault())
+                you'll be moved to <strong>{{ $sunset->defaultSuccessorName }}</strong> automatically at your next renewal.
+            @else
+                your subscription can't renew on the retired plan, so please choose one of the options above before {{ $sunset->renewalDue }}.
+            @endif
+        </div>
+        <div class="alert" id="sunset-error"><span></span></div>
+    </div>
+</div>
+@endif
+
 @if ($subscription && count($plans) > 0)
 <div class="hosted-card">
     <header><h1>Change plan</h1><p>Preview the prorated charge before you confirm.</p></header>
@@ -101,8 +145,31 @@
 
 @if ($subscription && ! $subscription->cancel_at_period_end)
 <div class="hosted-card">
+    <header><h1>Cancel subscription</h1><p>Tell us why you're leaving — it helps us improve.</p></header>
     <div class="hosted-body">
-        <button class="cbx-btn cbx-btn--ghost" id="cancel-btn" style="color:var(--destructive)">Cancel subscription at period end</button>
+        {{-- Save-offers the bound retention seam presents before the cancel --}}
+        @if (count($offers) > 0)
+            <div class="note" style="margin-top:0">
+                <strong>Before you go:</strong>
+                @foreach ($offers as $offer)
+                    <span>{{ $offer['label'] }}.</span>
+                @endforeach
+            </div>
+        @endif
+
+        {{-- Survey reasons the bound seam returns --}}
+        @if (count($reasons) > 0)
+            <label class="k" style="display:block;margin:12px 0 4px">Reason</label>
+            <select id="cancel-reason" style="width:100%;height:34px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 10px;font-family:var(--font-sans)">
+                <option value="">Select a reason…</option>
+                @foreach ($reasons as $reason)
+                    <option value="{{ $reason['key'] }}">{{ $reason['label'] }}</option>
+                @endforeach
+            </select>
+            <input id="cancel-comment" placeholder="Anything else? (optional)" style="width:100%;height:34px;margin-top:8px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 10px;font-family:var(--font-sans);font-size:13px">
+        @endif
+
+        <button class="cbx-btn cbx-btn--ghost" id="cancel-btn" style="color:var(--destructive);margin-top:12px">Cancel subscription at period end</button>
         <div class="alert" id="cancel-error"><span></span></div>
     </div>
 </div>
@@ -148,12 +215,35 @@
         window.location.reload();
     });
 
-    // --- Cancel ---
+    // --- Cancel (carries the survey reason + comment through the retention seam) ---
     const cancelBtn = document.getElementById('cancel-btn');
     if (cancelBtn) cancelBtn.addEventListener('click', async () => {
         cancelBtn.disabled = true;
-        const { ok, body } = await post('/cancel', { at_period_end: true });
+        const reasonEl = document.getElementById('cancel-reason');
+        const commentEl = document.getElementById('cancel-comment');
+        const { ok, body } = await post('/cancel', {
+            at_period_end: true,
+            reason: reasonEl ? reasonEl.value : null,
+            comment: commentEl ? commentEl.value : null,
+        });
         if (!ok) { showErr('cancel-error', body.error); cancelBtn.disabled = false; return; }
+        window.location.reload();
+    });
+
+    // --- Sunset: pick a successor (schedule at renewal) or cancel ---
+    const sunsetChoose = document.getElementById('sunset-choose');
+    if (sunsetChoose) sunsetChoose.addEventListener('click', async () => {
+        sunsetChoose.disabled = true;
+        const plan = document.getElementById('sunset-plan').value;
+        const { ok, body } = await post('/retirement/successor', { plan });
+        if (!ok) { showErr('sunset-error', body.error); sunsetChoose.disabled = false; return; }
+        window.location.reload();
+    });
+    const sunsetCancel = document.getElementById('sunset-cancel');
+    if (sunsetCancel) sunsetCancel.addEventListener('click', async () => {
+        sunsetCancel.disabled = true;
+        const { ok, body } = await post('/cancel', { at_period_end: true });
+        if (!ok) { showErr('sunset-error', body.error); sunsetCancel.disabled = false; return; }
         window.location.reload();
     });
 

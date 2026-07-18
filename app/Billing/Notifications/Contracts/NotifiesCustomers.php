@@ -6,6 +6,7 @@ namespace App\Billing\Notifications\Contracts;
 
 use App\Models\Invoice;
 use App\Models\Organization;
+use App\Models\Plan;
 use App\Models\Subscription;
 use Cbox\Billing\Licensing\ValueObjects\IssuedLicense;
 use Cbox\Billing\Money\Money;
@@ -54,4 +55,12 @@ interface NotifiesCustomers
 
     /** A license was issued/reissued → deliver the key + install notes to the customer. */
     public function licenseDelivered(Organization $organization, IssuedLicense $license, bool $reissued): void;
+
+    /**
+     * Ahead of a retiring plan's cutoff → tell the affected subscriber their plan retires on
+     * `$retiresAtLabel`, that their next renewal (`$renewalDueLabel`) is the deadline to
+     * choose a new plan, and — when one is configured — the default they fall to otherwise
+     * (ADR-0016).
+     */
+    public function planRetiring(Subscription $subscription, Plan $plan, string $retiresAtLabel, string $renewalDueLabel, ?string $defaultSuccessorName): void;
 }

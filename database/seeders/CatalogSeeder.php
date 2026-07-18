@@ -42,7 +42,7 @@ class CatalogSeeder extends Seeder
                     'product_id' => $product->id,
                     'name' => $definition['name'],
                     'interval' => 'month',
-                    'active' => true,
+                    'active' => $definition['active'] ?? true,
                 ],
             );
 
@@ -192,7 +192,7 @@ class CatalogSeeder extends Seeder
      * The four-plan ladder. Each plan is priced in DKK + EUR + USD (minor units), and
      * each entitlement is a projection-ready {@see MeterPolicy} shape.
      *
-     * @return list<array{key: string, name: string, prices: array<string, int>, included_credits: int, entitlements: array<string, array<string, mixed>>}>
+     * @return list<array{key: string, name: string, active?: bool, prices: array<string, int>, included_credits: int, entitlements: array<string, array<string, mixed>>}>
      */
     private function plans(): array
     {
@@ -243,6 +243,24 @@ class CatalogSeeder extends Seeder
                     'seats' => $this->unlimited(),
                     'storage.gb' => $this->metered(10_000, 0.0, OverageBehaviour::Block),
                     'events.ingested' => $this->unlimited(),
+                ],
+            ],
+            // Early Access: a demo/beta plan that LOCKS a generous included allowance behind
+            // a single pinned (flat) price, so early adopters grandfather onto it — the plan
+            // an operator later marks retiring to move them onto the ladder (ADR-0016). It is
+            // closed to new signups (grandfathered / `active = false`): a valid transition
+            // source but never offered to new customers, so it stays off the upgrade ladder.
+            [
+                'key' => 'early-access',
+                'name' => 'Early Access',
+                'active' => false,
+                'prices' => ['DKK' => 49_000, 'EUR' => 6_500, 'USD' => 6_900],
+                'included_credits' => 2_000_000,
+                'entitlements' => [
+                    'api.requests' => $this->metered(3_000_000, 0.0002, OverageBehaviour::Bill),
+                    'seats' => $this->metered(25, 0.0, OverageBehaviour::Block),
+                    'storage.gb' => $this->metered(500, 0.0, OverageBehaviour::Block),
+                    'events.ingested' => $this->metered(2_000_000, 0.0001, OverageBehaviour::Bill),
                 ],
             ],
         ];

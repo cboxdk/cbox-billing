@@ -14,6 +14,11 @@ use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\SubscriptionCancellation;
+use Cbox\Billing\Retention\Enums\RetentionOutcome;
+use Cbox\Billing\Retention\RetentionRecorder;
+use Cbox\Billing\Retention\ValueObjects\CancellationResponse;
+use Cbox\Billing\Subscription\ValueObjects\BillingPeriod;
+use Cbox\Billing\Subscription\ValueObjects\Subscription as EngineSubscription;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
@@ -34,11 +39,20 @@ readonly class RetentionService implements ManagesRetention
         private SubscribesOrganizations $subscriptions,
         private ManagesSubscriptionDepth $depth,
         private Config $config,
+        private RetentionRecorder $recorder,
     ) {}
 
     public function cancel(Subscription $subscription, CancellationRequest $request): Subscription
     {
-        return $this->db->transaction(function () use ($subscription, $request): Subscription {
+        // Consult the engine retention seam: emit the domain events a plugin (or automation)
+        // reacts to — the cancel was *requested* (before any state change) and later
+        // *resolved* — carrying the subscriber's captured reason as the engine
+        // {@see CancellationResponse}. The events are inert until a listener is bound, so
+        // this is a no-op enrichment seam by default (ADR-0016 retention wiring).
+        $response = new CancellationResponse(reasonKey: $request->reason, comment: $request->feedback);
+        $this->recorder->cancellationRequested($this->toEngineSubscription($subscription), $subscription->organization_id, $response);
+
+        $result = $this->db->transaction(function () use ($subscription, $request): Subscription {
             // Capture the reason FIRST — for every mode, including a pause save — so the
             // analytics log records the intent even when the churn was averted.
             $this->record($subscription, $request->mode->value, $request->reason, $request->feedback);
@@ -49,6 +63,13 @@ readonly class RetentionService implements ManagesRetention
                 CancellationMode::Pause => $this->depth->pause($subscription),
             };
         });
+
+        // A pause is a retention save (the churn was averted); an immediate or period-end
+        // cancel is a churn.
+        $outcome = $request->mode === CancellationMode::Pause ? RetentionOutcome::SavedByOffer : RetentionOutcome::Canceled;
+        $this->recorder->resolved($this->toEngineSubscription($result), $outcome, $response);
+
+        return $result;
     }
 
     public function reactivate(Subscription $subscription): Subscription
@@ -89,6 +110,31 @@ readonly class RetentionService implements ManagesRetention
 
             throw RetentionException::notReactivatable();
         });
+    }
+
+    /**
+     * Project the durable row into the engine subscription value object the recorder events
+     * carry. The retention events are signals — the recorder does not mutate the
+     * subscription — so this only needs the identifying fields and the current standing.
+     */
+    private function toEngineSubscription(Subscription $subscription): EngineSubscription
+    {
+        $plan = $subscription->plan;
+
+        $period = new BillingPeriod(
+            ($subscription->current_period_start ?? Carbon::now()->startOfMonth())->toDateTimeImmutable(),
+            ($subscription->current_period_end ?? Carbon::now()->endOfMonth())->toDateTimeImmutable(),
+        );
+
+        return new EngineSubscription(
+            id: (string) $subscription->id,
+            organizationId: $subscription->organization_id,
+            productId: $plan instanceof Plan ? $plan->key : (string) $subscription->plan_id,
+            priceId: $plan instanceof Plan ? $plan->key : (string) $subscription->plan_id,
+            period: $period,
+            status: $subscription->status,
+            cancelAtPeriodEnd: $subscription->cancel_at_period_end,
+        );
     }
 
     /** Append the retention event to the analytics log. */

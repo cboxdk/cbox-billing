@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Billing\Seats\Enums\SeatSource;
 use App\Billing\Wallet\WalletProvisioner;
+use App\Models\CboxIdAccessGrant;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\Organization;
 use App\Models\PaymentRetry;
 use App\Models\Plan;
+use App\Models\SeatAssignment;
 use App\Models\Subscription;
 use App\Models\SubscriptionCancellation;
 use App\Models\SubscriptionMrrMovement;
@@ -132,9 +135,44 @@ class OrganizationSeeder extends Seeder
             }
 
             $this->seedUsage($organization->id, $definition['usage'] ?? []);
+
+            // Seat model: mirror a handful of eligible members (the access mirror the
+            // provisioning webhooks maintain) and explicitly assign some of the purchased
+            // Full seats, leaving the rest Light (free). A churned org has neither.
+            if (! $canceled) {
+                $this->seedSeats($organization->id, (int) $definition['seats']);
+            }
         }
 
         $this->seedMrrMovements();
+    }
+
+    /**
+     * Mirror a few eligible members for an org and assign a subset of its purchased Full
+     * seats — so the console Seats panel shows a real Full/Light split. Assignments never
+     * exceed the purchased count (the invariant). The unassigned eligible members are Light.
+     */
+    private function seedSeats(string $organizationId, int $purchased): void
+    {
+        $eligible = max(2, min($purchased + 2, 6));
+        $toAssign = min($purchased, (int) ceil($eligible / 2));
+
+        for ($i = 1; $i <= $eligible; $i++) {
+            $subject = sprintf('%s_member_%d', $organizationId, $i);
+            $role = $i === 1 ? 'billing-admin' : ($i <= $toAssign ? 'billing-operator' : 'billing-viewer');
+
+            CboxIdAccessGrant::query()->updateOrCreate(
+                ['organization_id' => $organizationId, 'subject' => $subject, 'role' => $role],
+                ['environment_key' => null],
+            );
+
+            if ($i <= $toAssign) {
+                SeatAssignment::query()->updateOrCreate(
+                    ['organization_id' => $organizationId, 'subject' => $subject],
+                    ['source' => SeatSource::Manual, 'assigned_at' => Carbon::now()],
+                );
+            }
+        }
     }
 
     /**

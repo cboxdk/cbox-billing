@@ -15,7 +15,8 @@ use Illuminate\Support\ServiceProvider;
  * each event's HMAC signature at the receiver and runs the registered handlers on its
  * queued job; here we subscribe the exact set of events Cbox ID emits for
  * organization/role provisioning and hand each to {@see SyncsIdentityProvisioning}, which
- * maintains the access mirror + seat counts + org standing idempotently per delivery.
+ * maintains the access mirror (seat eligibility) + seat assignments + org standing
+ * idempotently per delivery.
  *
  * The provisioning-webhook receiver itself is mounted in routes/webhooks.php (public,
  * HMAC-verified by the SDK, deny-by-default when no `CBOX_ID_WEBHOOK_SECRET` is set).

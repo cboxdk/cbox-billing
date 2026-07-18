@@ -48,6 +48,47 @@ return [
     'cache_ttl' => (int) env('CBOX_ID_CACHE_TTL', 3600),
 
     /*
+     * Inbound provisioning webhooks. Cbox ID pushes signed events (member added/removed,
+     * role assigned/revoked, directory user provisioned, org suspended/reactivated) to
+     * this app; the SDK verifies the `X-Cbox-Signature` HMAC against `secret` and hands
+     * each verified event to the handlers this app registers in
+     * {@see \App\Providers\CboxIdWebhookServiceProvider}.
+     *
+     * Deny-by-default: with no `secret`, the SDK receiver fails closed and refuses every
+     * payload (it never trusts an unverified body). The receiver is mounted MANUALLY in
+     * routes/webhooks.php at `/webhooks/cbox-id` — registered ahead of the payment-gateway
+     * `/webhooks/{gateway}` route so the two never collide — hence `route => false` here
+     * turns OFF the SDK's own auto-mount.
+     */
+    'webhooks' => [
+        'secret' => env('CBOX_ID_WEBHOOK_SECRET'),
+
+        // The SDK auto-mount is disabled — this app mounts the receiver itself (see
+        // routes/webhooks.php) so it sits under `/webhooks/*` beside the gateway route,
+        // rate-limited and deterministically ordered ahead of the `{gateway}` wildcard.
+        'route' => false,
+        'path' => env('CBOX_ID_WEBHOOK_PATH', '/webhooks/cbox-id'),
+
+        // Reject a signature whose timestamp is outside this window (replay + skew bound).
+        'tolerance' => (int) env('CBOX_ID_WEBHOOK_TOLERANCE', 300),
+
+        // The SDK verifies + acknowledges immediately and runs the handlers on a queued
+        // job (ProcessCboxIdWebhook); point these at a real async connection/queue in
+        // production so a slow handler never stalls the ack. null uses the app defaults.
+        'connection' => env('CBOX_ID_WEBHOOK_QUEUE_CONNECTION'),
+        'queue' => env('CBOX_ID_WEBHOOK_QUEUE'),
+    ],
+
+    /*
+     * The home environment key stamped on a billing org when a login carries no
+     * `environment` claim (single-environment deployments). Cbox ID is environment-scoped
+     * — each org lives inside exactly one environment — but the claim only appears once a
+     * coordinated Cbox ID release emits it; until then every org groups under this default
+     * so a host-less single-tenant deploy Just Works. See docs/identity/tenancy.md.
+     */
+    'environment_default' => env('CBOX_ID_ENVIRONMENT_DEFAULT', 'default'),
+
+    /*
      * Authorization manifest — declare this app's ROLES and PERMISSIONS in code, and
      * `php artisan cbox-id:publish-manifest` (e.g. on deploy) pushes them to Cbox ID.
      * Cbox ID owns identity + assignment; your app owns what a role means. Assigned

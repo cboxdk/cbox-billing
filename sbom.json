@@ -1,7 +1,7 @@
 {
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:17a59e64-0f94-460f-a463-2657ac31bd48",
+    "serialNumber": "urn:uuid:3d11e5f8-3ac6-4487-abfa-3b5aaf86bcbc",
     "version": 1,
     "metadata": {
         "tools": [
@@ -149,11 +149,11 @@
         },
         {
             "type": "library",
-            "bom-ref": "pkg:composer/cboxdk/laravel-id-client@v0.2.0",
+            "bom-ref": "pkg:composer/cboxdk/laravel-id-client@v0.3.1",
             "group": "cboxdk",
             "name": "laravel-id-client",
-            "version": "v0.2.0",
-            "purl": "pkg:composer/cboxdk/laravel-id-client@v0.2.0",
+            "version": "v0.3.1",
+            "purl": "pkg:composer/cboxdk/laravel-id-client@v0.3.1",
             "description": "Laravel/PHP consumer SDK for Cbox ID \u2014 turnkey OIDC login, hosted profile-management redirect, machine tokens, and webhook verification against a Cbox ID instance.",
             "licenses": [
                 {

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0bc83daa8a711d750d7373f50ee19eac",
+    "content-hash": "4a3d84a361ff1a218092c935efa9123b",
     "packages": [
         {
             "name": "brick/math",
@@ -516,16 +516,16 @@
         },
         {
             "name": "cboxdk/laravel-id-client",
-            "version": "v0.2.0",
+            "version": "v0.3.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-id-client.git",
-                "reference": "132c700582ff94d257acac60bf316f9e936d3ac5"
+                "reference": "afe9695fb78727b8f978bfb6d6013fc0ff3d69ad"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-id-client/zipball/132c700582ff94d257acac60bf316f9e936d3ac5",
-                "reference": "132c700582ff94d257acac60bf316f9e936d3ac5",
+                "url": "https://api.github.com/repos/cboxdk/laravel-id-client/zipball/afe9695fb78727b8f978bfb6d6013fc0ff3d69ad",
+                "reference": "afe9695fb78727b8f978bfb6d6013fc0ff3d69ad",
                 "shasum": ""
             },
             "require": {
@@ -574,9 +574,9 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-id-client/issues",
-                "source": "https://github.com/cboxdk/laravel-id-client/tree/v0.2.0"
+                "source": "https://github.com/cboxdk/laravel-id-client/tree/v0.3.1"
             },
-            "time": "2026-07-17T12:11:05+00:00"
+            "time": "2026-07-17T17:20:43+00:00"
         },
         {
             "name": "cboxdk/laravel-tax",

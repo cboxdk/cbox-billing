@@ -77,6 +77,40 @@ published, the roles appear read-only on the Cbox ID console Roles page under
 The app never inflates or invents claims — it declares the vocabulary and enforces
 what Cbox ID assigns.
 
+## Enforcement
+
+The console carries a permission gate, the `billing.permission:<feature:action>`
+route middleware ([`EnforcePermission`](https://github.com/cboxdk/cbox-billing/blob/main/app/Http/Middleware/EnforcePermission.php)).
+Each management/console route declares the slug it needs — `catalog:manage` before
+price authoring, `subscriptions:manage` before cancel/reactivate, `licenses:issue` /
+`licenses:revoke` before issuing/revoking, `analytics:read` before the analytics
+screens, `settings:read` before the settings page, and the `:read` slug on every
+read surface — using the exact slugs from the catalog above.
+
+### The current signal gap
+
+**Cbox ID does not yet emit a `permissions` (or `roles`) claim.** Its token issuer
+and userinfo endpoint carry only `sub` / `email` / `name` / `org` / `org_name` today,
+so this app has **no per-caller permission signal to enforce against**. The gate is
+built to be *correct the day that claim ships* and *safe before then*:
+
+- The principal ([`AuthedUser`](https://github.com/cboxdk/cbox-billing/blob/main/app/Auth/AuthedUser.php))
+  reads a `permissions` (and `roles`) claim **when present** — from the id_token or
+  userinfo — and is empty until it appears.
+- The gate is held behind the **`CBOX_ID_RBAC_ENFORCE`** flag (`config/billing.php` →
+  `rbac.enforce`), **default `false`**.
+
+### The flag
+
+| `CBOX_ID_RBAC_ENFORCE` | Behaviour |
+| --- | --- |
+| `false` (default) | **Inert.** The middleware resolves the principal's permissions onto the request (`cbox.permissions`) but **never blocks** — it can't lock the operator surface out before the claim exists. |
+| `true` | **Strict deny-by-default.** A caller needs the exact slug the route declares, or gets `403`; an unauthenticated request gets `401`. |
+
+This is the honest rollout: enforcement lights up **only when Cbox ID emits the
+permissions claim AND the operator flips the flag** — a coordinated Cbox ID release,
+not something this app can fake. Leave the flag off until then.
+
 ## A configuration seam to know
 
 The manifest publish itself does not depend on the redirect value — set

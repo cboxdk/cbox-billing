@@ -15,6 +15,24 @@ return [
     'default_currency' => env('CBOX_BILLING_DEFAULT_CURRENCY', 'DKK'),
 
     /*
+     * Console RBAC enforcement (the `billing.permission:<feature:action>` middleware).
+     *
+     * IMPORTANT — honest rollout. Cbox ID does not yet emit a `permissions` (or `roles`)
+     * claim in the id_token or userinfo, so this app has no per-caller permission signal to
+     * enforce against today. The middleware is therefore INERT by default: with `enforce`
+     * false it resolves whatever permissions the principal carries onto the request (for
+     * downstream use) but NEVER blocks — so it can never lock the single operator surface
+     * out before the signal exists.
+     *
+     * Flip `enforce` to true ONLY once a coordinated Cbox ID release emits the claim AND you
+     * intend strict deny-by-default: a caller then needs the exact slug a route declares, or
+     * gets a 403. See docs/identity/rbac-manifest.md → Enforcement.
+     */
+    'rbac' => [
+        'enforce' => (bool) env('CBOX_ID_RBAC_ENFORCE', false),
+    ],
+
+    /*
      * The organization credit wallet. Under ADR-0013 a plan's included allowances and
      * credits are one unified pool-grant model burned down in one order, so credit
      * balances must survive a restart: `database` binds the durable {@see DatabaseWallet}

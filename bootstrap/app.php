@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AuthenticateApiToken;
 use App\Http\Middleware\EnforceIdempotency;
+use App\Http\Middleware\EnforcePermission;
 use App\Http\Middleware\EnsureAuthenticated;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -48,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.cbox' => EnsureAuthenticated::class,
             'api.token' => AuthenticateApiToken::class,
             'idempotency' => EnforceIdempotency::class,
+            'billing.permission' => EnforcePermission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -13,6 +13,10 @@ use Illuminate\Support\Str;
  */
 readonly class AuthedUser
 {
+    /**
+     * @param  list<string>  $roles  the role keys Cbox ID assigned (empty until id emits them)
+     * @param  list<string>  $permissions  the resolved `feature:action` slugs (empty until id emits them)
+     */
     public function __construct(
         public string $sub,
         public string $name,
@@ -20,6 +24,8 @@ readonly class AuthedUser
         public ?string $org,
         public ?string $picture,
         public ?string $orgName = null,
+        public array $roles = [],
+        public array $permissions = [],
     ) {}
 
     /** @param array<string, mixed> $claims */
@@ -34,6 +40,8 @@ readonly class AuthedUser
             org: isset($claims['org']) ? self::str($claims['org']) : null,
             picture: isset($claims['picture']) ? self::str($claims['picture']) : null,
             orgName: isset($claims['org_name']) ? self::str($claims['org_name']) : null,
+            roles: self::strList($claims['roles'] ?? null),
+            permissions: self::strList($claims['permissions'] ?? null),
         );
     }
 
@@ -47,6 +55,8 @@ readonly class AuthedUser
             org: isset($data['org']) ? self::str($data['org']) : null,
             picture: isset($data['picture']) ? self::str($data['picture']) : null,
             orgName: isset($data['org_name']) ? self::str($data['org_name']) : null,
+            roles: self::strList($data['roles'] ?? null),
+            permissions: self::strList($data['permissions'] ?? null),
         );
     }
 
@@ -54,6 +64,39 @@ readonly class AuthedUser
     private static function str(mixed $value): string
     {
         return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
+     * Normalize a claim value to a de-duplicated list of non-empty strings. Accepts a JSON
+     * array (`["a","b"]`) or a single space/comma-delimited string; anything else is empty.
+     *
+     * @return list<string>
+     */
+    private static function strList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = preg_split('/[\s,]+/', trim($value)) ?: [];
+        }
+
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($value as $item) {
+            $slug = self::str($item);
+            if ($slug !== '' && ! in_array($slug, $out, true)) {
+                $out[] = $slug;
+            }
+        }
+
+        return $out;
+    }
+
+    /** Whether the principal carries a given `feature:action` permission slug. */
+    public function hasPermission(string $permission): bool
+    {
+        return in_array($permission, $this->permissions, true);
     }
 
     /** @return array<string, mixed> */
@@ -66,6 +109,8 @@ readonly class AuthedUser
             'org' => $this->org,
             'picture' => $this->picture,
             'org_name' => $this->orgName,
+            'roles' => $this->roles,
+            'permissions' => $this->permissions,
         ];
     }
 

@@ -14,6 +14,7 @@ use App\Billing\Reporting\SettingsReport;
 use App\Billing\Reporting\SubscriptionReport;
 use App\Billing\Reporting\UsageReport;
 use App\Billing\Retirement\PlanRetirementService;
+use App\Billing\Seats\Contracts\ManagesSeats;
 use App\Billing\Support\SubscriptionStanding;
 use App\Models\Invoice;
 use App\Models\Organization;
@@ -76,6 +77,7 @@ class BillingController extends Controller
         CancellationSurvey $survey,
         RetentionOffers $offers,
         PlanRetirementService $retirements,
+        ManagesSeats $seats,
     ): View {
         $subscription->loadMissing(['plan.defaultSuccessor', 'organization', 'pendingPlan']);
 
@@ -88,6 +90,11 @@ class BillingController extends Controller
             'retentionReasons' => $this->retentionReasons($survey, $subscription),
             'retentionOffers' => $this->retentionOffers($offers, $subscription),
             'sunset' => $retirements->noticeFor($subscription),
+            // The seat picture: purchased Full seats (billed), assigned members (Full) and
+            // eligible-but-unassigned members (Light, free). Null when the subscription is
+            // not serving (no seat authority to act against).
+            'seats' => $subscription->isServing() ? $seats->breakdown($subscription) : null,
+            'seatTypes' => config('billing.seats.types', []),
         ]);
     }
 

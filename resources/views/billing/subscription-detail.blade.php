@@ -109,6 +109,103 @@
         </section>
     </div>
 
+    {{-- Seats (purchased + explicitly-assigned). Purchased Full seats ARE the billed quantity;
+         Light members are eligible-but-unassigned and never billed. --}}
+    @if (!empty($seats))
+        @php($fullLabel = $seatTypes['full']['label'] ?? 'Full')
+        @php($lightLabel = $seatTypes['light']['label'] ?? 'Light')
+        @php($lightBillable = (bool) ($seatTypes['light']['billable'] ?? false))
+        <section class="cbx-panel">
+            <header class="cbx-panel-header" style="padding:12px 20px">
+                <div>
+                    <h2 class="cbx-panel-title" style="font-size:14px">Seats</h2>
+                    <p class="cbx-panel-desc" style="font-size:12px">Purchased {{ $fullLabel }} seats are billed; {{ strtolower($lightLabel) }} members are free.</p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <span class="cbx-pill cbx-pill--info"><span class="dot"></span>{{ $seats->fullCount() }} {{ $fullLabel }}</span>
+                    <span class="cbx-pill cbx-pill--muted">{{ $seats->lightCount() }} {{ $lightLabel }}{{ $lightBillable ? '' : ' · free' }}</span>
+                </div>
+            </header>
+
+            <dl style="margin:0;padding:2px 20px 6px">
+                <div class="cbx-kv" style="padding:9px 0"><dt>Purchased seats</dt><dd class="num">{{ $seats->purchased }}</dd></div>
+                <div class="cbx-kv" style="padding:9px 0"><dt>Assigned ({{ $fullLabel }})</dt><dd class="num">{{ $seats->assigned }}</dd></div>
+                <div class="cbx-kv" style="padding:9px 0"><dt>Free to assign</dt><dd class="num">{{ $seats->free() }}</dd></div>
+            </dl>
+
+            {{-- Buy / release purchased seats (guardrailed: cannot drop below the assigned count) --}}
+            <div style="padding:12px 20px;border-top:1px solid var(--border)">
+                <form method="POST" action="{{ route('billing.subscriptions.seats.set', $s['id']) }}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+                    @csrf
+                    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted-foreground)">Purchased {{ $fullLabel }} seats
+                        <input type="number" name="seats" min="{{ max(1, $seats->assigned) }}" value="{{ $seats->purchased }}" class="num" style="height:32px;width:120px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 10px;font-family:var(--font-sans)">
+                    </label>
+                    <button type="submit" class="cbx-btn cbx-btn--secondary cbx-btn--sm">Buy / release</button>
+                    <span class="mut" style="font-size:12px">Buying prorates a charge now; releasing credits the balance. Cannot drop below {{ $seats->assigned }} (assigned).</span>
+                </form>
+            </div>
+
+            {{-- Assign a free seat to an eligible-but-unassigned member --}}
+            <div style="padding:12px 20px;border-top:1px solid var(--border)">
+                @if (!empty($seats->assignable) && $seats->free() > 0)
+                    <form method="POST" action="{{ route('billing.subscriptions.seats.assign', $s['id']) }}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+                        @csrf
+                        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted-foreground)">Assign a seat to
+                            <select name="subject" style="height:32px;min-width:220px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 8px;font-family:var(--font-sans)">
+                                @foreach ($seats->assignable as $member)
+                                    <option value="{{ $member['subject'] }}">{{ $member['subject'] }}@if(!empty($member['role'])) · {{ $member['role'] }}@endif</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Assign {{ $fullLabel }} seat</button>
+                    </form>
+                @elseif ($seats->free() <= 0)
+                    <p class="mut" style="font-size:13px;margin:0">All purchased seats are assigned. Buy more seats to assign another member.</p>
+                @else
+                    <p class="mut" style="font-size:13px;margin:0">No eligible members are waiting for a seat.</p>
+                @endif
+            </div>
+
+            {{-- Full members (assigned) --}}
+            <table class="tbl">
+                <thead><tr><th>{{ $fullLabel }} member (assigned)</th><th style="width:150px">Role</th><th style="width:110px">Source</th><th style="width:120px"></th></tr></thead>
+                <tbody>
+                    @forelse ($seats->full as $member)
+                        <tr>
+                            <td style="font-weight:500">{{ $member['subject'] }}</td>
+                            <td class="mut">{{ $member['role'] ?: '—' }}</td>
+                            <td><span class="cbx-pill cbx-pill--{{ ($member['source'] ?? 'manual') === 'auto' ? 'info' : 'muted' }}">{{ $member['source'] ?? 'manual' }}</span></td>
+                            <td class="right">
+                                <form method="POST" action="{{ route('billing.subscriptions.seats.unassign', $s['id']) }}" style="margin:0">
+                                    @csrf
+                                    <input type="hidden" name="subject" value="{{ $member['subject'] }}">
+                                    <button type="submit" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Unassign</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4" class="mut" style="padding:16px;text-align:center">No seats assigned yet.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+
+            {{-- Light members (eligible, free) --}}
+            @if (!empty($seats->light))
+                <table class="tbl">
+                    <thead><tr><th>{{ $lightLabel }} member (free)</th><th style="width:150px">Role</th></tr></thead>
+                    <tbody>
+                        @foreach ($seats->light as $member)
+                            <tr>
+                                <td style="font-weight:500">{{ $member['subject'] }}</td>
+                                <td class="mut">{{ $member['role'] ?: '—' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+        </section>
+    @endif
+
     <section class="cbx-panel">
         <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Metered entitlements</h2></header>
         <table class="tbl">

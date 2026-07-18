@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Management\PaymentIntentController;
 use App\Http\Controllers\Api\Management\PaymentMethodController;
 use App\Http\Controllers\Api\Management\PlanController;
 use App\Http\Controllers\Api\Management\PortalSessionController;
+use App\Http\Controllers\Api\Management\SeatController;
 use App\Http\Controllers\Api\Management\SetupIntentController;
 use App\Http\Controllers\Api\Management\SubscriptionController;
 use App\Http\Controllers\Api\Management\UsageController as UsageSummaryController;
@@ -66,6 +67,19 @@ Route::middleware('throttle:cbox-management')->group(function (): void {
     Route::post('subscriptions/{org}/quantity', [SubscriptionController::class, 'quantity'])->middleware('idempotency')->name('subscriptions.quantity');
     Route::post('subscriptions/{org}/addons', [SubscriptionController::class, 'addAddOn'])->middleware('idempotency')->name('subscriptions.addons.add');
     Route::delete('subscriptions/{org}/addons/{key}', [SubscriptionController::class, 'removeAddOn'])->name('subscriptions.addons.remove');
+
+    /*
+     * Seats (purchased + explicitly-assigned model). Purchased Full seats ARE the
+     * subscription quantity and the only billing driver: setting them buys/releases seats
+     * through the engine's prorated changeQuantity (idempotency-keyed — a retried buy must
+     * not re-prorate). Assignment hands a purchased seat to an eligible member (Full);
+     * unassigning frees it (Light). Same per-org token scope as the rest of the surface; the
+     * invariant assigned ≤ purchased is enforced server-side (a refusal is a 409).
+     */
+    Route::get('subscriptions/{org}/seats', [SeatController::class, 'show'])->name('subscriptions.seats.show');
+    Route::post('subscriptions/{org}/seats', [SeatController::class, 'setPurchased'])->middleware('idempotency')->name('subscriptions.seats.set');
+    Route::post('subscriptions/{org}/seats/assign', [SeatController::class, 'assign'])->name('subscriptions.seats.assign');
+    Route::post('subscriptions/{org}/seats/unassign', [SeatController::class, 'unassign'])->name('subscriptions.seats.unassign');
 
     Route::get('usage/{org}', UsageSummaryController::class)->name('usage.summary');
     Route::get('invoices/{org}', InvoiceController::class)->name('invoices.index');

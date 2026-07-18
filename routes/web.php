@@ -8,6 +8,7 @@ use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\RetentionController;
+use App\Http\Controllers\SeatController;
 use Illuminate\Support\Facades\Route;
 
 // --- Authentication (Cbox ID as OIDC provider) ---
@@ -35,6 +36,13 @@ Route::middleware('auth.cbox')->group(function (): void {
     // Retention actions (App-A ManagesRetention): cancel-with-reason / pause / reactivate.
     Route::post('/subscriptions/{subscription}/cancel', [RetentionController::class, 'cancel'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.cancel');
     Route::post('/subscriptions/{subscription}/reactivate', [RetentionController::class, 'reactivate'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.reactivate');
+
+    // Seats (purchased + explicitly-assigned): buy/release purchased Full seats (billed
+    // quantity, guardrailed against the assigned count) and assign/unassign a purchased seat
+    // to a specific eligible member. Mutating, so `subscriptions:manage`.
+    Route::post('/subscriptions/{subscription}/seats', [SeatController::class, 'setPurchased'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.seats.set');
+    Route::post('/subscriptions/{subscription}/seats/assign', [SeatController::class, 'assign'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.seats.assign');
+    Route::post('/subscriptions/{subscription}/seats/unassign', [SeatController::class, 'unassign'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.seats.unassign');
 
     // --- Revenue analytics (engine Reporting module) ---
     Route::get('/analytics/revenue', [AnalyticsController::class, 'revenue'])->middleware('billing.permission:analytics:read')->name('analytics.revenue');

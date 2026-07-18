@@ -56,8 +56,10 @@ rolls a period over exactly once. A renewal reminder goes out `reminder_lead_day
 preview-equals-charge proration (a preview equals the charge that would be applied):
 
 - **Pause / resume** — suspend and lift access + metering.
-- **Seat quantity** — change seats with prorated proration; `preview: true` computes
-  without applying.
+- **Seat quantity** — change the purchased seat count with prorated proration;
+  `preview: true` computes without applying. Purchased seats are the billing driver in the
+  [purchased + explicitly-assigned seat model](seats.md) — buying/releasing rides this
+  quantity change; assignment (who holds a seat) is separate and moves no money.
 - **Add-ons** — attach an add-on **aligned** to the subscription period or on its
   **independent** anchor (day/month/interval), with an optional credit allotment;
   detach removes it.

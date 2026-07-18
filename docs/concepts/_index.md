@@ -22,6 +22,7 @@ own internals.**
 | --- | --- |
 | [Catalog & pricing](catalog-and-pricing.md) | Products, plans, prices per currency, and the six pricing models (flat, per-unit, graduated, volume, package, stairstep). |
 | [Subscriptions & lifecycle](subscriptions-and-lifecycle.md) | Trials, the state machine, ramps, minimum commitments, pause/resume, quantity, add-ons. |
+| [Seats](seats.md) | Purchased Full seats (the billing driver) vs assignment; Full/Light; the auto-assign toggle; Light is free. |
 | [Metering & enforcement](metering-and-enforcement.md) | The reserve/commit hot path, leases, aggregations, hard limits, the upgrade bridge. |
 | [Wallets & credits](wallets-and-credits.md) | The unified credit pool, cadence grants, and how included allowances are sourced. |
 | [Invoicing & tax](invoicing-and-tax.md) | Per-seller invoice numbering, PDF rendering, credit notes, and tax composition. |

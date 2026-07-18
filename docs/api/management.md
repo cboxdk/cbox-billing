@@ -1,6 +1,6 @@
 ---
 title: Management API
-description: The self-service management surface — plans, organizations, subscribe/preview/change/cancel/pause/resume/reactivate/quantity/add-ons, usage, invoices, payment methods, checkout/portal sessions, embedded intents, and licenses — with idempotency.
+description: The self-service management surface — plans, organizations, subscribe/preview/change/cancel/pause/resume/reactivate/quantity/add-ons/seats, usage, invoices, payment methods, checkout/portal sessions, embedded intents, and licenses — with idempotency.
 weight: 53
 ---
 
@@ -35,6 +35,14 @@ middleware.
 | `POST` | `/subscriptions/{org}/quantity` | ✓ | `{seats, preview?}` — prorated seat change. |
 | `POST` | `/subscriptions/{org}/addons` | ✓ | Attach an aligned/independent add-on (or `preview`). |
 | `DELETE` | `/subscriptions/{org}/addons/{key}` | — | Detach an add-on. |
+| `GET` | `/subscriptions/{org}/seats` | — | The seat breakdown: `purchased`, `assigned`, `free`, `full`/`light` lists and counts, and the type labels. |
+| `POST` | `/subscriptions/{org}/seats` | ✓ | `{seats}` — set the purchased Full-seat count (buy/release); prorated via the quantity change. |
+| `POST` | `/subscriptions/{org}/seats/assign` · `/seats/unassign` | — | `{subject}` — move a member between Full (billed) and Light (free). |
+
+Purchased Full seats are the only billing driver; assignment moves a member between Full
+and Light without touching the billed quantity. The invariant `assigned ≤ purchased` is
+enforced server-side — a refusal (no free seat / release below the assigned count / not an
+eligible member) is a `409`. See [Seats](../concepts/seats.md).
 
 ### Preview shapes
 

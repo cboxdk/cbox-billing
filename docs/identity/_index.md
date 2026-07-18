@@ -17,7 +17,8 @@ centrally. Identity and role assignment live in Cbox ID; this app owns what a ro
 | Page | What |
 | --- | --- |
 | [OIDC login](oidc-login.md) | The authorization-code + PKCE sign-in flow, discovery, demo mode, and logout. |
-| [Federated RBAC manifest](rbac-manifest.md) | The roles/permissions the app declares in code and publishes with `cbox-id:publish-manifest`. |
+| [Federated RBAC manifest](rbac-manifest.md) | The roles/permissions the app declares in code and publishes with `cbox-id:publish-manifest`, and the flag-gated enforcement gate. |
+| [Per-environment tenancy](tenancy.md) | The org's home-environment key, the single-default fallback, and how per-environment separation lights up once Cbox ID emits the `environment` claim. |
 | [Org-level entitlements](entitlements.md) | One billing account per identity organization, enforced on the hot path — not by inflating tokens. |
 
 ## The division of ownership

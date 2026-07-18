@@ -30,6 +30,9 @@
     $userInitials = $u?->initials() ?? '··';
     $orgName = $u?->orgLabel() ?? 'Personal';
     $orgInitials = $u?->orgInitials() ?? 'PE';
+    // The active Cbox ID environment (plane) the operator is in. Falls back to the single
+    // configured default until Cbox ID emits an `environment` claim.
+    $environmentLabel = $u?->environmentLabel() ?? (string) (config('cbox-id-client.environment_default') ?: 'default');
 @endphp
 <div class="shell" id="root">
 
@@ -95,6 +98,7 @@
                         <button class="ws cur"><span class="wsav" style="background:var(--accent-soft);color:var(--primary)">{{ $orgInitials }}</span><span class="wsmeta"><span class="wsname">{{ $orgName }}</span><span class="wssub">Current organization</span></span><span class="tick">@include('partials.icon', ['name' => 'check', 'size' => 14, 'sw' => 2])</span></button>
                     </div>
                 </span>
+                <span class="env-chip" data-env-chip title="Active Cbox ID environment (billing plane)" style="display:inline-flex;align-items:center;height:18px;margin-left:8px;padding:0 7px;border-radius:5px;background:var(--accent-soft);color:var(--primary);font-size:10px;font-weight:600;letter-spacing:.02em">{{ $environmentLabel }}</span>
                 <span class="sep">/</span>
                 <span class="muted">@yield('crumb', 'Dashboard')</span>
             </div>

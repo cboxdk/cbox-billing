@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * A billing organization (tenant). Its primary key is the cbox-id organization
@@ -20,14 +21,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * chosen. It is one-way pinned by the engine's currency lock on the first finalized
  * invoice; the lock table is the authority thereafter.
  *
+ * `environment_key` is the Cbox ID environment the org lives in — the plane billing groups
+ * it under (additive, nullable; single-environment deployments backfill it to the default).
+ * The org id stays the tenant PK: an org belongs to exactly one environment, so its id is
+ * already unique — there is no composite key. `suspended_at` reflects a Cbox ID org
+ * suspension (kept fresh by the provisioning webhooks); null = active.
+ *
  * @property string $id
  * @property string $name
+ * @property string|null $environment_key
  * @property string|null $billing_email
  * @property string|null $billing_currency
  * @property string|null $billing_country
  * @property string|null $billing_subdivision
  * @property string|null $tax_id
  * @property bool $tax_id_validated
+ * @property Carbon|null $suspended_at
  */
 class Organization extends Model
 {
@@ -36,7 +45,7 @@ class Organization extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'id', 'name', 'billing_email', 'billing_currency',
+        'id', 'name', 'environment_key', 'billing_email', 'billing_currency',
         'billing_country', 'billing_subdivision', 'tax_id', 'tax_id_validated',
     ];
 
@@ -45,7 +54,14 @@ class Organization extends Model
     {
         return [
             'tax_id_validated' => 'boolean',
+            'suspended_at' => 'datetime',
         ];
+    }
+
+    /** Whether this org is currently suspended in Cbox ID (access held, not billed). */
+    public function isSuspended(): bool
+    {
+        return $this->suspended_at !== null;
     }
 
     /** Whether this org has enough of an address to resolve tax. */

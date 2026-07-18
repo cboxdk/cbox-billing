@@ -43,10 +43,13 @@ class OrganizationSeeder extends Seeder
         $periodEnd = Carbon::parse('2026-07-31');
 
         foreach ($this->organizations() as $definition) {
+            $environmentDefault = config('cbox-id-client.environment_default', 'default');
+
             $organization = Organization::query()->updateOrCreate(
                 ['id' => $definition['id']],
                 [
                     'name' => $definition['name'],
+                    'environment_key' => is_string($environmentDefault) && $environmentDefault !== '' ? $environmentDefault : 'default',
                     'billing_email' => $definition['email'],
                     'billing_currency' => self::CURRENCY,
                     'billing_country' => $definition['country'],

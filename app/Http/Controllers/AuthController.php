@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Auth\AuthedUser;
 use App\Auth\Contracts\IdentityProvider;
 use App\Auth\CurrentUser;
+use App\Platform\EnvironmentContext;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class AuthController extends Controller
     public function __construct(
         private readonly IdentityProvider $idp,
         private readonly CurrentUser $current,
+        private readonly EnvironmentContext $environment,
     ) {}
 
     /** The sign-in screen. */
@@ -90,7 +92,13 @@ class AuthController extends Controller
         }
 
         $session->regenerate();
-        $this->current->login(AuthedUser::fromClaims($claims), $tokens['id_token']);
+
+        $user = AuthedUser::fromClaims($claims);
+        $this->current->login($user, $tokens['id_token']);
+
+        // Record the org's home environment on first sight (or verify it, keeping the
+        // recorded plane on a mismatch). Inert on single-environment deployments.
+        $this->environment->stamp($user);
 
         return redirect()->intended(route('billing.dashboard'));
     }
@@ -101,14 +109,17 @@ class AuthController extends Controller
         abort_unless($this->demoAllowed(), 404);
 
         $request->session()->regenerate();
-        $this->current->login(new AuthedUser(
+
+        $user = new AuthedUser(
             sub: 'demo|sylvester',
             name: 'Sylvester Damgaard',
             email: 'sn@cbox.dk',
             org: '01demo0org0systems',
             picture: null,
             orgName: 'Cbox Systems',
-        ));
+        );
+        $this->current->login($user);
+        $this->environment->stamp($user);
 
         return redirect()->intended(route('billing.dashboard'));
     }

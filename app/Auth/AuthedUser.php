@@ -16,6 +16,8 @@ readonly class AuthedUser
     /**
      * @param  list<string>  $roles  the role keys Cbox ID assigned (empty until id emits them)
      * @param  list<string>  $permissions  the resolved `feature:action` slugs (empty until id emits them)
+     * @param  ?string  $environment  the Cbox ID environment key/ULID the session is in (null until id emits it)
+     * @param  ?string  $environmentName  the human name of that environment (null until id emits it)
      */
     public function __construct(
         public string $sub,
@@ -26,6 +28,8 @@ readonly class AuthedUser
         public ?string $orgName = null,
         public array $roles = [],
         public array $permissions = [],
+        public ?string $environment = null,
+        public ?string $environmentName = null,
     ) {}
 
     /** @param array<string, mixed> $claims */
@@ -42,6 +46,8 @@ readonly class AuthedUser
             orgName: isset($claims['org_name']) ? self::str($claims['org_name']) : null,
             roles: self::strList($claims['roles'] ?? null),
             permissions: self::strList($claims['permissions'] ?? null),
+            environment: self::nullableStr($claims['environment'] ?? null),
+            environmentName: self::nullableStr($claims['environment_name'] ?? null),
         );
     }
 
@@ -57,6 +63,8 @@ readonly class AuthedUser
             orgName: isset($data['org_name']) ? self::str($data['org_name']) : null,
             roles: self::strList($data['roles'] ?? null),
             permissions: self::strList($data['permissions'] ?? null),
+            environment: self::nullableStr($data['environment'] ?? null),
+            environmentName: self::nullableStr($data['environment_name'] ?? null),
         );
     }
 
@@ -64,6 +72,14 @@ readonly class AuthedUser
     private static function str(mixed $value): string
     {
         return is_scalar($value) ? (string) $value : '';
+    }
+
+    /** A claim value as a non-empty string, or null when absent/blank/non-scalar. */
+    private static function nullableStr(mixed $value): ?string
+    {
+        $string = self::str($value);
+
+        return $string !== '' ? $string : null;
     }
 
     /**
@@ -99,6 +115,20 @@ readonly class AuthedUser
         return in_array($permission, $this->permissions, true);
     }
 
+    /**
+     * The human label for the active environment: the `environment_name` claim, falling
+     * back to the opaque `environment` key, then null when the session carries neither.
+     * A caller wanting a guaranteed label supplies the configured default fallback.
+     */
+    public function environmentLabel(): ?string
+    {
+        if ($this->environmentName !== null && $this->environmentName !== '') {
+            return $this->environmentName;
+        }
+
+        return $this->environment;
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {
@@ -111,6 +141,8 @@ readonly class AuthedUser
             'org_name' => $this->orgName,
             'roles' => $this->roles,
             'permissions' => $this->permissions,
+            'environment' => $this->environment,
+            'environment_name' => $this->environmentName,
         ];
     }
 

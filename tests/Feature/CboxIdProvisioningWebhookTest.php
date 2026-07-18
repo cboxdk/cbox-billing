@@ -114,8 +114,9 @@ class CboxIdProvisioningWebhookTest extends TestCase
 
     public function test_role_assigned_then_revoked_toggles_the_grant(): void
     {
+        // Cbox ID's role.assigned / role.revoked carry the slug under `role_id`.
         $this->send('role.assigned', 'del_role_1', [
-            'organization_id' => self::ORG, 'user_id' => 'user_carol', 'role' => 'billing-admin',
+            'organization_id' => self::ORG, 'user_id' => 'user_carol', 'role_id' => 'billing-admin',
         ])->assertOk();
 
         $this->assertDatabaseHas('cbox_id_access_grants', [
@@ -123,7 +124,7 @@ class CboxIdProvisioningWebhookTest extends TestCase
         ]);
 
         $this->send('role.revoked', 'del_role_2', [
-            'organization_id' => self::ORG, 'user_id' => 'user_carol', 'role' => 'billing-admin',
+            'organization_id' => self::ORG, 'user_id' => 'user_carol', 'role_id' => 'billing-admin',
         ])->assertOk();
 
         $this->assertDatabaseMissing('cbox_id_access_grants', [

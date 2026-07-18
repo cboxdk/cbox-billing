@@ -238,9 +238,14 @@ readonly class CboxIdProvisioningSync implements SyncsIdentityProvisioning
         return $this->nonEmpty($event->string('user_id') ?? $event->string('subject'));
     }
 
+    /**
+     * The role slug carried by the event. Cbox ID's contract puts it under `role_id` on the
+     * role.assigned/role.revoked events and under `role` on the membership events — so read
+     * `role_id` first, then fall back to `role`/`role_key`.
+     */
     private function role(WebhookEvent $event): ?string
     {
-        return $this->nonEmpty($event->string('role') ?? $event->string('role_key'));
+        return $this->nonEmpty($event->string('role_id') ?? $event->string('role') ?? $event->string('role_key'));
     }
 
     private function environment(WebhookEvent $event): ?string

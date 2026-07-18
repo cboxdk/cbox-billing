@@ -83,6 +83,54 @@ return [
     ],
 
     /*
+     * Seats — the purchased + explicitly-assigned model.
+     *
+     * PURCHASED Full seats ARE the subscription's seat quantity: what the plan's per-seat
+     * price bills, and the ONLY billing driver. An admin buys/releases them explicitly
+     * (console/API → the engine's changeQuantity), never a membership event. ASSIGNMENT is
+     * app-side: each purchased Full seat is handed to a specific eligible member; a member in
+     * the access mirror WITHOUT an assignment is Light. The invariant is assigned ≤ purchased.
+     *
+     * `types` describes the seat types for labels/reporting and to keep the shape open: Full
+     * is billable at the plan's per-seat price; Light is `billable: false` (FREE today). The
+     * config is deliberately priced-Light-shaped — a `price_minor`/dedicated Light price can
+     * be added later WITHOUT a breaking change; Light stays free until then.
+     */
+    'seats' => [
+
+        'types' => [
+            'full' => [
+                'label' => 'Full',
+                // Billed at the plan's per-seat price (the subscription quantity).
+                'billable' => true,
+            ],
+            'light' => [
+                'label' => 'Light',
+                // Free today. Kept config-shaped so a priced Light tier is expressible later
+                // (add a price here) without reshaping the model or the reporting.
+                'billable' => false,
+            ],
+        ],
+
+        /*
+         * Auto-assign mode. When true, a `member_added` / `role.assigned` whose role is in
+         * `auto_assign_roles` is given a FREE purchased seat automatically (source `auto`),
+         * but only when one is free — it never auto-buys and never exceeds the purchased cap;
+         * otherwise the member stays Light. When false (the default), membership only updates
+         * eligibility and every assignment is manual.
+         */
+        'auto_assign' => (bool) env('CBOX_BILLING_SEAT_AUTO_ASSIGN', false),
+
+        /*
+         * The roles auto-assign considers seat-worthy. A member whose (new) role leaves this
+         * set has any AUTO-sourced seat released; a MANUAL seat is never auto-released.
+         *
+         * @var list<string>
+         */
+        'auto_assign_roles' => ['billing-admin', 'billing-operator'],
+    ],
+
+    /*
      * Free trials. A subscribe-with-trial opens the subscription `Trialing` (serving its
      * plan, charging nothing) until `trial_ends_at`, when the scheduled
      * `billing:convert-trials` pass converts it to a paying `Active` (first charge).

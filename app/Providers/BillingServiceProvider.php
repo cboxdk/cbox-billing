@@ -44,6 +44,8 @@ use App\Billing\Seams\DatabaseAccountStanding;
 use App\Billing\Seams\EloquentInvoicePaymentApplier;
 use App\Billing\Seams\PlanExpectedEntitlements;
 use App\Billing\Seams\SubscriptionMeterPolicyResolver;
+use App\Billing\Seats\Contracts\ManagesSeats;
+use App\Billing\Seats\SeatManager;
 use App\Billing\Seller\ConfiguredEntityRouter;
 use App\Billing\Subscriptions\Contracts\ConvertsTrials;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
@@ -324,6 +326,10 @@ class BillingServiceProvider extends ServiceProvider
         $this->app->singleton(AuthorsPlanPrices::class, PlanPriceAuthoring::class);
 
         $this->app->singleton(ManagesSubscriptionDepth::class, SubscriptionDepthService::class);
+
+        // The purchased + explicitly-assigned seat model: purchased Full seats drive billing
+        // through the depth service's changeQuantity; assignment is app-side over the mirror.
+        $this->app->singleton(ManagesSeats::class, SeatManager::class);
 
         $this->app->singleton(ManagesRetention::class, RetentionService::class);
 

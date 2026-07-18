@@ -95,6 +95,16 @@ class Subscription extends Model
             ->whereNull('paused_at');
     }
 
+    /**
+     * Whether this subscription is currently serving its plan — a serving engine status AND
+     * no app-layer pause in effect. The instance counterpart to {@see scopeServing()}: the
+     * seat authority (buy/release/assign) acts only on a serving subscription.
+     */
+    public function isServing(): bool
+    {
+        return in_array($this->status->value, self::servingStatuses(), true) && ! $this->isPaused();
+    }
+
     /** In a trial: serving the plan but not yet charged; converts at {@see $trial_ends_at}. */
     public function isTrialing(): bool
     {

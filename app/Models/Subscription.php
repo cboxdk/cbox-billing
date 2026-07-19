@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
@@ -168,5 +169,17 @@ class Subscription extends Model
     public function addOns(): HasMany
     {
         return $this->hasMany(SubscriptionAddOn::class);
+    }
+
+    /**
+     * The coupon bound to this subscription across its cycles (ADR: coupons), or none.
+     * A snapshot of the redeemed discount + a remaining-periods counter the renewal
+     * invoicer honors.
+     *
+     * @return HasOne<SubscriptionCoupon, $this>
+     */
+    public function coupon(): HasOne
+    {
+        return $this->hasOne(SubscriptionCoupon::class);
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Invoicing;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Coupons\CouponDiscounter;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Seller\SellerCatalog;
@@ -13,6 +14,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\Organization;
 use App\Models\Subscription;
+use App\Models\SubscriptionCoupon;
 use Cbox\Billing\Invoice\Contracts\Invoicer;
 use Cbox\Billing\Invoice\ValueObjects\Invoice as IssuedInvoice;
 use Cbox\Billing\Money\Money;
@@ -51,6 +53,7 @@ readonly class InvoiceService implements GeneratesInvoices
         private TaxContextFactory $taxContexts,
         private ResolvesAccountCurrency $currencies,
         private NotifiesCustomers $notifier,
+        private CouponDiscounter $coupons,
     ) {}
 
     public function quoteFor(Subscription $subscription): Quote
@@ -91,8 +94,14 @@ readonly class InvoiceService implements GeneratesInvoices
         try {
             $invoice = $this->db->transaction(function () use ($subscription, $organization, $seller, $quote, $periodStart, $periodEnd): Invoice {
                 $issued = $this->invoicer->issue($quote, $seller, $organization->id, $this->issuedAt());
+                $invoice = $this->persist($subscription, $seller->id, $issued, $periodStart, $periodEnd);
 
-                return $this->persist($subscription, $seller->id, $issued, $periodStart, $periodEnd);
+                // Honor the coupon's duration: this period consumed one discounted invoice.
+                // Inside the same transaction as the issue, so a unique-guard rollback (a lost
+                // concurrent race) never leaves a phantom decrement.
+                $this->consumeCouponPeriod($subscription);
+
+                return $invoice;
             });
         } catch (QueryException $e) {
             // Lost the race to a concurrent issuance: the (subscription, period) unique guard
@@ -189,14 +198,75 @@ readonly class InvoiceService implements GeneratesInvoices
     private function lines(Subscription $subscription, string $currency): array
     {
         $plan = $subscription->plan ?? throw new RuntimeException('Subscription has no plan to invoice.');
+        $net = $plan->amountFor($currency, $subscription->seats);
 
-        return [
+        $lines = [
             new LineInput(
                 description: sprintf('%s — subscription, %d seat(s) (%s)', $plan->name, max(1, $subscription->seats), $this->periodLabel($subscription)),
                 quantity: 1,
-                unitAmount: $plan->amountFor($currency, $subscription->seats),
+                unitAmount: $net,
             ),
         ];
+
+        // A bound coupon becomes a real, engine-taxed DISCOUNT LINE (a negated net computed
+        // by the engine {@see \Cbox\Billing\Pricing\CouponApplier}, never a hand-subtracted
+        // total): the quote builder taxes it at the same rate as the plan line, so the
+        // invoice totals reflect the discounted net + its tax exactly — preview == charge.
+        $discountLine = $this->couponLine($subscription, $net);
+
+        if ($discountLine !== null) {
+            $lines[] = $discountLine;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * The discount line for the subscription's bound coupon over `$net`, or null when there
+     * is no binding, it no longer applies (its periods are spent), or it reduces nothing.
+     * Pure — issuance decrements the binding separately ({@see consumeCouponPeriod()}).
+     */
+    private function couponLine(Subscription $subscription, Money $net): ?LineInput
+    {
+        $binding = $subscription->coupon;
+
+        if (! $binding instanceof SubscriptionCoupon) {
+            return null;
+        }
+
+        $discount = $this->coupons->forBinding($binding, $net, $this->issuedAt());
+
+        if ($discount === null) {
+            return null;
+        }
+
+        return new LineInput(
+            description: sprintf('Discount — %s', $binding->label()),
+            quantity: 1,
+            unitAmount: $discount->amount->negated(),
+        );
+    }
+
+    /**
+     * Decrement the subscription's coupon binding by one issued period invoice. A `forever`
+     * binding (null remaining) is untouched; a `once` / `repeating` binding counts down and
+     * stops discounting at zero. Called only on genuine issuance (a re-run that returns the
+     * existing period invoice never reaches here), so the duration is honored exactly once
+     * per period.
+     */
+    private function consumeCouponPeriod(Subscription $subscription): void
+    {
+        $binding = $subscription->coupon;
+
+        if (! $binding instanceof SubscriptionCoupon) {
+            return;
+        }
+
+        if (! $binding->appliesNow() || $binding->remaining_periods === null) {
+            return;
+        }
+
+        $binding->forceFill(['remaining_periods' => max(0, $binding->remaining_periods - 1)])->save();
     }
 
     private function persist(Subscription $subscription, string $sellerId, IssuedInvoice $issued, ?Carbon $periodStart, ?Carbon $periodEnd): Invoice

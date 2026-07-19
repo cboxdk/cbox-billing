@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Billing\Support;
 
+use App\Billing\Coupons\CouponDiscounter;
 use App\Models\PlanPrice;
 use App\Models\Subscription;
+use App\Models\SubscriptionCoupon;
 use Cbox\Billing\Catalog\ValueObjects\Price;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Reporting\MrrCalculator;
+use Illuminate\Support\Carbon;
 
 /**
  * Normalizes a subscription's plan price to its monthly-equivalent recurring amount in
@@ -48,7 +51,35 @@ class SubscriptionRevenue
         // pricing model. Seats below one price as one (a live subscription has at least a seat).
         $amount = $price->toPrice()->amountFor(max(1, $subscription->seats));
 
+        // Net of a RECURRING coupon (forever, or repeating while it still has periods): the
+        // discount the renewal invoice will actually apply is reflected in reported MRR, so
+        // revenue is never over-counted. A `once` coupon does not touch recurring revenue.
+        $amount = self::netOfRecurringCoupon($subscription, $amount);
+
         return $plan->interval === 'year' ? $amount->proratedBy(1, 12) : $amount;
+    }
+
+    /**
+     * Reduce a recurring amount by the subscription's bound coupon when that coupon
+     * discounts renewals (forever / repeating-with-periods-left). Uses the engine
+     * {@see CouponDiscounter} — the same applier the invoice uses — so MRR and the billed
+     * amount agree. A `once` coupon, or a spent repeating binding, leaves the amount whole.
+     */
+    private static function netOfRecurringCoupon(Subscription $subscription, Money $amount): Money
+    {
+        $binding = $subscription->coupon;
+
+        if (! $binding instanceof SubscriptionCoupon || ! $binding->durationKind()->isRecurring()) {
+            return $amount;
+        }
+
+        $discount = app(CouponDiscounter::class)->forBinding($binding, $amount, Carbon::now()->toDateTimeImmutable());
+
+        if ($discount === null) {
+            return $amount;
+        }
+
+        return $discount->discounted;
     }
 
     public static function currency(Subscription $subscription): string

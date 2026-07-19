@@ -170,6 +170,7 @@
         <a class="cmd" href="{{ route('billing.meters') }}">@include('partials.icon', ['name' => 'gauge', 'size' => 15, 'sw' => 1.7])Go to Meters</a>
         <a class="cmd" href="{{ route('billing.settings') }}">@include('partials.icon', ['name' => 'settings', 'size' => 15, 'sw' => 1.7])Go to Settings</a>
         <a class="cmd" href="{{ route('billing.settings.webhooks') }}">@include('partials.icon', ['name' => 'arrow-up-right', 'size' => 15, 'sw' => 1.7])Go to Webhooks</a>
+        <a class="cmd" href="{{ route('openapi.docs') }}" target="_blank" rel="noopener">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Open API reference (OpenAPI)</a>
     </div>
     {{-- Only real, existing actions — no no-op commands. --}}
     <div class="grp" id="palgroup-actions" style="border-top:1px solid var(--border)">

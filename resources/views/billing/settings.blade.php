@@ -126,7 +126,10 @@
     <section class="cbx-panel" id="tokens">
         <header class="cbx-panel-header" style="padding:12px 20px;display:flex;align-items:center;justify-content:space-between">
             <h2 class="cbx-panel-title" style="font-size:14px">API tokens</h2>
-            <a href="{{ route('billing.settings.tokens.create') }}" class="cbx-btn cbx-btn--primary cbx-btn--sm">@include('partials.icon', ['name' => 'plus', 'size' => 13, 'sw' => 1.8])New token</a>
+            <div style="display:flex;gap:8px;align-items:center">
+                <a href="{{ route('openapi.docs') }}" target="_blank" rel="noopener" class="cbx-btn cbx-btn--sm">@include('partials.icon', ['name' => 'box', 'size' => 13, 'sw' => 1.8])API reference</a>
+                <a href="{{ route('billing.settings.tokens.create') }}" class="cbx-btn cbx-btn--primary cbx-btn--sm">@include('partials.icon', ['name' => 'plus', 'size' => 13, 'sw' => 1.8])New token</a>
+            </div>
         </header>
         <table class="tbl">
             <thead><tr><th>Name</th><th>Scope</th><th>Last used</th><th style="width:110px">Created</th><th style="width:110px"></th></tr></thead>

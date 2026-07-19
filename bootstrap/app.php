@@ -44,6 +44,12 @@ return Application::configure(basePath: dirname(__DIR__))
             // Token-authorized hosted checkout + customer portal: /billing/*.
             Route::middleware('web')
                 ->group(__DIR__.'/../routes/hosted.php');
+
+            // Public API reference: the OpenAPI 3.1 contract + a self-contained docs page
+            // (/api/openapi.yaml, /api/openapi.json, /api/docs). No token — the contract is
+            // public. Kept out of the /api/v1 token-authed group.
+            Route::middleware('api')
+                ->group(__DIR__.'/../routes/openapi.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

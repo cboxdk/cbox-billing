@@ -1,0 +1,2182 @@
+openapi: 3.1.0
+info:
+  title: Cbox Billing API
+  version: "1.0.0"
+  summary: Enforcement + management HTTP API for the Cbox Billing application.
+  description: |
+    The HTTP API of **Cbox Billing** — the self-hostable usage-based billing, metering
+    and entitlement application built on `cboxdk/laravel-billing`.
+
+    Two token-authenticated surfaces share the `/api/v1` prefix, the same bearer-token
+    auth and the same per-org scope, and differ only in throttle tier:
+
+    - **Enforcement API** — the metered hot path (`leases`, `usage`, `reserve`, `commit`,
+      `entitlements`) the `cboxdk/laravel-billing-client` SDK consumes on every metered
+      operation. Higher throttle (`cbox-enforcement`).
+    - **Management API** — the self-service surface (plans, organizations, subscriptions,
+      seats, usage, invoices, hosted checkout/portal sessions, embedded intents, payment
+      methods, on-prem licenses, test clocks). Human-paced, mutating, and — for writes
+      that must not double-apply — idempotency-keyed. Lower throttle (`cbox-management`).
+
+    A third, unauthenticated surface — the on-prem **license activation** heartbeat
+    (`GET /license/activate`) — lives under the same `/api/v1` prefix; the opaque
+    deployment id is its only credential.
+
+    ## Authentication
+
+    Every `/api/v1` call except `license/activate` carries a bearer token:
+
+    ```http
+    Authorization: Bearer cbl_live_token_value
+    ```
+
+    A token is either **operator** (may act for any org) or **org-scoped** (may act only
+    for its own org — acting for another org is `403`). The token's plaintext prefix
+    encodes its billing plane: `cbl_` is **live**, `cbt_` is **test** (sandbox). A test
+    token sees and writes only the sandbox dataset; the test-clock advance endpoint refuses
+    a live token.
+
+    ## Idempotency
+
+    Mutating writes that must not double-apply accept an **`Idempotency-Key`** request
+    header. The first attempt runs and its 2xx response is stored under a hash of the
+    caller's token; a retry with the same key **replays** that stored response (flagged
+    `Idempotency-Replayed: true`) instead of re-running the effect. Reusing a key with a
+    different request body is a `409`. The operations that honour it are marked in this
+    spec (see each operation's `Idempotency-Key` parameter).
+
+    ## Rate limits
+
+    Limits are per bearer token (client IP is the fallback). Every response carries
+    `X-RateLimit-Limit` and `X-RateLimit-Remaining`; a `429` additionally carries
+    `Retry-After`. Defaults: enforcement 600/min, management 60/min.
+
+    ## Money and time
+
+    All monetary amounts are **integer minor units** (e.g. cents/øre) of an ISO-4217
+    currency; a field named `*_minor` is minor units. Timestamps are ISO-8601 strings.
+  contact:
+    name: Cbox Billing
+    url: https://github.com/cboxdk/cbox-billing
+  license:
+    name: MIT
+    url: https://github.com/cboxdk/cbox-billing/blob/main/LICENSE
+
+servers:
+  - url: https://billing.example.com/api/v1
+    description: Your Cbox Billing deployment (replace host).
+  - url: http://localhost/api/v1
+    description: Local development.
+
+externalDocs:
+  description: Cbox Billing API documentation
+  url: https://github.com/cboxdk/cbox-billing/tree/main/docs/api
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Enforcement
+    description: The metered hot path — lease, ingest, reserve, commit, entitlements.
+  - name: Plans
+    description: The sellable catalog.
+  - name: Organizations
+    description: The billing account a merchant platform provisions and bills for.
+  - name: Subscriptions
+    description: Subscription lifecycle — subscribe, preview/change, cancel, pause/resume, reactivate, quantity, add-ons.
+  - name: Seats
+    description: Purchased + assigned seat management.
+  - name: Usage
+    description: Per-meter usage-against-allowance for the current period.
+  - name: Invoices
+    description: Issued invoices.
+  - name: Checkout & Portal
+    description: Hosted checkout / customer-portal session creation (returns a hosted URL).
+  - name: Payment intents
+    description: Embedded setup/payment intents and saved payment methods.
+  - name: Licenses
+    description: On-prem license issue / renew / revoke (operator-authed) and activation.
+  - name: Test mode
+    description: Sandbox test-clock advance.
+
+paths:
+  # ─────────────────────────────── ENFORCEMENT ───────────────────────────────
+  /leases:
+    post:
+      operationId: createLease
+      tags: [Enforcement]
+      summary: Lease a slice of an org's remaining allowance
+      description: |
+        Lease up to `size` units of an org's remaining includable allowance for a meter —
+        billing's side of the pessimistic lease the SDK refills local enforcement from.
+        Grants fewer than requested when the allowance is nearly spent, `0` when exhausted.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaseRequest'
+            examples:
+              default:
+                value: { org: org_acme, meter: api_calls, size: 1000 }
+      responses:
+        '200':
+          description: The granted lease.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+            X-RateLimit-Remaining: { $ref: '#/components/headers/XRateLimitRemaining' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lease'
+              examples:
+                default:
+                  value:
+                    lease_id: lease_9f2Ck8Xr1mNqUv7bWdT4pLs0
+                    granted: 1000
+                    expires_at: "2026-07-19T12:05:00+00:00"
+                exhausted:
+                  summary: Allowance exhausted — nothing granted
+                  value: { lease_id: lease_0aB1cD2eF3gH4iJ5kL6mN7oP, granted: 0, expires_at: "2026-07-19T12:05:00+00:00" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /usage:
+    post:
+      operationId: ingestUsage
+      tags: [Enforcement]
+      summary: Ingest cumulative usage readings
+      description: |
+        Ingest monotonically-increasing `{meter, cumulative, seq}` readings. Each is
+        converted to the delta the immutable event log stores and deduplicated by `seq`,
+        so the SDK may retry freely and billing may reprocess without double-counting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsageIngestRequest'
+            examples:
+              default:
+                value:
+                  org: org_acme
+                  entries:
+                    - { meter: api_calls, cumulative: 15230, seq: 42 }
+                    - { meter: seats_active, cumulative: 12, seq: 7 }
+      responses:
+        '200':
+          description: The count of readings accepted (post-dedup).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageIngestResult'
+              examples:
+                default:
+                  value: { ok: true, accepted: 2 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /reserve:
+    post:
+      operationId: reserveBuckets
+      tags: [Enforcement]
+      summary: Reserve meter buckets (all-or-nothing)
+      description: |
+        Reserve a set of meter buckets in one all-or-nothing call. The engine's three-way
+        outcome is returned verbatim:
+
+        - `allowed` — the held set is persisted for the matching `/commit` and its
+          `reservation_id` is returned.
+        - `denied` — a semantic refusal (unknown/disabled meter, exhausted allowance/quota).
+          Fail-closed. Carries an `upgrade` offer when a reachable plan would unblock it.
+        - `indeterminate` — a dependency was down; the deployment's infra policy decided
+          admit/refuse and the reason is surfaced.
+
+        Note: the HTTP status is always `200` — the decision is in the `outcome` field.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveRequest'
+            examples:
+              default:
+                value:
+                  org: org_acme
+                  meters:
+                    - { meter: api_calls, estimate: 10 }
+      responses:
+        '200':
+          description: The reservation outcome (allowed / denied / indeterminate).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReserveOutcome'
+              examples:
+                allowed:
+                  summary: Allowed
+                  value: { outcome: allowed, reservation_id: rsv_7hKp2Qm9 }
+                denied:
+                  summary: Denied with an upgrade path
+                  value:
+                    outcome: denied
+                    reason: allowance_exhausted
+                    upgrade: { required_plan: pro, checkout_url: "https://billing.example.com/billing/checkout/tok_abc123" }
+                indeterminate:
+                  summary: Dependency unavailable
+                  value: { outcome: indeterminate, reason: "dependency unavailable" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /commit:
+    post:
+      operationId: commitReservation
+      tags: [Enforcement]
+      summary: Commit a reservation to actual usage
+      description: |
+        Settle a held reservation to the actual usage per meter. Returns unused
+        allowance/lease and appends one durable usage event per bucket with non-zero usage,
+        then drops the reservation. A missing/expired reservation is `404`; an actual that
+        exceeds its reserved estimate is `422` from the engine's own validation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitRequest'
+            examples:
+              default:
+                value:
+                  reservation_id: rsv_7hKp2Qm9
+                  actuals:
+                    - { meter: api_calls, actual: 8 }
+      responses:
+        '200':
+          description: The reservation was committed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              examples:
+                default: { value: { ok: true } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Unknown or expired reservation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "Unknown or expired reservation." } }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /entitlements/{org}:
+    get:
+      operationId: getEntitlements
+      tags: [Enforcement]
+      summary: An org's resolved per-meter policies
+      description: |
+        The org's resolved per-meter policies — the payload the SDK caches to enforce
+        locally, read through the same policy resolver the enforcer uses. Deny-by-default:
+        a meter with no resolved policy is reported `enabled: false`, never omitted. A
+        disabled meter with a reachable upgrade path also carries an `upgrade` offer.
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      responses:
+        '200':
+          description: The org's per-meter entitlements.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitlementsResponse'
+              examples:
+                default:
+                  value:
+                    meters:
+                      api_calls: { enabled: true, allowance: 100000, weight: 1.0, overage: block }
+                      exports: { enabled: false, allowance: null, weight: null, overage: block, upgrade: { required_plan: pro, checkout_url: "https://billing.example.com/billing/checkout/tok_abc123" } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ─────────────────────────────── PLANS ───────────────────────────────
+  /plans:
+    get:
+      operationId: listPlans
+      tags: [Plans]
+      summary: List the sellable catalog
+      description: |
+        The active catalog, each plan priced in the caller's account currency (or an
+        explicit `?currency=` for signup, before an account exists). A plan not priced in
+        the resolved currency is omitted rather than shown at a fabricated rate. A
+        product-scoped token sees only its own product's plans.
+      parameters:
+        - name: currency
+          in: query
+          required: false
+          description: ISO-4217 currency to price the catalog in. Defaults to the caller's account currency, else the app default.
+          schema: { type: string, minLength: 3, maxLength: 3, example: EUR }
+      responses:
+        '200':
+          description: The priced catalog.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanList'
+              examples:
+                default:
+                  value:
+                    currency: EUR
+                    data:
+                      - key: pro
+                        name: Pro
+                        interval: monthly
+                        entitlements:
+                          api_calls: { enabled: true, allowance: 100000, weight: 1.0, overage: block }
+                        price: { minor: 4900, currency: EUR }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ─────────────────────────────── ORGANIZATIONS ───────────────────────────────
+  /organizations/{org}:
+    put:
+      operationId: upsertOrganization
+      tags: [Organizations]
+      summary: Upsert a billing organization (idempotent)
+      description: |
+        Idempotent upsert of the organization a merchant platform bills for. The org id is
+        the platform's own tenant key. `billing_currency` participates in the one-way
+        currency lock — it is applied only on **create**, never rewritten for an existing org.
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationUpsertRequest'
+            examples:
+              default:
+                value: { name: "Acme Inc", billing_email: "billing@acme.example", billing_country: DK, billing_currency: DKK }
+      responses:
+        '200':
+          description: The organization was updated (already existed).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationResponse' }
+              examples:
+                default:
+                  value: { organization: { id: org_acme, name: "Acme Inc", billing_email: "billing@acme.example", billing_country: DK, billing_currency: DKK } }
+        '201':
+          description: The organization was created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationResponse' }
+              examples:
+                default:
+                  value: { organization: { id: org_acme, name: "Acme Inc", billing_email: "billing@acme.example", billing_country: DK, billing_currency: DKK } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ─────────────────────────────── SUBSCRIPTIONS ───────────────────────────────
+  /subscriptions:
+    post:
+      operationId: createSubscription
+      tags: [Subscriptions]
+      summary: Subscribe an organization to a plan
+      description: |
+        Subscribe the org to a plan. With `trial: true` (or a positive `trial_days`) the
+        subscription opens in a free trial that converts on the scheduled trial pass. A
+        `coupon` is validated up front (deny-by-default → `422`) and bound after the
+        subscription exists. Honours `Idempotency-Key` so a retried subscribe cannot
+        create a duplicate.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscribeRequest'
+            examples:
+              default:
+                value: { org: org_acme, plan: pro, seats: 5, currency: EUR }
+              trial:
+                value: { org: org_acme, plan: pro, trial_days: 14 }
+              coupon:
+                value: { org: org_acme, plan: pro, coupon: LAUNCH20 }
+      responses:
+        '201':
+          description: The subscription was created.
+          headers:
+            Idempotency-Key: { $ref: '#/components/headers/IdempotencyKey' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscribeResult' }
+              examples:
+                default:
+                  value:
+                    subscription:
+                      plan: pro
+                      status: active
+                      paused: false
+                      seats: 5
+                      period_start: "2026-07-19T00:00:00+00:00"
+                      period_end: "2026-08-19T00:00:00+00:00"
+                      renews_at: "2026-08-19T00:00:00+00:00"
+                      trial_ends_at: null
+                      canceled_at: null
+                      pending_change: null
+                      add_ons: []
+                    coupon: null
+                    payment_intent: null
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Unknown organization or plan.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                unknownPlan: { value: { error: "Unknown plan." } }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}:
+    get:
+      operationId: getSubscription
+      tags: [Subscriptions]
+      summary: An organization's current subscription
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      responses:
+        '200':
+          description: The current subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+              examples:
+                default:
+                  value:
+                    plan: pro
+                    status: active
+                    paused: false
+                    seats: 5
+                    period_start: "2026-07-19T00:00:00+00:00"
+                    period_end: "2026-08-19T00:00:00+00:00"
+                    renews_at: "2026-08-19T00:00:00+00:00"
+                    trial_ends_at: null
+                    canceled_at: null
+                    pending_change: null
+                    add_ons: []
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No active subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "This organization has no active subscription." } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/preview:
+    post:
+      operationId: previewSubscriptionChange
+      tags: [Subscriptions]
+      summary: Preview a plan change (uncommitted)
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlanChangeInput' }
+            examples:
+              default: { value: { plan: enterprise } }
+      responses:
+        '200':
+          description: The consequence of the change, uncommitted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanChangePreview' }
+              examples:
+                default:
+                  value:
+                    due_now_minor: 2100
+                    credit_minor: 0
+                    new_recurring_minor: 9900
+                    effective_at: "2026-07-19T12:00:00+00:00"
+                    credit_delta: { forfeited: 0, granted: 0, carried: 0 }
+                    lines:
+                      - { description: "Proration for Enterprise", minor: 2100 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No active subscription, or unknown plan.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/change:
+    post:
+      operationId: changeSubscriptionPlan
+      tags: [Subscriptions]
+      summary: Apply a plan change (now or at period end)
+      description: |
+        Apply a plan change now (`when: now`, the default) or schedule it for the current
+        period end (`when: period_end`). The `scheduled` flag distinguishes the deferred
+        case. Honours `Idempotency-Key` (a retried charge must not re-prorate).
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlanChangeRequest' }
+            examples:
+              now: { value: { plan: enterprise, when: now } }
+              deferred: { value: { plan: enterprise, when: period_end } }
+      responses:
+        '200':
+          description: The applied (or scheduled) change.
+          headers:
+            Idempotency-Key: { $ref: '#/components/headers/IdempotencyKey' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanChangeResult' }
+              examples:
+                now:
+                  value:
+                    scheduled: false
+                    due_now_minor: 2100
+                    credit_minor: 0
+                    new_recurring_minor: 9900
+                    effective_at: "2026-07-19T12:00:00+00:00"
+                    credit_delta: { forfeited: 0, granted: 0, carried: 0 }
+                    lines: [ { description: "Proration for Enterprise", minor: 2100 } ]
+                deferred:
+                  value:
+                    scheduled: true
+                    effective_at: "2026-08-19T00:00:00+00:00"
+                    due_now_minor: 0
+                    credit_minor: 0
+                    new_recurring_minor: 9900
+                    effective_at_preview: "2026-08-19T00:00:00+00:00"
+                    credit_delta: { forfeited: 0, granted: 0, carried: 0 }
+                    lines: []
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No active subscription, or unknown plan.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/cancel:
+    post:
+      operationId: cancelSubscription
+      tags: [Subscriptions]
+      summary: Cancel a subscription (retention fork)
+      description: |
+        The retention fork. `mode` is `immediate`, `period_end`, or `pause` (a
+        pause-instead-of-cancel save); when absent it derives from the legacy
+        `at_period_end` flag (default `true` → period-end). `reason`/`feedback` are captured
+        for churn analytics regardless of mode.
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancelRequest' }
+            examples:
+              periodEnd: { value: { mode: period_end, reason: "too_expensive", feedback: "Loved it but over budget." } }
+              immediate: { value: { mode: immediate } }
+      responses:
+        '200':
+          description: The subscription after applying the cancellation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No active subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/reactivate:
+    post:
+      operationId: reactivateSubscription
+      tags: [Subscriptions]
+      summary: Reactivate a paused / scheduled-cancel / recently-canceled subscription
+      description: |
+        Win-back: resume a paused subscription, undo a scheduled period-end cancel, or
+        re-activate one canceled within the win-back window. `409` when the subscription is
+        in none of those reactivatable states.
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      responses:
+        '200':
+          description: The reactivated subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No subscription at all.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: The subscription is not in a reactivatable state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "This subscription cannot be reactivated." } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/pause:
+    post:
+      operationId: pauseSubscription
+      tags: [Subscriptions]
+      summary: Pause a subscription (suspend access + metering)
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      responses:
+        '200':
+          description: The paused subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No active subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/resume:
+    post:
+      operationId: resumeSubscription
+      tags: [Subscriptions]
+      summary: Resume a paused subscription
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      responses:
+        '200':
+          description: The resumed subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No active subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/quantity:
+    post:
+      operationId: changeSubscriptionQuantity
+      tags: [Subscriptions]
+      summary: Change the seat quantity (preview-equals-charge)
+      description: |
+        Change the seat quantity with preview-equals-charge proration. `preview: true`
+        computes the consequence without applying it. Honours `Idempotency-Key`.
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuantityRequest' }
+            examples:
+              apply: { value: { seats: 10 } }
+              preview: { value: { seats: 10, preview: true } }
+      responses:
+        '200':
+          description: The quantity change (applied or previewed).
+          headers:
+            Idempotency-Key: { $ref: '#/components/headers/IdempotencyKey' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuantityPreview' }
+              examples:
+                default:
+                  value: { applied: true, from_seats: 5, to_seats: 10, due_now_minor: 2450, credit_minor: 0, currency: EUR }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No active subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/addons:
+    post:
+      operationId: addSubscriptionAddOn
+      tags: [Subscriptions]
+      summary: Attach an add-on (or preview it)
+      description: |
+        Attach an add-on (aligned or independent), or compute the prorated consequence with
+        `preview: true`. Honours `Idempotency-Key`.
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddOnRequest' }
+            examples:
+              aligned: { value: { key: extra_storage, price_minor: 500, currency: EUR, alignment: aligned, credit_allotment: 100 } }
+              preview: { value: { key: extra_storage, price_minor: 500, currency: EUR, preview: true } }
+      responses:
+        '200':
+          description: "The prorated preview (when `preview: true`)."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddOnPreview' }
+        '201':
+          description: The add-on was attached.
+          headers:
+            Idempotency-Key: { $ref: '#/components/headers/IdempotencyKey' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddOnResult' }
+              examples:
+                default:
+                  value:
+                    preview: { due_now_minor: 250, currency: EUR }
+                    add_on: { key: extra_storage, price_minor: 500, currency: EUR, alignment: aligned, credit_allotment: 100 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No active subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/addons/{key}:
+    delete:
+      operationId: removeSubscriptionAddOn
+      tags: [Subscriptions]
+      summary: Detach an add-on
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+        - name: key
+          in: path
+          required: true
+          description: The add-on key.
+          schema: { type: string, example: extra_storage }
+      responses:
+        '200':
+          description: The subscription after detaching the add-on.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No active subscription, or no such add-on.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "This organization has no such add-on." } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ─────────────────────────────── SEATS ───────────────────────────────
+  /subscriptions/{org}/seats:
+    get:
+      operationId: getSeatBreakdown
+      tags: [Seats]
+      summary: The seat breakdown (purchased, Full, Light)
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      responses:
+        '200':
+          description: The seat breakdown.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SeatBreakdown' }
+              examples:
+                default:
+                  value:
+                    purchased: 10
+                    assigned: 7
+                    free: 3
+                    full_count: 7
+                    light_count: 4
+                    full: [ user_1, user_2 ]
+                    light: [ user_8 ]
+                    types: []
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No serving subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      operationId: setPurchasedSeats
+      tags: [Seats]
+      summary: Set the purchased Full-seat count (buy/release)
+      description: |
+        Set the purchased Full-seat count through the engine's prorated changeQuantity.
+        Refuses dropping below the assigned count or below one (`409`). Honours
+        `Idempotency-Key`.
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SeatsSetRequest' }
+            examples:
+              default: { value: { seats: 12 } }
+      responses:
+        '200':
+          description: The updated seat breakdown.
+          headers:
+            Idempotency-Key: { $ref: '#/components/headers/IdempotencyKey' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SeatBreakdown' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No serving subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: A refused seat invariant (below assigned count, or below one).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "Cannot release seats below the assigned count." } }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/seats/assign:
+    post:
+      operationId: assignSeat
+      tags: [Seats]
+      summary: Assign a free purchased seat to a member
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SeatSubjectRequest' }
+            examples:
+              default: { value: { subject: user_42 } }
+      responses:
+        '200':
+          description: The updated seat breakdown.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SeatBreakdown' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No serving subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: No seat free, or the subject is not eligible.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "No free seat available." } }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /subscriptions/{org}/seats/unassign:
+    post:
+      operationId: unassignSeat
+      tags: [Seats]
+      summary: Free a member's seat (they become Light)
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SeatSubjectRequest' }
+            examples:
+              default: { value: { subject: user_42 } }
+      responses:
+        '200':
+          description: The updated seat breakdown.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SeatBreakdown' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: No serving subscription.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ─────────────────────────────── USAGE / INVOICES ───────────────────────────────
+  /usage/{org}:
+    get:
+      operationId: getUsageSummary
+      tags: [Usage]
+      summary: Per-meter usage-against-allowance for the current period
+      description: |
+        The org's per-meter usage for the current billing period: `used` reconciled from
+        the durable event log, the plan `allowance`, `overage` already run past it, and a
+        straight-line `projected` end-of-period figure. A meter with an unlimited (null)
+        allowance carries no overage.
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      responses:
+        '200':
+          description: The usage summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsageSummary' }
+              examples:
+                default:
+                  value:
+                    period: { start: "2026-07-01T00:00:00+00:00", end: "2026-08-01T00:00:00+00:00", elapsed_fraction: 0.58 }
+                    meters:
+                      api_calls: { used: 42000, allowance: 100000, overage: 0, projected: 72413, projected_overage: 0 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /invoices/{org}:
+    get:
+      operationId: listInvoices
+      tags: [Invoices]
+      summary: An organization's issued invoices (newest first)
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      responses:
+        '200':
+          description: The org's invoices.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvoiceList' }
+              examples:
+                default:
+                  value:
+                    data:
+                      - { number: "INV-2026-0001", date: "2026-07-01T00:00:00+00:00", amount_minor: 4900, currency: EUR, status: paid }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ─────────────────────────────── CHECKOUT / PORTAL ───────────────────────────────
+  /checkout-sessions:
+    post:
+      operationId: createCheckoutSession
+      tags: [Checkout & Portal]
+      summary: Open a hosted checkout session
+      description: |
+        Open a hosted checkout session and return the `url` the customer completes payment
+        at. The plan must be priced in the resolved currency (deny-by-default → `422`). A
+        `coupon` is validated up front.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckoutSessionRequest' }
+            examples:
+              default: { value: { org: org_acme, plan: pro, return_url: "https://app.acme.example/billing/done" } }
+      responses:
+        '201':
+          description: The hosted checkout URL.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HostedSession' }
+              examples:
+                default:
+                  value: { url: "https://billing.example.com/billing/checkout/tok_abc123", expires_at: "2026-07-19T13:00:00+00:00" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Unknown organization or plan.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /portal-sessions:
+    post:
+      operationId: createPortalSession
+      tags: [Checkout & Portal]
+      summary: Open a hosted customer-portal session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PortalSessionRequest' }
+            examples:
+              default: { value: { org: org_acme, return_url: "https://app.acme.example/settings" } }
+      responses:
+        '201':
+          description: The hosted portal URL.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HostedSession' }
+              examples:
+                default:
+                  value: { url: "https://billing.example.com/billing/portal/tok_xyz789", expires_at: "2026-07-19T13:00:00+00:00" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Unknown organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ─────────────────────────────── INTENTS / PAYMENT METHODS ───────────────────────────────
+  /setup-intents:
+    post:
+      operationId: createSetupIntent
+      tags: [Payment intents]
+      summary: Create a gateway SetupIntent (save a card off-session)
+      description: |
+        Create a gateway SetupIntent so a product's own frontend can save a card
+        off-session against the gateway's element. No charge is made; the returned
+        `client_secret` is what the element confirms against.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetupIntentRequest' }
+            examples:
+              default: { value: { org: org_acme } }
+      responses:
+        '201':
+          description: The created SetupIntent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GatewayIntent' }
+              examples:
+                default:
+                  value: { gateway: stripe, publishable_key: pk_test_123, client_secret: seti_1_secret_abc, status: requires_action, reference: seti_abc }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Unknown organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /payment-intents:
+    post:
+      operationId: createPaymentIntent
+      tags: [Payment intents]
+      summary: Create a gateway PaymentIntent (charge on-session)
+      description: |
+        Create a gateway PaymentIntent a product's frontend confirms on-session. Either
+        charge a named `invoice` (amount + currency taken from the invoice) or an ad-hoc
+        `amount` in minor units of `currency`. Reaching succeeded client-side never settles
+        anything — the engine marks paid strictly on the settled webhook.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentIntentRequest' }
+            examples:
+              invoice: { value: { org: org_acme, invoice: "INV-2026-0001" } }
+              adhoc: { value: { org: org_acme, amount: 4900, currency: EUR } }
+      responses:
+        '201':
+          description: The created PaymentIntent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GatewayIntent' }
+              examples:
+                default:
+                  value: { gateway: stripe, publishable_key: pk_test_123, client_secret: pi_1_secret_abc, status: requires_confirmation, reference: "INV-2026-0001" }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Unknown organization, or unknown invoice for this organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "Unknown invoice for this organization." } }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /payment-methods/{org}:
+    get:
+      operationId: listPaymentMethods
+      tags: [Payment intents]
+      summary: List an org's saved payment methods
+      description: The non-sensitive display fields only (brand/last4/expiry) — the gateway owns the vault.
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      responses:
+        '200':
+          description: The saved methods.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMethodList' }
+              examples:
+                default:
+                  value:
+                    data:
+                      - { id: pm_1, brand: visa, last4: "4242", exp_month: 12, exp_year: 2028, is_default: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Unknown organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /payment-methods/{org}/default:
+    post:
+      operationId: setDefaultPaymentMethod
+      tags: [Payment intents]
+      summary: Make a saved method the off-session default
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentMethodIdRequest' }
+            examples:
+              default: { value: { id: pm_1 } }
+      responses:
+        '200':
+          description: The saved methods after setting the default.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMethodList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Unknown organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /payment-methods/{org}/{id}:
+    delete:
+      operationId: detachPaymentMethod
+      tags: [Payment intents]
+      summary: Detach a saved payment method
+      parameters:
+        - $ref: '#/components/parameters/OrgPath'
+        - name: id
+          in: path
+          required: true
+          description: The gateway payment-method id.
+          schema: { type: string, example: pm_1 }
+      responses:
+        '204':
+          description: The method was detached.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Unknown organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ─────────────────────────────── LICENSES ───────────────────────────────
+  /licenses:
+    post:
+      operationId: issueLicense
+      tags: [Licenses]
+      summary: Mint an on-prem license (operator only)
+      description: |
+        Mint a signed, offline-verifiable license for a customer on a licensable plan.
+        Operator-authed (an org-scoped token is `403`). Deny-by-default: a non-licensable
+        plan is `422`. The response carries the signed `key` artifact (the copy-pasteable
+        `CBOX_ID_LICENSE_KEY`) — a **show-once secret** that is stripped from any idempotency
+        replay copy. Honours `Idempotency-Key`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LicenseIssueRequest' }
+            examples:
+              default: { value: { customer_id: org_acme, plan: enterprise_onprem, deployment_id: dep_9f2, licensed_domain: "acme.example", expires_at: "2027-07-19T00:00:00+00:00" } }
+      responses:
+        '201':
+          description: The minted license (carries the show-once `key`).
+          headers:
+            Idempotency-Key: { $ref: '#/components/headers/IdempotencyKey' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/License' }
+              examples:
+                default:
+                  value:
+                    id: lic_abc123
+                    customer_id: org_acme
+                    deployment_id: dep_9f2
+                    plan: enterprise_onprem
+                    entitlements: [ sso, audit_log ]
+                    limits: { seats: 500 }
+                    licensed_domain: "acme.example"
+                    issued_at: "2026-07-19T00:00:00+00:00"
+                    not_before: "2026-07-19T00:00:00+00:00"
+                    expires_at: "2027-07-19T00:00:00+00:00"
+                    key: "eyJ...signed-license-artifact...=="
+                    public_key: "MCowBQYDK2VwAyEA..."
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: An operator token is required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "This action requires an operator token." } }
+        '404':
+          description: Unknown organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+        '422':
+          description: A non-licensable plan, or a validation error.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "Plan [pro] is not licensable." } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /licenses/{id}/renew:
+    post:
+      operationId: renewLicense
+      tags: [Licenses]
+      summary: Renew a license (reissue with an extended window)
+      parameters:
+        - $ref: '#/components/parameters/LicenseIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LicenseRenewRequest' }
+            examples:
+              default: { value: { expires_at: "2028-07-19T00:00:00+00:00" } }
+      responses:
+        '200':
+          description: The reissued license.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/License' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: An operator token is required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Unknown license.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /licenses/{id}/revoke:
+    post:
+      operationId: revokeLicense
+      tags: [Licenses]
+      summary: Revoke a license (add to the signed revocation list)
+      parameters:
+        - $ref: '#/components/parameters/LicenseIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LicenseRevokeRequest' }
+            examples:
+              default: { value: { reason: "contract terminated" } }
+      responses:
+        '200':
+          description: The license was revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LicenseRevokeResult' }
+              examples:
+                default: { value: { id: lic_abc123, revoked: true } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: An operator token is required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /license/activate:
+    get:
+      operationId: activateLicense
+      tags: [Licenses]
+      summary: The optional on-prem activation heartbeat (unauthenticated)
+      description: |
+        The optional online activation heartbeat a self-hosted deployment may call to
+        refresh its artifacts. **Unauthenticated** — the opaque `deployment_id` is the only
+        credential; an unknown deployment gets a generic `404`. Rate-limited (30/min).
+        Offline installs never call this. Returns the latest signed license bound to the
+        deployment, the current signed revocation list, and the issuer public key.
+      security: []
+      parameters:
+        - name: deployment_id
+          in: query
+          required: true
+          description: The deployment's opaque id (its credential).
+          schema: { type: string, example: dep_9f2 }
+      responses:
+        '200':
+          description: The refreshed activation bundle.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivationBundle' }
+              examples:
+                default:
+                  value:
+                    deployment_id: dep_9f2
+                    license_id: lic_abc123
+                    license_key: "eyJ...signed-license-artifact...=="
+                    expires_at: "2027-07-19T00:00:00+00:00"
+                    revocation_list: "eyJ...signed-revocation-list...=="
+                    public_key: "MCowBQYDK2VwAyEA..."
+        '404':
+          description: No license found for this deployment.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "No license found for this deployment." } }
+        '422':
+          description: A deployment_id is required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "A deployment_id is required." } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ─────────────────────────────── TEST MODE ───────────────────────────────
+  /test/clocks/{id}/advance:
+    post:
+      operationId: advanceTestClock
+      tags: [Test mode]
+      summary: Fast-forward a sandbox test clock
+      description: |
+        Fast-forward a test clock's virtual time and run the due billing logic for its bound
+        test subscriptions, returning the counts of what fired. **Test-mode token only** — a
+        live credential (`cbl_`) is refused with `403`. This is how an integrator scripts
+        "simulate a year of renewals" from a test suite or CI job.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The test clock id.
+          schema: { type: string, example: clk_1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TestClockAdvanceRequest' }
+            examples:
+              default: { value: { target: "2027-07-19T00:00:00+00:00" } }
+      responses:
+        '200':
+          description: What fired during the advance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TestClockAdvanceResult' }
+              examples:
+                default:
+                  value:
+                    clock: { id: clk_1, name: "renewals sim", now_at: "2027-07-19T00:00:00+00:00" }
+                    advanced_from: "2026-07-19T00:00:00+00:00"
+                    renewals: 12
+                    trial_conversions: 1
+                    dunning_attempts: 0
+                    invoices: 13
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: A test-mode token is required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "A test-mode API token is required to advance a test clock." } }
+        '404':
+          description: Test clock not found.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "Test clock not found." } }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        A Cbox Billing API token. The plaintext prefix encodes the billing plane: `cbl_`
+        (live) or `cbt_` (test/sandbox). Operator tokens may act for any org; org-scoped
+        tokens only for their own. Provision one with
+        `php artisan billing:token "<name>" --org=<org-id>`.
+
+  parameters:
+    OrgPath:
+      name: org
+      in: path
+      required: true
+      description: The organization id (the merchant platform's own tenant key).
+      schema: { type: string, example: org_acme }
+    LicenseIdPath:
+      name: id
+      in: path
+      required: true
+      description: The license id.
+      schema: { type: string, example: lic_abc123 }
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        An opaque, caller-generated key giving this write exactly-once semantics. A retry
+        with the same key replays the first response instead of re-running the effect;
+        reusing it with a different body is `409`.
+      schema: { type: string, example: "b3d1e0f2-6c4a-4e2b-9f11-7a2c5d8e9f00" }
+
+  headers:
+    XRateLimitLimit:
+      description: The per-window request ceiling for this token.
+      schema: { type: integer, example: 600 }
+    XRateLimitRemaining:
+      description: Requests remaining in the current window.
+      schema: { type: integer, example: 599 }
+    RetryAfter:
+      description: Seconds to wait before retrying (present on 429).
+      schema: { type: integer, example: 42 }
+    IdempotencyKey:
+      description: Echoes the request's `Idempotency-Key` when the write was idempotency-tracked.
+      schema: { type: string }
+    IdempotencyReplayed:
+      description: Present and `true` when this response was replayed from a prior identical request.
+      schema: { type: string, enum: ["true"] }
+
+  responses:
+    Unauthorized:
+      description: No or invalid bearer token.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            missing: { value: { error: "Missing bearer token." } }
+            invalid: { value: { error: "Invalid API token." } }
+    Forbidden:
+      description: The token may not act for the requested organization (or lacks operator rights).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            default: { value: { error: "This token is not permitted to act for the requested organization." } }
+    IdempotencyConflict:
+      description: |
+        The `Idempotency-Key` was reused with a different request body, or a request with
+        this key is still in flight.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            payload: { value: { error: "This Idempotency-Key was already used with a different request payload." } }
+            inflight: { value: { error: "A request with this Idempotency-Key is already in progress." } }
+    UnprocessableEntity:
+      description: |
+        Validation failed, or a business rule refused the request. Field validation returns
+        Laravel's `{message, errors}` shape; a business refusal (invalid coupon, plan not
+        priced in the currency, non-licensable plan) returns `{error}`.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ValidationError'
+              - $ref: '#/components/schemas/Error'
+          examples:
+            validation:
+              summary: Field validation
+              value: { message: "The plan field is required.", errors: { plan: [ "The plan field is required." ] } }
+            business:
+              summary: Business refusal
+              value: { error: "Plan [pro] is not priced in EUR." }
+    TooManyRequests:
+      description: The per-token rate limit was exceeded.
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+        X-RateLimit-Limit: { $ref: '#/components/headers/XRateLimitLimit' }
+        X-RateLimit-Remaining: { $ref: '#/components/headers/XRateLimitRemaining' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/RateLimitError' }
+          examples:
+            default: { value: { message: "Too Many Attempts." } }
+
+  schemas:
+    # ── Errors ──
+    Error:
+      type: object
+      description: The app's canonical error shape for auth, scope, not-found, conflict, and business refusals.
+      required: [error]
+      properties:
+        error: { type: string, description: A human-readable message. }
+    ValidationError:
+      type: object
+      description: Laravel's field-validation error shape (thrown by request validation).
+      required: [message, errors]
+      properties:
+        message: { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+    RateLimitError:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, example: "Too Many Attempts." }
+    Ok:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean, const: true }
+
+    # ── Enforcement ──
+    LeaseRequest:
+      type: object
+      required: [org, meter, size]
+      properties:
+        org: { type: string, description: The organization to lease for. }
+        meter: { type: string, description: The meter key. }
+        size: { type: integer, minimum: 1, description: The number of units to lease. }
+    Lease:
+      type: object
+      required: [lease_id, granted, expires_at]
+      properties:
+        lease_id: { type: string }
+        granted: { type: integer, minimum: 0, description: Units actually granted (may be fewer than requested; 0 when exhausted). }
+        expires_at: { type: string, format: date-time }
+    UsageIngestRequest:
+      type: object
+      required: [org, entries]
+      properties:
+        org: { type: string }
+        entries:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [meter, cumulative, seq]
+            properties:
+              meter: { type: string }
+              cumulative: { type: integer, minimum: 0, description: The monotonic cumulative reading. }
+              seq: { type: integer, minimum: 0, description: A monotonic sequence number used for dedup. }
+    UsageIngestResult:
+      type: object
+      required: [ok, accepted]
+      properties:
+        ok: { type: boolean, const: true }
+        accepted: { type: integer, minimum: 0, description: Readings accepted after dedup. }
+    ReserveRequest:
+      type: object
+      required: [org, meters]
+      properties:
+        org: { type: string }
+        meters:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [meter, estimate]
+            properties:
+              meter: { type: string }
+              estimate: { type: integer, minimum: 1 }
+    ReserveOutcome:
+      type: object
+      description: |
+        The three-way reservation outcome. `outcome` is always present; the remaining
+        fields depend on it (`reservation_id` when allowed; `reason` + optional `upgrade`
+        when denied; `reason` when indeterminate).
+      required: [outcome]
+      properties:
+        outcome: { type: string, enum: [allowed, denied, indeterminate] }
+        reservation_id: { type: string, description: Present when allowed — pass it to `/commit`. }
+        reason: { type: string, description: Present when denied or indeterminate. }
+        upgrade:
+          allOf:
+            - $ref: '#/components/schemas/UpgradeOffer'
+          description: Present on a denial that a reachable plan would unblock.
+    CommitRequest:
+      type: object
+      required: [reservation_id, actuals]
+      properties:
+        reservation_id: { type: string }
+        actuals:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [meter, actual]
+            properties:
+              meter: { type: string }
+              actual: { type: integer, minimum: 0 }
+    UpgradeOffer:
+      type: object
+      description: The path to unlock a blocked meter — the minimum reachable plan and a pre-built checkout deep-link.
+      required: [required_plan]
+      properties:
+        required_plan: { type: string }
+        checkout_url: { type: [string, "null"], format: uri }
+    Entitlement:
+      type: object
+      description: "A resolved per-meter policy. A disabled meter reports `enabled: false`; an unlimited one a null `allowance`."
+      required: [enabled, allowance, weight, overage]
+      properties:
+        enabled: { type: boolean }
+        allowance: { type: [integer, "null"], description: Included units per period; null when unlimited or disabled. }
+        weight: { type: [number, "null"], description: The per-event multiplier; null when disabled. }
+        overage: { type: string, description: "The over-allowance behaviour (e.g. `block`, `allow`)." }
+        upgrade:
+          allOf:
+            - $ref: '#/components/schemas/UpgradeOffer'
+          description: Present on a disabled meter that a reachable plan would enable.
+    EntitlementsResponse:
+      type: object
+      required: [meters]
+      properties:
+        meters:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/Entitlement' }
+
+    # ── Plans ──
+    Plan:
+      type: object
+      required: [key, name, interval, entitlements, price]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        interval: { type: string, description: "The billing interval (e.g. `monthly`, `yearly`)." }
+        entitlements:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/Entitlement' }
+        price: { $ref: '#/components/schemas/Money' }
+    Money:
+      type: object
+      required: [minor, currency]
+      properties:
+        minor: { type: integer, description: The amount in integer minor units. }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+    PlanList:
+      type: object
+      required: [currency, data]
+      properties:
+        currency: { type: string, description: The currency the catalog was priced in. }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Plan' }
+
+    # ── Organizations ──
+    OrganizationUpsertRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 255 }
+        billing_email: { type: [string, "null"], format: email, maxLength: 255 }
+        billing_country: { type: [string, "null"], minLength: 2, maxLength: 2, description: ISO-3166-1 alpha-2. }
+        billing_currency: { type: [string, "null"], minLength: 3, maxLength: 3, description: ISO-4217. Applied on create only (one-way currency lock). }
+    Organization:
+      type: object
+      required: [id, name, billing_email, billing_country, billing_currency]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        billing_email: { type: [string, "null"] }
+        billing_country: { type: [string, "null"] }
+        billing_currency: { type: [string, "null"] }
+    OrganizationResponse:
+      type: object
+      required: [organization]
+      properties:
+        organization: { $ref: '#/components/schemas/Organization' }
+
+    # ── Subscriptions ──
+    SubscribeRequest:
+      type: object
+      required: [org, plan]
+      properties:
+        org: { type: string }
+        plan: { type: string, description: The plan key. }
+        seats: { type: integer, minimum: 1, default: 1 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        trial: { type: boolean, description: Open the subscription in a free trial. }
+        trial_days: { type: integer, minimum: 1, description: Trial length in days (implies `trial`). }
+        coupon: { type: [string, "null"], maxLength: 60 }
+    Subscription:
+      type: object
+      required: [plan, status, paused, seats, add_ons]
+      example:
+        plan: pro
+        status: active
+        paused: false
+        seats: 5
+        period_start: "2026-07-19T00:00:00+00:00"
+        period_end: "2026-08-19T00:00:00+00:00"
+        renews_at: "2026-08-19T00:00:00+00:00"
+        trial_ends_at: null
+        canceled_at: null
+        pending_change: null
+        add_ons: []
+      properties:
+        plan: { type: [string, "null"], description: The current plan key. }
+        status: { type: string, description: "The standing (e.g. `active`, `trialing`, `paused`, `canceled`)." }
+        paused: { type: boolean }
+        seats: { type: integer }
+        period_start: { type: [string, "null"], format: date-time }
+        period_end: { type: [string, "null"], format: date-time }
+        renews_at: { type: [string, "null"], format: date-time, description: Null when set to cancel at period end or paused. }
+        trial_ends_at: { type: [string, "null"], format: date-time }
+        canceled_at: { type: [string, "null"], format: date-time }
+        pending_change:
+          type: [object, "null"]
+          properties:
+            plan: { type: [string, "null"] }
+            effective_at: { type: [string, "null"], format: date-time }
+        add_ons:
+          type: array
+          items: { $ref: '#/components/schemas/AddOn' }
+    Coupon:
+      type: object
+      required: [code, duration, currency, recurring_minor, discount_minor, discounted_minor]
+      properties:
+        code: { type: string }
+        duration: { type: string }
+        currency: { type: string }
+        recurring_minor: { type: integer }
+        discount_minor: { type: integer }
+        discounted_minor: { type: integer }
+    SubscribeResult:
+      type: object
+      required: [subscription, coupon, payment_intent]
+      properties:
+        subscription: { $ref: '#/components/schemas/Subscription' }
+        coupon:
+          oneOf:
+            - $ref: '#/components/schemas/Coupon'
+            - type: "null"
+        payment_intent:
+          type: [object, "null"]
+          description: Reserved for the payment-intents flow; null for the out-of-band manual gateway.
+    PlanChangeInput:
+      type: object
+      required: [plan]
+      properties:
+        plan: { type: string, description: The target plan key. }
+    PlanChangeRequest:
+      type: object
+      required: [plan]
+      properties:
+        plan: { type: string }
+        when: { type: string, enum: [now, period_end], default: now }
+    CreditDelta:
+      type: object
+      required: [forfeited, granted, carried]
+      properties:
+        forfeited: { type: integer }
+        granted: { type: integer }
+        carried: { type: integer }
+    ProrationLine:
+      type: object
+      required: [description, minor]
+      properties:
+        description: { type: string }
+        minor: { type: integer }
+    PlanChangePreview:
+      type: object
+      required: [due_now_minor, credit_minor, new_recurring_minor, effective_at, credit_delta, lines]
+      properties:
+        due_now_minor: { type: integer }
+        credit_minor: { type: integer }
+        new_recurring_minor: { type: integer }
+        effective_at: { type: string, format: date-time }
+        credit_delta: { $ref: '#/components/schemas/CreditDelta' }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/ProrationLine' }
+    PlanChangeResult:
+      allOf:
+        - type: object
+          required: [scheduled]
+          properties:
+            scheduled: { type: boolean, description: True when the change was deferred to period end. }
+            effective_at:
+              type: [string, "null"]
+              format: date-time
+              description: For a scheduled change, the deferred effective date (overrides the preview's immediate `effective_at`).
+        - $ref: '#/components/schemas/PlanChangePreview'
+      description: A `PlanChangePreview` plus a `scheduled` flag. For a scheduled change the top-level `effective_at` is the deferred date.
+    CancelRequest:
+      type: object
+      properties:
+        mode: { type: string, enum: [immediate, period_end, pause] }
+        at_period_end: { type: boolean, default: true, description: Legacy flag used when `mode` is absent. }
+        reason: { type: [string, "null"], maxLength: 255 }
+        feedback: { type: [string, "null"], maxLength: 2000 }
+    QuantityRequest:
+      type: object
+      required: [seats]
+      properties:
+        seats: { type: integer, minimum: 1 }
+        preview: { type: boolean, description: Compute without applying. }
+    QuantityPreview:
+      type: object
+      required: [applied, from_seats, to_seats, due_now_minor, credit_minor, currency]
+      properties:
+        applied: { type: boolean, description: False when this was a preview. }
+        from_seats: { type: integer }
+        to_seats: { type: integer }
+        due_now_minor: { type: integer, description: Charge due now (0 when the change is a credit). }
+        credit_minor: { type: integer, description: Credit issued (0 when the change is a charge). }
+        currency: { type: string }
+    AddOn:
+      type: object
+      required: [key, price_minor, currency, alignment, credit_allotment]
+      properties:
+        key: { type: string }
+        price_minor: { type: integer }
+        currency: { type: string }
+        alignment: { type: string, enum: [aligned, independent] }
+        credit_allotment: { type: integer }
+    AddOnRequest:
+      type: object
+      required: [key, price_minor, currency]
+      properties:
+        key: { type: string }
+        price_minor: { type: integer, minimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        alignment: { type: string, enum: [aligned, independent], default: aligned }
+        credit_allotment: { type: integer, minimum: 0 }
+        anchor_day: { type: integer, minimum: 1, maximum: 31, description: "For an independent add-on, the billing anchor day." }
+        anchor_month: { type: integer, minimum: 1, maximum: 12 }
+        interval: { type: string, enum: [monthly, yearly] }
+        preview: { type: boolean }
+    AddOnPreview:
+      type: object
+      description: The engine's prorated add-on preview (shape depends on the engine; `due_now_minor` + `currency` are always present).
+      example: { due_now_minor: 250, currency: EUR }
+      properties:
+        due_now_minor: { type: integer }
+        currency: { type: string }
+      additionalProperties: true
+    AddOnResult:
+      type: object
+      required: [preview, add_on]
+      properties:
+        preview: { $ref: '#/components/schemas/AddOnPreview' }
+        add_on: { $ref: '#/components/schemas/AddOn' }
+
+    # ── Seats ──
+    SeatBreakdown:
+      type: object
+      required: [purchased, assigned, free, full_count, light_count, full, light, types]
+      example:
+        purchased: 10
+        assigned: 7
+        free: 3
+        full_count: 7
+        light_count: 4
+        full: [ user_1, user_2 ]
+        light: [ user_8 ]
+        types: []
+      properties:
+        purchased: { type: integer, description: Purchased Full seats (the subscription quantity — the only billing driver). }
+        assigned: { type: integer }
+        free: { type: integer, description: purchased - assigned. }
+        full_count: { type: integer }
+        light_count: { type: integer }
+        full: { type: array, items: { type: string }, description: Subject ids holding a Full seat. }
+        light: { type: array, items: { type: string }, description: Subject ids on Light. }
+        types: { type: array, items: { type: object }, description: Configured seat types (labels + billable flag). }
+    SeatsSetRequest:
+      type: object
+      required: [seats]
+      properties:
+        seats: { type: integer, minimum: 1 }
+    SeatSubjectRequest:
+      type: object
+      required: [subject]
+      properties:
+        subject: { type: string, description: The member/subject id. }
+
+    # ── Usage / Invoices ──
+    UsageSummary:
+      type: object
+      required: [period, meters]
+      properties:
+        period:
+          type: object
+          required: [start, end, elapsed_fraction]
+          properties:
+            start: { type: string, format: date-time }
+            end: { type: string, format: date-time }
+            elapsed_fraction: { type: number, minimum: 0, maximum: 1 }
+        meters:
+          type: object
+          additionalProperties:
+            type: object
+            required: [used, allowance, overage, projected, projected_overage]
+            properties:
+              used: { type: integer }
+              allowance: { type: [integer, "null"] }
+              overage: { type: integer }
+              projected: { type: integer }
+              projected_overage: { type: integer }
+    Invoice:
+      type: object
+      required: [number, date, amount_minor, currency, status]
+      properties:
+        number: { type: string }
+        date: { type: [string, "null"], format: date-time }
+        amount_minor: { type: integer }
+        currency: { type: string }
+        status: { type: string, description: "e.g. `draft`, `open`, `paid`, `void`." }
+    InvoiceList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Invoice' }
+
+    # ── Checkout / Portal ──
+    CheckoutSessionRequest:
+      type: object
+      required: [org, plan, return_url]
+      properties:
+        org: { type: string }
+        plan: { type: string }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        return_url: { type: string, format: uri }
+        coupon: { type: [string, "null"], maxLength: 60 }
+    PortalSessionRequest:
+      type: object
+      required: [org, return_url]
+      properties:
+        org: { type: string }
+        return_url: { type: string, format: uri }
+    HostedSession:
+      type: object
+      required: [url, expires_at]
+      properties:
+        url: { type: string, format: uri, description: The hosted page URL (the opaque token in it is the authorization). }
+        expires_at: { type: string, format: date-time }
+
+    # ── Intents / Payment methods ──
+    SetupIntentRequest:
+      type: object
+      required: [org]
+      properties:
+        org: { type: string }
+    PaymentIntentRequest:
+      type: object
+      required: [org]
+      description: Provide either `invoice`, or `amount` + `currency`.
+      properties:
+        org: { type: string }
+        invoice: { type: string, description: An invoice number to charge (amount + currency taken from it). }
+        amount: { type: integer, minimum: 1, description: Ad-hoc amount in minor units (requires `currency`). }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+    GatewayIntent:
+      type: object
+      required: [gateway, publishable_key, client_secret, status, reference]
+      properties:
+        gateway: { type: string }
+        publishable_key: { type: [string, "null"] }
+        client_secret: { type: [string, "null"], description: What the gateway element confirms against. }
+        status: { type: string }
+        reference: { type: string }
+    PaymentMethod:
+      type: object
+      required: [id, brand, last4, exp_month, exp_year, is_default]
+      properties:
+        id: { type: string }
+        brand: { type: string }
+        last4: { type: string }
+        exp_month: { type: [integer, "null"] }
+        exp_year: { type: [integer, "null"] }
+        is_default: { type: boolean }
+    PaymentMethodList:
+      type: object
+      required: [data]
+      example:
+        data:
+          - { id: pm_1, brand: visa, last4: "4242", exp_month: 12, exp_year: 2028, is_default: true }
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/PaymentMethod' }
+    PaymentMethodIdRequest:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+
+    # ── Licenses ──
+    LicenseIssueRequest:
+      type: object
+      required: [customer_id, plan]
+      properties:
+        customer_id: { type: string, description: The organization id the license is for. }
+        plan: { type: string, description: A licensable plan key. }
+        deployment_id: { type: string }
+        licensed_domain: { type: string }
+        expires_at: { type: string, format: date-time }
+    LicenseRenewRequest:
+      type: object
+      properties:
+        expires_at: { type: string, format: date-time }
+    LicenseRevokeRequest:
+      type: object
+      properties:
+        reason: { type: string }
+    License:
+      type: object
+      required: [id, customer_id, plan, entitlements, limits, issued_at, not_before, expires_at, key]
+      example:
+        id: lic_abc123
+        customer_id: org_acme
+        deployment_id: dep_9f2
+        plan: enterprise_onprem
+        entitlements: [ sso, audit_log ]
+        limits: { seats: 500 }
+        licensed_domain: "acme.example"
+        issued_at: "2026-07-19T00:00:00+00:00"
+        not_before: "2026-07-19T00:00:00+00:00"
+        expires_at: "2028-07-19T00:00:00+00:00"
+        key: "eyJ...signed-license-artifact...=="
+        public_key: "MCowBQYDK2VwAyEA..."
+      properties:
+        id: { type: string }
+        customer_id: { type: string }
+        deployment_id: { type: [string, "null"] }
+        plan: { type: string }
+        entitlements: { type: array, items: { type: string } }
+        limits: { type: object, additionalProperties: true }
+        licensed_domain: { type: [string, "null"] }
+        issued_at: { type: string, format: date-time }
+        not_before: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        key: { type: [string, "null"], description: The signed license artifact — a show-once secret (null in an idempotency replay copy). }
+        public_key: { type: [string, "null"], description: The issuer Ed25519 public key for offline verification. }
+    LicenseRevokeResult:
+      type: object
+      required: [id, revoked]
+      properties:
+        id: { type: string }
+        revoked: { type: boolean, const: true }
+    ActivationBundle:
+      type: object
+      required: [deployment_id, license_id, license_key, expires_at, revocation_list]
+      properties:
+        deployment_id: { type: string }
+        license_id: { type: string }
+        license_key: { type: string, description: The signed license artifact. }
+        expires_at: { type: string, format: date-time }
+        revocation_list: { type: string, description: The current signed revocation list. }
+        public_key: { type: [string, "null"] }
+
+    # ── Test mode ──
+    TestClockAdvanceRequest:
+      type: object
+      required: [target]
+      properties:
+        target: { type: string, format: date-time, description: The virtual time to fast-forward to. }
+    TestClockAdvanceResult:
+      type: object
+      required: [clock, advanced_from, renewals, trial_conversions, dunning_attempts, invoices]
+      properties:
+        clock:
+          type: object
+          required: [id, name, now_at]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            now_at: { type: string, format: date-time }
+        advanced_from: { type: string, format: date-time }
+        renewals: { type: integer }
+        trial_conversions: { type: integer }
+        dunning_attempts: { type: integer }
+        invoices: { type: integer }

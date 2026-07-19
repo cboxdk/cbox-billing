@@ -228,12 +228,12 @@
     // --- Cancel (carries the survey reason + comment through the retention seam) ---
     const cancelBtn = document.getElementById('cancel-btn');
     if (cancelBtn) cancelBtn.addEventListener('click', async () => {
-        const ok = await window.cboxConfirm({
+        const confirmed = await window.cboxConfirm({
             title: 'Cancel subscription?',
             body: 'Your subscription stays active until the end of the current billing period, then cancels. You can resubscribe at any time.',
             confirmLabel: 'Cancel at period end',
         });
-        if (!ok) return;
+        if (!confirmed) return;
         cancelBtn.disabled = true;
         const reasonEl = document.getElementById('cancel-reason');
         const commentEl = document.getElementById('cancel-comment');

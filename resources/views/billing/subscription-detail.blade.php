@@ -263,19 +263,50 @@
         </table>
     </section>
 
-    {{-- Dunning: the smart-retry state for a failed renewal charge (App-A PaymentRetry) --}}
+    {{-- Dunning: the adaptive smart-retry state for a failed renewal charge (App-A PaymentRetry) --}}
     @if (!empty($s['dunning']))
         @php($d = $s['dunning'])
+        @php($timelineOutcome = ['failed' => 'destructive', 'scheduled' => 'warning', 'recovered' => 'success', 'exhausted' => 'destructive', 'authenticate' => 'info', 'card_updated' => 'info', 'stopped' => 'muted'])
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px">
-                <div><h2 class="cbx-panel-title" style="font-size:14px">Dunning</h2><p class="cbx-panel-desc" style="font-size:12px">smart-retry on invoice {{ $d['invoice'] }}</p></div>
+                <div><h2 class="cbx-panel-title" style="font-size:14px">Dunning</h2><p class="cbx-panel-desc" style="font-size:12px">adaptive smart-retry on invoice {{ $d['invoice'] }}</p></div>
                 <span class="cbx-pill cbx-pill--{{ $retryPill[$d['status']] ?? 'muted' }}"><span class="dot"></span>{{ $d['status'] }}</span>
             </header>
             <dl style="margin:0;padding:2px 20px 6px">
+                <div class="cbx-kv" style="padding:9px 0;align-items:flex-start">
+                    <dt>Decline</dt>
+                    <dd style="text-align:right">
+                        <span class="cbx-pill cbx-pill--{{ $d['category_pill'] }}"><span class="dot"></span>{{ $d['category_label'] }}</span>
+                        @if (!empty($d['decline_code']))<div class="num mut" style="font-size:11px;margin-top:3px">{{ $d['decline_code'] }}</div>@endif
+                    </dd>
+                </div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Attempts</dt><dd class="num">{{ $d['attempts'] }} of {{ $d['max_attempts'] }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>First failed</dt><dd class="num">{{ $d['first_failed_at'] }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Next retry</dt><dd class="num">{{ $d['next_attempt_at'] }}</dd></div>
+                @if (!empty($d['save_offer']))
+                    <div class="cbx-kv" style="padding:9px 0"><dt>Retention offer</dt><dd>{{ $d['save_offer'] }}</dd></div>
+                @endif
             </dl>
+            <div style="padding:2px 20px 12px"><p class="cbx-page-desc" style="font-size:12px;margin:0">{{ $d['category_reason'] }}</p></div>
+
+            {{-- Attempts timeline — what was tried, when, why, and what the gateway said --}}
+            @if (!empty($d['timeline']))
+                <div style="padding:12px 20px;border-top:1px solid var(--border)">
+                    <h3 class="cbx-panel-title" style="font-size:12px;margin:0 0 10px">Attempts timeline</h3>
+                    <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px">
+                        @foreach ($d['timeline'] as $t)
+                            <li style="display:flex;gap:10px;align-items:flex-start">
+                                <span class="cbx-pill cbx-pill--{{ $timelineOutcome[$t['outcome']] ?? 'muted' }}" style="flex:0 0 auto"><span class="dot"></span>{{ str_replace('_', ' ', $t['outcome']) }}</span>
+                                <div style="flex:1;min-width:0">
+                                    <div style="font-size:12px;color:var(--foreground)">{{ $t['detail'] ?? ('Attempt '.$t['attempt']) }}</div>
+                                    <div class="num mut" style="font-size:11px;margin-top:2px">{{ $t['at'] }}@if(!empty($t['reference'])) · {{ $t['reference'] }}@endif</div>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ol>
+                </div>
+            @endif
+
             @if (!empty($d['retrying']))
                 <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                     <form method="POST" action="{{ route('billing.subscriptions.dunning.retry', $d['id']) }}"

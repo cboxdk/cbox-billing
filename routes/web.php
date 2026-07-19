@@ -12,6 +12,7 @@ use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\CustomerOpsController;
 use App\Http\Controllers\DunningController;
+use App\Http\Controllers\DunningStrategyController;
 use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MailTemplateController;
@@ -273,6 +274,14 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode'])->group(func
     Route::post('/settings/api-tokens/{apiToken}/revoke', [ApiTokenController::class, 'revoke'])->middleware('billing.permission:settings:manage')->name('billing.settings.tokens.revoke');
 
     Route::get('/settings/gateways', [SettingsController::class, 'gateways'])->middleware('billing.permission:settings:read')->name('billing.settings.gateways');
+
+    // Adaptive-dunning strategy config: view the effective per-decline-category recovery plans
+    // and tune a category's curve/heuristics at runtime (persisted to dunning_strategies).
+    // Reads carry `settings:read`; writes carry `settings:manage`.
+    Route::get('/settings/dunning', [DunningStrategyController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.settings.dunning');
+    Route::get('/settings/dunning/{category}/edit', [DunningStrategyController::class, 'edit'])->middleware('billing.permission:settings:manage')->name('billing.settings.dunning.edit');
+    Route::put('/settings/dunning/{category}', [DunningStrategyController::class, 'update'])->middleware('billing.permission:settings:manage')->name('billing.settings.dunning.update');
+    Route::post('/settings/dunning/{category}/reset', [DunningStrategyController::class, 'reset'])->middleware('billing.permission:settings:manage')->name('billing.settings.dunning.reset');
 
     // --- Outbound webhooks / event bus. DB-backed endpoint CRUD replaces the old env-status page.
     // Reads (`settings:read`) list endpoints + the per-endpoint delivery log; writes

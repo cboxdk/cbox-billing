@@ -12,6 +12,7 @@ use App\Billing\Reporting\CustomerPaymentMethods;
 use App\Billing\Reporting\CustomerReport;
 use App\Billing\Reporting\InvoiceReport;
 use App\Billing\Reporting\PricingReport;
+use App\Billing\Reporting\RecoveryAnalytics;
 use App\Billing\Reporting\RevenueMetrics;
 use App\Billing\Reporting\SettingsReport;
 use App\Billing\Reporting\SubscriptionReport;
@@ -38,7 +39,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class BillingController extends Controller
 {
-    public function dashboard(RevenueMetrics $metrics, InvoiceReport $invoices, SettingsReport $settings): View
+    public function dashboard(RevenueMetrics $metrics, InvoiceReport $invoices, SettingsReport $settings, RecoveryAnalytics $recovery): View
     {
         return view('billing.dashboard', [
             'activeArea' => 'home',
@@ -50,6 +51,8 @@ class BillingController extends Controller
             'planBreakdown' => $metrics->planBreakdown(),
             'recentInvoices' => $invoices->list(limit: 7),
             'gateways' => $settings->gateways(),
+            // Adaptive-dunning recovery at a glance (the dashboard card).
+            'recovery' => $recovery->summary(),
         ]);
     }
 
@@ -69,7 +72,7 @@ class BillingController extends Controller
         ]);
     }
 
-    public function dunning(Request $request, SubscriptionReport $report): View
+    public function dunning(Request $request, SubscriptionReport $report, RecoveryAnalytics $analytics): View
     {
         $search = $this->search($request);
 
@@ -79,6 +82,9 @@ class BillingController extends Controller
             'search' => $search,
             'counts' => $report->counts(),
             'retries' => $report->paginateDunning($search),
+            // Recovery analytics: the payoff of adaptive dunning, computed over real retry rows.
+            'recovery' => $analytics->summary(),
+            'byCategory' => $analytics->byCategory(),
         ]);
     }
 

@@ -105,6 +105,23 @@
                 </a>
             @endforeach
         </section>
+        {{-- Adaptive-dunning recovery at a glance --}}
+        @php($recRevenue = collect($recovery['revenue'])->map(fn ($m) => MoneyFormatter::money($m))->implode(' · '))
+        <section class="cbx-panel">
+            <header class="cbx-panel-header" style="padding:12px 20px">
+                <h2 class="cbx-panel-title" style="font-size:14px">Dunning recovery</h2>
+                <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.subscriptions.dunning') }}">View @include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])</a>
+            </header>
+            <div style="padding:14px 20px;display:flex;gap:8px;align-items:baseline">
+                <span class="val" style="font-size:26px;font-weight:650">{{ number_format($recovery['rate'] * 100, 1, ',', '.') }}%</span>
+                <span class="mut num" style="font-size:12px">recovery rate · {{ $recovery['recovered'] }}/{{ $recovery['entered'] }}</span>
+            </div>
+            <dl style="margin:0;padding:0 20px 10px">
+                <div class="cbx-kv" style="padding:8px 0"><dt>Revenue recovered</dt><dd class="num">{{ $recRevenue !== '' ? $recRevenue : '—' }}</dd></div>
+                <div class="cbx-kv" style="padding:8px 0"><dt>Churn averted</dt><dd class="num">{{ $recovery['averted'] }} saved · {{ $recovery['exhausted'] }} lost</dd></div>
+                <div class="cbx-kv" style="padding:8px 0"><dt>In flight</dt><dd class="num">{{ $recovery['active'] }}</dd></div>
+            </dl>
+        </section>
         {{-- Dashboard cards an installed plugin contributes via Console::dashboardCard(); empty otherwise. --}}
         @consoleSlot(\Cbox\Console\Kit\ConsoleManager::DASHBOARD_CARDS)
     </div>

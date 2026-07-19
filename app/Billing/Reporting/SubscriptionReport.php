@@ -11,6 +11,7 @@ use App\Models\Coupon;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\PaymentRetry;
+use App\Models\PaymentRetryAttempt;
 use App\Models\Plan;
 use App\Models\PlanCreditGrant;
 use App\Models\PlanEntitlement;
@@ -258,6 +259,8 @@ readonly class SubscriptionReport
         $name = $organization !== null ? $organization->name : $retry->organization_id;
         $invoice = $retry->invoice;
 
+        $category = $retry->category();
+
         return [
             'id' => $retry->id,
             'org' => $name,
@@ -270,6 +273,10 @@ readonly class SubscriptionReport
             'attempts' => $retry->attempts,
             'max_attempts' => $retry->max_attempts,
             'status' => $retry->status,
+            'decline_code' => $retry->decline_code,
+            'category' => $category->value,
+            'category_label' => $category->label(),
+            'category_pill' => $category->pill(),
             'first_failed_at' => $retry->first_failed_at->format('Y-m-d'),
             'next_attempt_at' => $retry->next_attempt_at?->format('Y-m-d') ?? '—',
         ];
@@ -383,14 +390,16 @@ readonly class SubscriptionReport
 
     /**
      * The active smart-retry state for a subscription's failed charge, or null when it is
-     * not in dunning.
+     * not in dunning. Carries the classified decline (code + category + why-this-schedule
+     * explanation), the surfaced retention offer, and the append-only attempts timeline — the
+     * full adaptive-dunning picture the detail panel renders.
      *
-     * @return array{id: int, attempts: int, max_attempts: int, status: string, retrying: bool, next_attempt_at: string, first_failed_at: string, invoice: string}|null
+     * @return array{id: int, attempts: int, max_attempts: int, status: string, retrying: bool, next_attempt_at: string, first_failed_at: string, invoice: string, decline_code: ?string, category: string, category_label: string, category_pill: string, category_reason: string, save_offer: ?string, timeline: list<array{attempt: int, outcome: string, decline_code: ?string, category: ?string, reference: ?string, detail: ?string, at: string}>}|null
      */
     private function dunningFor(Subscription $subscription): ?array
     {
         $retry = PaymentRetry::query()
-            ->with('invoice')
+            ->with(['invoice', 'timeline'])
             ->where('subscription_id', $subscription->id)
             ->orderByDesc('first_failed_at')
             ->first();
@@ -400,6 +409,7 @@ readonly class SubscriptionReport
         }
 
         $invoice = $retry->invoice;
+        $category = $retry->category();
 
         return [
             'id' => $retry->id,
@@ -410,6 +420,23 @@ readonly class SubscriptionReport
             'next_attempt_at' => $retry->next_attempt_at?->format('Y-m-d') ?? '—',
             'first_failed_at' => $retry->first_failed_at->format('Y-m-d'),
             'invoice' => $invoice !== null ? $invoice->number : '—',
+            'decline_code' => $retry->decline_code,
+            'category' => $category->value,
+            'category_label' => $category->label(),
+            'category_pill' => $category->pill(),
+            'category_reason' => $category->description(),
+            'save_offer' => $retry->save_offer_label,
+            'timeline' => array_values($retry->timeline
+                ->map(static fn (PaymentRetryAttempt $event): array => [
+                    'attempt' => $event->attempt,
+                    'outcome' => $event->outcome,
+                    'decline_code' => $event->decline_code,
+                    'category' => $event->decline_category,
+                    'reference' => $event->gateway_reference,
+                    'detail' => $event->detail,
+                    'at' => $event->created_at?->format('Y-m-d H:i') ?? '—',
+                ])
+                ->all()),
         ];
     }
 

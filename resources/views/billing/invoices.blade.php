@@ -20,7 +20,13 @@
             <h1 class="cbx-page-title" style="font-size:20px">Invoices</h1>
             <p class="cbx-page-desc" style="font-size:13px">Per-seller legal numbering · tax-aware totals</p>
         </div>
+        <div style="display:flex;gap:8px;align-items:center">
+            <a class="cbx-btn cbx-btn--secondary cbx-btn--sm" href="{{ route('billing.credit-notes') }}">Credit notes</a>
+            <a class="cbx-btn cbx-btn--primary cbx-btn--sm" href="{{ route('billing.invoices.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7]) New invoice</a>
+        </div>
     </header>
+
+    @include('partials.flash')
 
     <div class="cbx-tabs" style="min-height:40px;padding:4px 8px">
         <nav style="display:flex;flex:1;align-items:center;gap:2px">

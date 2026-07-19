@@ -57,6 +57,24 @@ readonly class BillingNotifier implements NotifiesCustomers
         ), 'invoice.issued', $invoice->number);
     }
 
+    public function invoiceResent(Invoice $invoice): void
+    {
+        $organization = $invoice->organization;
+
+        if (! $organization instanceof Organization) {
+            return;
+        }
+
+        $this->send($organization, new InvoiceIssuedMail(
+            organizationName: $organization->name,
+            invoiceNumber: $invoice->number,
+            amountFormatted: MoneyFormatter::money($invoice->total()),
+            periodLabel: 'your invoice',
+            issuedAtLabel: $this->date($invoice->issued_at),
+            dueAtLabel: $this->date($invoice->due_at),
+        ), 'invoice.resent', $invoice->number);
+    }
+
     public function paymentReceipt(Invoice $invoice): void
     {
         $organization = $invoice->organization;

@@ -16,6 +16,7 @@ use App\Billing\Reporting\UsageReport;
 use App\Billing\Retirement\PlanRetirementService;
 use App\Billing\Seats\Contracts\ManagesSeats;
 use App\Billing\Support\SubscriptionStanding;
+use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Subscription;
@@ -127,6 +128,11 @@ class BillingController extends Controller
             'activeArea' => 'invoices',
             'activeNav' => 'all',
             'invoice' => $invoice,
+            // The credit notes issued against this invoice (refunds/adjustments), cross-linked.
+            'creditNotes' => CreditNote::query()
+                ->where('invoice_number', $invoice->number)
+                ->orderByDesc('issued_at')
+                ->get(),
         ]);
     }
 

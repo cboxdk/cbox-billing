@@ -20,8 +20,12 @@ use App\Billing\Hosted\BillingSessionService;
 use App\Billing\Hosted\CheckoutActivation;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Invoicing\Contracts\RunsInvoiceOperations;
+use App\Billing\Invoicing\DatabaseCreditNoteNumberSequence;
 use App\Billing\Invoicing\DatabaseInvoiceNumberSequence;
+use App\Billing\Invoicing\InvoiceOperations;
 use App\Billing\Invoicing\InvoiceService;
+use App\Billing\Invoicing\PersistIssuedCreditNote;
 use App\Billing\Metering\EntitlementsView;
 use App\Billing\Metering\UsageSummaryView;
 use App\Billing\Notifications\BillingNotifier;
@@ -36,6 +40,7 @@ use App\Billing\Payments\DatabaseSettledPaymentStore;
 use App\Billing\Payments\ManualWebhookVerifier;
 use App\Billing\Payments\PaymentRetryService;
 use App\Billing\Payments\PaymentService;
+use App\Billing\Refunds\DatabaseRefundRepository;
 use App\Billing\Retention\BasicCancellationSurvey;
 use App\Billing\Retention\BasicRetentionOffers;
 use App\Billing\Retention\Contracts\ManagesRetention;
@@ -47,6 +52,7 @@ use App\Billing\Seams\SubscriptionMeterPolicyResolver;
 use App\Billing\Seats\Contracts\ManagesSeats;
 use App\Billing\Seats\SeatManager;
 use App\Billing\Seller\ConfiguredEntityRouter;
+use App\Billing\Seller\SellerCatalog;
 use App\Billing\Subscriptions\Contracts\ConvertsTrials;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
@@ -60,6 +66,8 @@ use Cbox\Billing\Entitlement\Audit\Contracts\ExpectedEntitlements;
 use Cbox\Billing\Entitlement\Resolvers\EntitlementMeterPolicyResolver;
 use Cbox\Billing\Entitlement\Rollout\Contracts\RolloutJournal;
 use Cbox\Billing\Entitlement\Rollout\Journal\DatabaseRolloutJournal;
+use Cbox\Billing\Events\CreditNoteIssued;
+use Cbox\Billing\Invoice\Contracts\CreditNoteNumberSequence;
 use Cbox\Billing\Invoice\Contracts\InvoiceNumberSequence;
 use Cbox\Billing\Ledger\Contracts\Ledger;
 use Cbox\Billing\Ledger\DatabaseLedger;
@@ -83,6 +91,7 @@ use Cbox\Billing\Payment\Dunning\Contracts\DunningStateStore;
 use Cbox\Billing\Payment\Gateways\ManualPaymentGateway;
 use Cbox\Billing\Reconciliation\Contracts\CheckpointStore;
 use Cbox\Billing\Reconciliation\Storage\DatabaseCheckpointStore;
+use Cbox\Billing\Refund\Contracts\RefundRepository;
 use Cbox\Billing\Retention\Contracts\CancellationSurvey;
 use Cbox\Billing\Retention\Contracts\RetentionOffers;
 use Cbox\Billing\Seller\Contracts\EntityRouter;
@@ -93,6 +102,7 @@ use Cbox\Billing\Wallet\Contracts\Wallet;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\UrlGenerator;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -127,6 +137,14 @@ class BillingServiceProvider extends ServiceProvider
         // The customer-facing transactional mail surface: one place resolves the billing
         // contact and queues the branded Mailable for each lifecycle event.
         $this->app->singleton(NotifiesCustomers::class, BillingNotifier::class);
+    }
+
+    public function boot(): void
+    {
+        // Persist the durable credit note the engine issues on every refund/adjustment:
+        // the refund flow fires CreditNoteIssued after drawing the number and posting the
+        // reversal, and the listener writes the app's record surface from it.
+        Event::listen(CreditNoteIssued::class, [PersistIssuedCreditNote::class, 'handle']);
     }
 
     /**
@@ -198,6 +216,19 @@ class BillingServiceProvider extends ServiceProvider
         $this->app->singleton(RolloutJournal::class, static fn (Application $app): DatabaseRolloutJournal => new DatabaseRolloutJournal(
             $app->make('db')->connection(),
             $app->make(EntitlementMeterPolicyResolver::class),
+        ));
+
+        // The credit note's own gapless legal sequence (Wave 3) and the durable refund
+        // record — over the engine's in-memory defaults — so credit-note numbering
+        // persists consistently with invoice numbering and the over-refund cap +
+        // idempotency hold across requests.
+        $this->app->singleton(CreditNoteNumberSequence::class, static fn (Application $app): DatabaseCreditNoteNumberSequence => new DatabaseCreditNoteNumberSequence(
+            $app->make('db')->connection(),
+        ));
+
+        $this->app->singleton(RefundRepository::class, static fn (Application $app): DatabaseRefundRepository => new DatabaseRefundRepository(
+            $app->make('db')->connection(),
+            $app->make(SellerCatalog::class),
         ));
     }
 
@@ -334,6 +365,11 @@ class BillingServiceProvider extends ServiceProvider
         $this->app->singleton(ManagesRetention::class, RetentionService::class);
 
         $this->app->singleton(GeneratesInvoices::class, InvoiceService::class);
+
+        // The invoice lifecycle-operations surface (void / refund → credit note /
+        // mark-paid / resend / ad-hoc create) — money through the engine refunder +
+        // invoicer, guards enforced server-side.
+        $this->app->singleton(RunsInvoiceOperations::class, InvoiceOperations::class);
 
         $this->app->singleton(PaysInvoices::class, PaymentService::class);
 

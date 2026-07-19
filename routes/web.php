@@ -6,6 +6,8 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CatalogController;
+use App\Http\Controllers\CreditNoteController;
+use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MeterController;
 use App\Http\Controllers\PlanController;
@@ -14,6 +16,7 @@ use App\Http\Controllers\PlanEntitlementController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RetentionController;
 use App\Http\Controllers\SeatController;
+use App\Http\Controllers\SubscriptionOpsController;
 use Illuminate\Support\Facades\Route;
 
 // --- Authentication (Cbox ID as OIDC provider) ---
@@ -36,7 +39,24 @@ Route::middleware('auth.cbox')->group(function (): void {
 
     Route::get('/subscriptions', [BillingController::class, 'subscriptions'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions');
     Route::get('/subscriptions/dunning', [BillingController::class, 'dunning'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions.dunning');
+
+    // --- Subscription operator lifecycle (Wave 3): create + plan change / quantity /
+    // add-ons (each preview → confirm through the engine) + cancel a scheduled change.
+    // Reads carry `subscriptions:read`; every write carries `subscriptions:manage`.
+    // `/subscriptions/new` is declared before `/subscriptions/{subscription}`.
+    Route::get('/subscriptions/new', [SubscriptionOpsController::class, 'create'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.create');
+    Route::post('/subscriptions', [SubscriptionOpsController::class, 'store'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.store');
+
     Route::get('/subscriptions/{subscription}', [BillingController::class, 'subscription'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions.show');
+
+    Route::post('/subscriptions/{subscription}/plan-change/preview', [SubscriptionOpsController::class, 'planChangePreview'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.plan-change.preview');
+    Route::post('/subscriptions/{subscription}/plan-change', [SubscriptionOpsController::class, 'planChange'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.plan-change');
+    Route::post('/subscriptions/{subscription}/quantity/preview', [SubscriptionOpsController::class, 'quantityPreview'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.quantity.preview');
+    Route::post('/subscriptions/{subscription}/quantity', [SubscriptionOpsController::class, 'quantity'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.quantity');
+    Route::post('/subscriptions/{subscription}/addons/preview', [SubscriptionOpsController::class, 'addOnPreview'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.addons.preview');
+    Route::post('/subscriptions/{subscription}/addons', [SubscriptionOpsController::class, 'addAddOn'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.addons.add');
+    Route::post('/subscriptions/{subscription}/addons/remove', [SubscriptionOpsController::class, 'removeAddOn'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.addons.remove');
+    Route::post('/subscriptions/{subscription}/scheduled-change/cancel', [SubscriptionOpsController::class, 'cancelScheduledChange'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.scheduled-change.cancel');
 
     // Retention actions (App-A ManagesRetention): cancel-with-reason / pause / reactivate.
     Route::post('/subscriptions/{subscription}/cancel', [RetentionController::class, 'cancel'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.cancel');
@@ -54,8 +74,27 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/analytics/retention', [AnalyticsController::class, 'retention'])->middleware('billing.permission:analytics:read')->name('analytics.retention');
 
     Route::get('/invoices', [BillingController::class, 'invoices'])->middleware('billing.permission:invoices:read')->name('billing.invoices');
+
+    // --- Invoice lifecycle actions (Wave 3): manual create + void/refund/mark-paid/resend.
+    // Reads carry `invoices:read`; every money-moving write carries `invoices:refund` (the
+    // manifest's invoice-mutation authority) and is guarded server-side in InvoiceOperations.
+    // `/invoices/new` is declared before `/invoices/{invoice}` so the static segment is never
+    // captured by the model binding.
+    Route::get('/invoices/new', [InvoiceOpsController::class, 'create'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.create');
+    Route::post('/invoices', [InvoiceOpsController::class, 'store'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.store');
+
+    // Credit notes (Wave 3): the legal record surface for refunds/adjustments, read-only
+    // (issued only by the engine). `/credit-notes/{creditNote}` binds by id.
+    Route::get('/credit-notes', [CreditNoteController::class, 'index'])->middleware('billing.permission:invoices:read')->name('billing.credit-notes');
+    Route::get('/credit-notes/{creditNote}', [CreditNoteController::class, 'show'])->middleware('billing.permission:invoices:read')->name('billing.credit-notes.show');
+
     Route::get('/invoices/{invoice}', [BillingController::class, 'invoice'])->middleware('billing.permission:invoices:read')->name('billing.invoices.show');
     Route::get('/invoices/{invoice}/pdf', [BillingController::class, 'invoicePdf'])->middleware('billing.permission:invoices:read')->name('billing.invoices.pdf');
+
+    Route::post('/invoices/{invoice}/void', [InvoiceOpsController::class, 'void'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.void');
+    Route::post('/invoices/{invoice}/refund', [InvoiceOpsController::class, 'refund'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.refund');
+    Route::post('/invoices/{invoice}/mark-paid', [InvoiceOpsController::class, 'markPaid'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.mark-paid');
+    Route::post('/invoices/{invoice}/resend', [InvoiceOpsController::class, 'resend'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.resend');
 
     Route::get('/usage', [BillingController::class, 'usage'])->middleware('billing.permission:usage:read')->name('billing.usage');
     Route::get('/catalog', [BillingController::class, 'catalog'])->middleware('billing.permission:catalog:read')->name('billing.catalog');

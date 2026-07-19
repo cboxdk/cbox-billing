@@ -24,7 +24,10 @@
             <h1 class="cbx-page-title" style="font-size:20px">Subscriptions</h1>
             <p class="cbx-page-desc" style="font-size:13px">{{ $counts['active'] }} active · {{ $counts['trialing'] }} trials · {{ $counts['past_due'] }} past due · {{ $counts['paused'] }} paused · {{ $counts['non_renewing'] }} non-renewing · {{ $counts['canceled'] }} canceled</p>
         </div>
+        <a class="cbx-btn cbx-btn--primary cbx-btn--sm" href="{{ route('billing.subscriptions.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7]) New subscription</a>
     </header>
+
+    @include('partials.flash')
 
     @if (!empty($unresolvedRetirements) && count($unresolvedRetirements) > 0)
         <div class="cbx-panel" style="padding:12px 20px;border-left:3px solid var(--destructive)">

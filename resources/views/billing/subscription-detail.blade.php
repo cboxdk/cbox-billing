@@ -21,6 +21,8 @@
     foreach ($retentionReasons ?? [] as $reason) {
         $reasonOptions[$reason['key']] = $reason['label'];
     }
+    $labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500';
+    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px';
 @endphp
 
 @section('screen')
@@ -297,6 +299,104 @@
                         <button type="submit" class="cbx-btn cbx-btn--secondary cbx-btn--sm">@include('partials.icon', ['name' => 'rotate', 'size' => 14, 'sw' => 1.7]) Reactivate / resume</button>
                     </form>
                 @endif
+            </div>
+        </section>
+    @endif
+
+    {{-- Scheduled (change-at-period-end) plan change awaiting enactment --}}
+    @if (!empty($s['pending_change']))
+        <section class="cbx-panel" style="border-left:3px solid var(--warning, #b3651f)">
+            <header class="cbx-panel-header" style="padding:12px 20px">
+                <div>
+                    <h2 class="cbx-panel-title" style="font-size:14px">Scheduled change</h2>
+                    <p class="cbx-panel-desc" style="font-size:12px">Moves to <strong>{{ $s['pending_change']['plan'] }}</strong> on {{ $s['pending_change']['effective_at'] }} (at period end).</p>
+                </div>
+                <form method="POST" action="{{ route('billing.subscriptions.scheduled-change.cancel', $s['id']) }}"
+                      data-confirm="Cancel the scheduled change to {{ $s['pending_change']['plan'] }}? The subscription stays on its current plan."
+                      data-confirm-title="Cancel scheduled change?" data-confirm-label="Cancel change" data-confirm-variant="destructive">
+                    @csrf
+                    <button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Cancel scheduled change</button>
+                </form>
+            </header>
+        </section>
+    @endif
+
+    {{-- Operator lifecycle (Wave 3): plan change / quantity / add-ons — each preview→confirm. --}}
+    @if (!empty($s['serving']))
+        <section class="cbx-panel">
+            <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Change plan</h2></header>
+            <div style="padding:16px 20px">
+                @if (!empty($s['available_plans']))
+                    <form method="POST" action="{{ route('billing.subscriptions.plan-change.preview', $s['id']) }}" class="cbx-grid-3" style="gap:10px;align-items:end">
+                        @csrf
+                        <label style="{{ $labelStyle }}">New plan
+                            <select name="plan" required style="{{ $inputStyle }}">
+                                @foreach ($s['available_plans'] as $p)
+                                    <option value="{{ $p['key'] }}">{{ $p['name'] }} · {{ MoneyFormatter::minor($p['minor'], $s['currency']) }}/mo</option>
+                                @endforeach
+                            </select></label>
+                        <label style="{{ $labelStyle }}">When
+                            <select name="when" style="{{ $inputStyle }}">
+                                <option value="now">Immediately (prorated)</option>
+                                <option value="period_end">At period end</option>
+                            </select></label>
+                        <div><button type="submit" class="cbx-btn cbx-btn--secondary cbx-btn--sm">Preview change →</button></div>
+                    </form>
+                @else
+                    <p class="mut" style="font-size:13px">No other plans are priced in {{ $s['currency'] }}.</p>
+                @endif
+            </div>
+        </section>
+
+        <section class="cbx-panel">
+            <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Change quantity</h2></header>
+            <div style="padding:16px 20px">
+                <form method="POST" action="{{ route('billing.subscriptions.quantity.preview', $s['id']) }}" class="cbx-grid-3" style="gap:10px;align-items:end">
+                    @csrf
+                    <label style="{{ $labelStyle }}">Billed quantity (currently {{ $s['seats'] }})
+                        <input type="number" name="seats" min="1" value="{{ $s['seats'] }}" required class="num" style="{{ $inputStyle }}"></label>
+                    <div><button type="submit" class="cbx-btn cbx-btn--secondary cbx-btn--sm">Preview reprice →</button></div>
+                </form>
+            </div>
+        </section>
+
+        <section class="cbx-panel">
+            <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Add-ons</h2></header>
+            @if (!empty($s['add_ons']))
+                <table class="tbl">
+                    <thead><tr><th>Key</th><th class="right" style="width:150px">Price</th><th style="width:120px">Alignment</th><th class="right" style="width:120px">Allotment</th><th style="width:100px"></th></tr></thead>
+                    <tbody>
+                        @foreach ($s['add_ons'] as $addOn)
+                            <tr style="cursor:default">
+                                <td class="num">{{ $addOn['key'] }}</td>
+                                <td class="right num">{{ MoneyFormatter::minor($addOn['price_minor'], $addOn['currency']) }}</td>
+                                <td>{{ $addOn['alignment'] }}</td>
+                                <td class="right num">{{ $addOn['credit_allotment'] }}</td>
+                                <td>
+                                    <form method="POST" action="{{ route('billing.subscriptions.addons.remove', $s['id']) }}"
+                                          data-confirm="Remove add-on “{{ $addOn['key'] }}”?" data-confirm-title="Remove add-on?" data-confirm-label="Remove" data-confirm-variant="destructive">
+                                        @csrf<input type="hidden" name="key" value="{{ $addOn['key'] }}">
+                                        <button type="submit" class="cbx-btn cbx-btn--ghost cbx-btn--sm" style="color:var(--destructive)">Remove</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+            <div style="padding:16px 20px;border-top:1px solid var(--border)">
+                <form method="POST" action="{{ route('billing.subscriptions.addons.preview', $s['id']) }}" class="cbx-grid-3" style="gap:10px;align-items:end">
+                    @csrf
+                    <label style="{{ $labelStyle }}">Key
+                        <input name="key" required maxlength="120" placeholder="extra-support" style="{{ $inputStyle }}"></label>
+                    <label style="{{ $labelStyle }}">Price ({{ $s['currency'] }} minor units)
+                        <input type="number" name="price_minor" min="0" required value="0" class="num" style="{{ $inputStyle }}"></label>
+                    <label style="{{ $labelStyle }}">Credit allotment
+                        <input type="number" name="credit_allotment" min="0" value="0" class="num" style="{{ $inputStyle }}"></label>
+                    <input type="hidden" name="currency" value="{{ $s['currency'] }}">
+                    <input type="hidden" name="alignment" value="aligned">
+                    <div><button type="submit" class="cbx-btn cbx-btn--secondary cbx-btn--sm">Preview add-on →</button></div>
+                </form>
             </div>
         </section>
     @endif

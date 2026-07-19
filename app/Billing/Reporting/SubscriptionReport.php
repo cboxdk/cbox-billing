@@ -9,9 +9,11 @@ use App\Billing\Support\SubscriptionRevenue;
 use App\Billing\Support\SubscriptionStanding;
 use App\Models\Organization;
 use App\Models\PaymentRetry;
+use App\Models\Plan;
 use App\Models\PlanCreditGrant;
 use App\Models\PlanEntitlement;
 use App\Models\Subscription;
+use App\Models\SubscriptionAddOn;
 use App\Models\SubscriptionCancellation;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -86,7 +88,7 @@ readonly class SubscriptionReport
     public function find(int $id): ?array
     {
         $subscription = Subscription::query()
-            ->with(['organization.invoices', 'plan.prices', 'plan.entitlements.meter', 'plan.creditGrants'])
+            ->with(['organization.invoices', 'plan.prices', 'plan.entitlements.meter', 'plan.creditGrants', 'pendingPlan', 'addOns'])
             ->find($id);
 
         if ($subscription === null) {
@@ -108,6 +110,27 @@ readonly class SubscriptionReport
         $row['cancellations'] = $this->cancellationsFor($subscription->organization_id);
         $row['credits'] = [];
         $row['entitlements'] = [];
+
+        // Wave 3 operator lifecycle: the plans this subscription can move to (active,
+        // priced in its currency, not its current plan), its attached add-ons, and any
+        // scheduled (change-at-period-end) plan change awaiting enactment.
+        $currency = is_string($row['currency']) ? $row['currency'] : 'DKK';
+        $row['available_plans'] = $this->availablePlans($currency, $plan?->key);
+        $row['add_ons'] = array_values($subscription->addOns()->get()
+            ->map(static fn (SubscriptionAddOn $addOn): array => [
+                'key' => $addOn->key,
+                'price_minor' => $addOn->price_minor,
+                'currency' => $addOn->currency,
+                'alignment' => $addOn->alignment->value,
+                'credit_allotment' => $addOn->credit_allotment,
+            ])->all());
+        $row['pending_change'] = $subscription->hasPendingChange()
+            ? [
+                'plan' => $subscription->pendingPlan?->name,
+                'effective_at' => $subscription->pending_effective_at?->format('Y-m-d'),
+            ]
+            : null;
+        $row['serving'] = $subscription->isServing();
 
         if ($plan === null) {
             return $row;
@@ -144,6 +167,28 @@ readonly class SubscriptionReport
     public function counts(): array
     {
         return SubscriptionStanding::counts();
+    }
+
+    /**
+     * The plans a subscriber can move to: active, priced in its currency, excluding its
+     * current plan — the choices the console plan-change picker offers.
+     *
+     * @return list<array{key: string, name: string, minor: int}>
+     */
+    private function availablePlans(string $currency, ?string $currentKey): array
+    {
+        return array_values(Plan::query()
+            ->with('prices')
+            ->where('active', true)
+            ->orderBy('name')
+            ->get()
+            ->filter(static fn (Plan $plan): bool => $plan->key !== $currentKey && $plan->prices->contains('currency', $currency))
+            ->map(static fn (Plan $plan): array => [
+                'key' => $plan->key,
+                'name' => $plan->name,
+                'minor' => $plan->priceFor($currency)->minor(),
+            ])
+            ->all());
     }
 
     /**

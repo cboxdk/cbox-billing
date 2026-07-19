@@ -67,6 +67,7 @@ class ConsoleNav
                 ['route' => 'billing.invoices', 'label' => 'Open', 'key' => 'open', 'params' => ['status' => 'open'], 'feature' => null, 'order' => 20],
                 ['route' => 'billing.invoices', 'label' => 'Paid', 'key' => 'paid', 'params' => ['status' => 'paid'], 'feature' => null, 'order' => 30],
                 ['route' => 'billing.invoices', 'label' => 'Drafts', 'key' => 'draft', 'params' => ['status' => 'draft'], 'feature' => null, 'order' => 40],
+                ['route' => 'billing.credit-notes', 'label' => 'Credit notes', 'key' => 'credit-notes', 'params' => [], 'feature' => null, 'order' => 50],
             ],
         ],
         'usage' => [

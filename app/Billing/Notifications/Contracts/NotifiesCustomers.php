@@ -27,6 +27,12 @@ interface NotifiesCustomers
     /** Invoice finalized → send the customer the issued invoice. */
     public function invoiceIssued(Invoice $invoice, Subscription $subscription): void;
 
+    /**
+     * Operator re-queued an invoice email → send the issued-invoice mail again, built from
+     * the invoice's own data (no subscription required, so an ad-hoc invoice resends too).
+     */
+    public function invoiceResent(Invoice $invoice): void;
+
     /** Settled-payment webhook applied → send the receipt for the now-paid invoice. */
     public function paymentReceipt(Invoice $invoice): void;
 

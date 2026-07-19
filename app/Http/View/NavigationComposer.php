@@ -8,6 +8,7 @@ use App\Billing\Licensing\LicenseReport;
 use App\Billing\Reporting\InvoiceReport;
 use App\Billing\Reporting\SettingsReport;
 use App\Billing\Support\SubscriptionStanding;
+use App\Models\CreditNote;
 use App\Models\Meter;
 use App\Models\Organization;
 use App\Models\PaymentRetry;
@@ -125,6 +126,7 @@ readonly class NavigationComposer
                 'open' => $invoiceCounts['open'],
                 'paid' => $invoiceCounts['paid'],
                 'draft' => $invoiceCounts['draft'],
+                'credit-notes' => CreditNote::query()->count(),
             ],
             'usage' => [
                 'meters' => Meter::query()->count(),

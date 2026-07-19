@@ -61,8 +61,10 @@ use App\Billing\Subscriptions\ProrationCharger;
 use App\Billing\Subscriptions\SubscriptionDepthService;
 use App\Billing\Subscriptions\SubscriptionService;
 use App\Billing\Subscriptions\TrialService;
+use App\Billing\Support\SubscriptionStanding;
 use App\Billing\Wallet\Contracts\AdjustsWallet;
 use App\Billing\Wallet\WalletAdjustmentService;
+use App\Models\Invoice;
 use App\Models\Meter;
 use App\Models\PlanEntitlement;
 use App\Models\Subscription;
@@ -167,6 +169,21 @@ class BillingServiceProvider extends ServiceProvider
             $model::saved($flush);
             $model::deleted($flush);
         }
+
+        // Maintain the materialized console display standing (PERF-3). A subscription write can
+        // change its own standing; an invoice write can change the org's standing (the
+        // overdue-open-invoice fallback is org-scoped). Both recompute through the same
+        // derivation, so the column always equals the live computation. The recompute writes
+        // via the base query builder (no model event), so these observers never recurse.
+        Subscription::saved(static function (Subscription $subscription): void {
+            SubscriptionStanding::refreshFor($subscription);
+        });
+
+        $refreshOrg = static function (Invoice $invoice): void {
+            SubscriptionStanding::refreshForOrg($invoice->organization_id);
+        };
+        Invoice::saved($refreshOrg);
+        Invoice::deleted($refreshOrg);
     }
 
     /**

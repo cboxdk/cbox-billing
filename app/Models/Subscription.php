@@ -33,6 +33,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $paused_at
  * @property int|null $pending_plan_id
  * @property Carbon|null $pending_effective_at
+ * @property string|null $display_standing
  */
 class Subscription extends Model
 {
@@ -41,6 +42,7 @@ class Subscription extends Model
         'current_period_start', 'current_period_end', 'cancel_at_period_end',
         'trial_ends_at', 'canceled_at',
         'paused_at', 'pending_plan_id', 'pending_effective_at',
+        'display_standing',
     ];
 
     /** @return array<string, string> */

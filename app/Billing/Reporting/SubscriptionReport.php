@@ -16,7 +16,7 @@ use App\Models\Subscription;
 use App\Models\SubscriptionAddOn;
 use App\Models\SubscriptionCancellation;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
-use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -47,39 +47,41 @@ readonly class SubscriptionReport
     }
 
     /**
-     * The paginated, optionally searched Subscriptions list. The display standing is derived
-     * per row (not a stored column), so the status filter and search are applied to the
-     * projected collection and paginated in memory — the console's dataset is modest and this
-     * keeps the derived-standing tabs working alongside the filter.
+     * The paginated, optionally searched Subscriptions list. The display standing is now a
+     * materialized, indexed column (PERF-3), so the status filter is a real `WHERE` and
+     * pagination happens AT THE DATABASE — only the visible page is loaded and projected,
+     * ordered by organization name (joined for the sort/search), not the whole table sliced
+     * in memory.
      *
      * @return LengthAwarePaginatorContract<int, array<string, mixed>>
      */
     public function paginate(?string $status = null, ?string $search = null, int $perPage = 20): LengthAwarePaginatorContract
     {
-        $rows = $this->list($status);
+        $query = Subscription::query()
+            ->select('subscriptions.*')
+            ->join('organizations', 'organizations.id', '=', 'subscriptions.organization_id')
+            ->leftJoin('plans', 'plans.id', '=', 'subscriptions.plan_id')
+            ->with(['organization.invoices', 'plan.prices'])
+            ->orderBy('organizations.name')
+            ->orderBy('subscriptions.id');
+
+        if ($status !== null && $status !== 'all') {
+            $query->where('subscriptions.display_standing', $status);
+        }
 
         $search = $search !== null ? trim($search) : null;
 
         if ($search !== null && $search !== '') {
-            $needle = mb_strtolower($search);
-            $rows = $rows->filter(static function (array $row) use ($needle): bool {
-                $org = $row['org'] ?? '';
-                $plan = $row['plan'] ?? '';
-
-                return (is_string($org) && str_contains(mb_strtolower($org), $needle))
-                    || (is_string($plan) && str_contains(mb_strtolower($plan), $needle));
-            })->values();
+            $like = '%'.$search.'%';
+            $query->where(static function (Builder $inner) use ($like): void {
+                $inner->where('organizations.name', 'like', $like)
+                    ->orWhere('plans.name', 'like', $like);
+            });
         }
 
-        $page = LengthAwarePaginator::resolveCurrentPage();
-
-        return new LengthAwarePaginator(
-            $rows->forPage($page, $perPage)->values(),
-            $rows->count(),
-            $perPage,
-            $page,
-            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => request()->query()],
-        );
+        return $query->paginate($perPage)
+            ->through(fn (Subscription $subscription): array => $this->row($subscription))
+            ->withQueryString();
     }
 
     /**
@@ -269,7 +271,9 @@ readonly class SubscriptionReport
         $plan = $subscription->plan;
         $name = $organization !== null ? $organization->name : 'Unknown';
 
-        $standing = SubscriptionStanding::of($subscription);
+        // Read the materialized standing the list/counts filter on (PERF-3); fall back to the
+        // live derivation for a row whose column has not been backfilled yet.
+        $standing = $subscription->display_standing ?? SubscriptionStanding::of($subscription);
 
         return [
             'id' => $subscription->id,

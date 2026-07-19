@@ -7,6 +7,7 @@ namespace App\Billing\Support;
 use App\Models\Invoice;
 use App\Models\Subscription;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Derives the console's display standing for a subscription. Now that the engine models
@@ -87,7 +88,9 @@ class SubscriptionStanding
     }
 
     /**
-     * Console counts by display standing, over every subscription.
+     * Console counts by display standing, over every subscription — a single indexed
+     * `GROUP BY` over the materialized {@see $display_standing} column (PERF-3), not a
+     * whole-table load and PHP tally.
      *
      * @return array{active: int, trialing: int, past_due: int, paused: int, non_renewing: int, canceled: int, all: int}
      */
@@ -95,8 +98,15 @@ class SubscriptionStanding
     {
         $tally = ['active' => 0, 'trialing' => 0, 'past_due' => 0, 'paused' => 0, 'non_renewing' => 0, 'canceled' => 0];
 
-        foreach (Subscription::query()->with('organization.invoices')->get() as $subscription) {
-            $tally[self::of($subscription)]++;
+        $rows = Subscription::query()
+            ->toBase()
+            ->selectRaw('display_standing, count(*) as aggregate')
+            ->groupBy('display_standing')
+            ->pluck('aggregate', 'display_standing');
+
+        foreach ($tally as $standing => $_) {
+            $count = $rows->get($standing);
+            $tally[$standing] = is_numeric($count) ? (int) $count : 0;
         }
 
         return [
@@ -108,5 +118,51 @@ class SubscriptionStanding
             'canceled' => $tally['canceled'],
             'all' => array_sum($tally),
         ];
+    }
+
+    /**
+     * Recompute and persist one subscription's materialized {@see $display_standing} (PERF-3).
+     * The stored value is derived through {@see of()} against the org's invoices, so it equals
+     * the live computation by construction. Written with the base query builder — no model
+     * event, no timestamp bump — so the maintaining observer never recurses.
+     */
+    public static function refreshFor(Subscription $subscription): void
+    {
+        $subscription->loadMissing('organization.invoices');
+
+        $standing = self::of($subscription);
+
+        DB::table('subscriptions')->where('id', $subscription->getKey())->update(['display_standing' => $standing]);
+
+        // Keep the in-memory instance consistent with what was just persisted.
+        $subscription->setAttribute('display_standing', $standing);
+        $subscription->syncOriginalAttribute('display_standing');
+    }
+
+    /**
+     * Recompute the standing for every subscription of an organization (PERF-3). Used when an
+     * INVOICE changes — the overdue-open-invoice fallback is org-scoped, so any of the org's
+     * subscriptions may change standing even though the subscription rows themselves did not.
+     */
+    public static function refreshForOrg(string $organizationId): void
+    {
+        Subscription::query()
+            ->where('organization_id', $organizationId)
+            ->with('organization.invoices')
+            ->get()
+            ->each(static function (Subscription $subscription): void {
+                self::refreshFor($subscription);
+            });
+    }
+
+    /** Recompute every subscription's standing (the daily catch-up for due dates that pass). */
+    public static function refreshAll(): void
+    {
+        Subscription::query()->with('organization.invoices')
+            ->chunkById(200, static function ($subscriptions): void {
+                foreach ($subscriptions as $subscription) {
+                    self::refreshFor($subscription);
+                }
+            });
     }
 }

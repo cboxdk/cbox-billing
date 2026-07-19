@@ -29,6 +29,13 @@ Schedule::command('billing:reconcile-active')->everyFifteenMinutes()->withoutOve
 Schedule::command('billing:apply-scheduled-changes')->hourly()->withoutOverlapping();
 
 /*
+ * Recompute the materialized subscription display standings (PERF-3) before the daily passes,
+ * so an account whose invoice has merely crossed its due date reads as past_due on the console
+ * even though no write touched it. Event-driven maintenance keeps it fresh the rest of the day.
+ */
+Schedule::command('billing:refresh-standings')->dailyAt('02:15')->withoutOverlapping();
+
+/*
  * Migrate subscriptions off retiring plans (ADR-0016) BEFORE the daily renewal, so a
  * subscriber whose renewal is due is moved onto their chosen successor / the default (or
  * flagged unresolved) and never renews on the retired plan. Also sends the plan-retiring

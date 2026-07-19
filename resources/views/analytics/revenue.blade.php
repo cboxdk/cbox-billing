@@ -40,7 +40,7 @@
         </div>
         <div class="filters" style="margin:0">
             @foreach ($currencies as $cur)
-                <button class="fchip {{ $currency === $cur ? 'set' : '' }}" onclick="window.location='{{ route('analytics.revenue', ['currency' => $cur]) }}'">{{ $cur }}</button>
+                <a class="fchip {{ $currency === $cur ? 'set' : '' }}" href="{{ route('analytics.revenue', ['currency' => $cur]) }}">{{ $cur }}</a>
             @endforeach
         </div>
     </header>

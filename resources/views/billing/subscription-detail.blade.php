@@ -1,6 +1,11 @@
 @extends('layouts.app')
 @section('title', 'Subscription')
-@section('crumb', 'Subscription')
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Subscriptions', 'href' => route('billing.subscriptions')],
+        ['label' => $subscription['org'] ?? 'Subscription'],
+    ]" />
+@endsection
 
 @php
     use App\Billing\Support\MoneyFormatter;
@@ -22,12 +27,7 @@
 <div class="page">
     <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.subscriptions') }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to subscriptions</a>
 
-    @if (session('status'))
-        <div class="cbx-pill cbx-pill--success" style="align-self:flex-start;padding:7px 12px"><span class="dot"></span>{{ session('status') }}</div>
-    @endif
-    @if (session('error'))
-        <div class="cbx-pill cbx-pill--destructive" style="align-self:flex-start;padding:7px 12px">{{ session('error') }}</div>
-    @endif
+    @include('partials.flash')
 
     <header class="cbx-page-header">
         <div style="display:flex;align-items:center;gap:12px">
@@ -83,7 +83,7 @@
         </section>
     @endif
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div class="cbx-grid-2">
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Plan &amp; period</h2></header>
             <dl style="margin:0;padding:2px 20px 6px">
@@ -135,7 +135,8 @@
 
             {{-- Buy / release purchased seats (guardrailed: cannot drop below the assigned count) --}}
             <div style="padding:12px 20px;border-top:1px solid var(--border)">
-                <form method="POST" action="{{ route('billing.subscriptions.seats.set', $s['id']) }}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+                <form method="POST" action="{{ route('billing.subscriptions.seats.set', $s['id']) }}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end"
+                      data-confirm="Update purchased {{ $fullLabel }} seats for {{ $s['org'] }}? Buying prorates a charge now; releasing credits the balance." data-confirm-title="Change purchased seats?" data-confirm-label="Update seats" data-confirm-variant="primary">
                     @csrf
                     <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted-foreground)">Purchased {{ $fullLabel }} seats
                         <input type="number" name="seats" min="{{ max(1, $seats->assigned) }}" value="{{ $seats->purchased }}" class="num" style="height:32px;width:120px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 10px;font-family:var(--font-sans)">
@@ -176,7 +177,8 @@
                             <td class="mut">{{ $member['role'] ?: '—' }}</td>
                             <td><span class="cbx-pill cbx-pill--{{ ($member['source'] ?? 'manual') === 'auto' ? 'info' : 'muted' }}">{{ $member['source'] ?? 'manual' }}</span></td>
                             <td class="right">
-                                <form method="POST" action="{{ route('billing.subscriptions.seats.unassign', $s['id']) }}" style="margin:0">
+                                <form method="POST" action="{{ route('billing.subscriptions.seats.unassign', $s['id']) }}" style="margin:0"
+                                      data-confirm="Unassign {{ $member['subject'] }}'s {{ $fullLabel }} seat? They become a {{ $lightLabel }} (free) member and lose {{ $fullLabel }} access." data-confirm-title="Unassign seat?" data-confirm-label="Unassign seat">
                                     @csrf
                                     <input type="hidden" name="subject" value="{{ $member['subject'] }}">
                                     <button type="submit" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Unassign</button>
@@ -244,10 +246,11 @@
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Retention</h2></header>
             <div style="padding:16px 20px;display:flex;flex-direction:column;gap:14px">
-                <form method="POST" action="{{ route('billing.subscriptions.cancel', $s['id']) }}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+                <form method="POST" action="{{ route('billing.subscriptions.cancel', $s['id']) }}" id="retention-form" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end"
+                      data-confirm="The subscription stays active until the period end, then cancels." data-confirm-title="Schedule cancellation?" data-confirm-label="Apply" data-confirm-variant="destructive">
                     @csrf
                     <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted-foreground)">Action
-                        <select name="mode" class="num" style="height:32px;min-width:170px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 8px;font-family:var(--font-sans)">
+                        <select name="mode" id="retention-mode" class="num" style="height:32px;min-width:170px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 8px;font-family:var(--font-sans)">
                             <option value="period_end">Cancel at period end</option>
                             <option value="immediate">Cancel immediately</option>
                             <option value="pause">Pause instead</option>
@@ -264,6 +267,21 @@
                     <input name="feedback" placeholder="Feedback (optional)" style="height:32px;flex:1;min-width:200px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 10px;font-family:var(--font-sans);font-size:13px">
                     <button type="submit" class="cbx-btn cbx-btn--destructive cbx-btn--sm">@include('partials.icon', ['name' => 'x', 'size' => 14, 'sw' => 1.7]) Apply</button>
                 </form>
+                {{-- Reflect the chosen action's real consequence in the shared confirm dialog. --}}
+                <script>
+                (function(){
+                    var f = document.getElementById('retention-form'), m = document.getElementById('retention-mode');
+                    if (!f || !m) return;
+                    var org = @json($s['org']);
+                    var map = {
+                        immediate: { t: 'Cancel immediately?', b: 'Access ends now for ' + org + '. This cannot be undone and the current period is not refunded automatically.', l: 'Cancel now', v: 'destructive' },
+                        period_end: { t: 'Schedule cancellation?', b: 'The subscription stays active until the period end, then cancels. You can reactivate before then.', l: 'Schedule cancel', v: 'destructive' },
+                        pause: { t: 'Pause subscription?', b: 'Billing pauses for ' + org + '. You can resume at any time.', l: 'Pause', v: 'primary' }
+                    };
+                    function sync(){ var c = map[m.value] || map.period_end; f.setAttribute('data-confirm', c.b); f.setAttribute('data-confirm-title', c.t); f.setAttribute('data-confirm-label', c.l); f.setAttribute('data-confirm-variant', c.v); }
+                    m.addEventListener('change', sync); sync();
+                })();
+                </script>
                 {{-- Save-offers the bound retention seam presents (basic default: pause instead of cancel) --}}
                 @if (!empty($retentionOffers))
                     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid var(--border);padding-top:12px">

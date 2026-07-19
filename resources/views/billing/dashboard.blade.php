@@ -57,7 +57,7 @@
             <thead><tr><th style="width:150px">Invoice</th><th>Customer</th><th style="width:90px">Date</th><th class="right" style="width:140px">Amount</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($recentInvoices as $inv)
-                    <tr onclick="window.location='{{ route('billing.invoices.show', $inv['id']) }}'">
+                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" role="link" aria-label="Open invoice {{ $inv['number'] }}">
                         <td class="num">{{ $inv['number'] }}</td>
                         <td><span style="display:flex;align-items:center;gap:8px"><span class="avatar-sm" style="width:20px;height:20px;font-size:8px">{{ $inv['ini'] }}</span>{{ $inv['org'] }}</span></td>
                         <td class="num mut">{{ $inv['date'] }}</td>
@@ -75,13 +75,13 @@
         </table>
     </section>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div class="cbx-grid-2">
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Revenue by plan</h2><span class="cbx-pill cbx-pill--info">MRR · {{ $primaryCurrency }}</span></header>
             <table class="tbl">
                 <tbody>
                     @forelse ($planBreakdown as $row)
-                        <tr onclick="window.location='{{ route('billing.catalog') }}'">
+                        <tr data-href="{{ route('billing.catalog') }}" tabindex="0" role="link" aria-label="View {{ $row['plan'] }} in catalog">
                             <td style="font-weight:500">{{ $row['plan'] }}</td>
                             <td class="num mut" style="width:80px">{{ $row['count'] }} subs</td>
                             <td class="right num">{{ MoneyFormatter::minor($row['minor'], $row['currency']) }}</td>

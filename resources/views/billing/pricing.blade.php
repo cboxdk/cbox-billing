@@ -15,7 +15,7 @@
         </div>
         <div class="filters" style="margin:0">
             @foreach ($currencies as $cur)
-                <button class="fchip {{ $currency === $cur ? 'set' : '' }}" onclick="window.location='{{ route('billing.pricing', ['currency' => $cur]) }}'">{{ $cur }}</button>
+                <a class="fchip {{ $currency === $cur ? 'set' : '' }}" href="{{ route('billing.pricing', ['currency' => $cur]) }}">{{ $cur }}</a>
             @endforeach
         </div>
     </header>

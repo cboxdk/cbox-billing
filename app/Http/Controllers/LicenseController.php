@@ -24,12 +24,16 @@ use Illuminate\Http\Request;
  */
 class LicenseController extends Controller
 {
-    public function index(LicenseReport $report, Config $config): View
+    public function index(Request $request, LicenseReport $report, Config $config): View
     {
+        $q = $request->query('q');
+        $search = is_string($q) && trim($q) !== '' ? trim($q) : null;
+
         return view('billing.licenses', [
             'activeArea' => 'licenses',
             'activeNav' => 'issued',
-            'licenses' => $report->list(),
+            'search' => $search,
+            'licenses' => $report->paginate($search),
             'counts' => $report->counts(),
             'organizations' => Organization::query()->orderBy('name')->get(['id', 'name']),
             'licensablePlans' => $this->licensablePlans($config),

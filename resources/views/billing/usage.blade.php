@@ -10,7 +10,6 @@
         'unlimited' => 'var(--info)',
         'disabled' => 'var(--border-strong)',
     ];
-    $rows = $selectedOrg ? $organizations->where('org_id', $selectedOrg) : $organizations;
 @endphp
 
 @section('screen')
@@ -22,14 +21,22 @@
         </div>
     </header>
 
-    <div class="filters">
-        <button class="fchip {{ $selectedOrg ? '' : 'set' }}" onclick="window.location='{{ route('billing.usage') }}'">All organizations</button>
+    <form method="GET" action="{{ route('billing.usage') }}" class="filters" role="search">
+        <div class="fsearch">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<input name="q" value="{{ $search }}" placeholder="Filter organizations…" aria-label="Filter organizations"><kbd class="k">F</kbd></div>
+        @if ($search)
+            <a href="{{ route('billing.usage') }}" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Clear</a>
+        @endif
+        <span style="margin-left:auto" class="num mut">{{ $cards->total() }}{{ $search ? ' matching' : '' }} organizations</span>
+    </form>
+
+    <div class="filters" style="flex-wrap:wrap">
+        <a class="fchip {{ $selectedOrg ? '' : 'set' }}" href="{{ route('billing.usage') }}">All organizations</a>
         @foreach ($organizations as $org)
-            <button class="fchip {{ $selectedOrg === $org['org_id'] ? 'set' : '' }}" onclick="window.location='{{ route('billing.usage', ['org' => $org['org_id']]) }}'">{{ $org['org'] }}</button>
+            <a class="fchip {{ $selectedOrg === $org['org_id'] ? 'set' : '' }}" href="{{ route('billing.usage', ['org' => $org['org_id']]) }}">{{ $org['org'] }}</a>
         @endforeach
     </div>
 
-    @foreach ($rows as $org)
+    @foreach ($cards as $org)
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px">
                 <div style="display:flex;align-items:center;gap:10px"><span class="avatar-sm" style="width:22px;height:22px;font-size:9px">{{ $org['ini'] }}</span><h2 class="cbx-panel-title" style="font-size:14px">{{ $org['org'] }}</h2></div>
@@ -70,5 +77,17 @@
             </div>
         </section>
     @endforeach
+
+    @if ($cards->total() === 0)
+        <div class="cbx-panel">
+            @if ($search)
+                <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No organizations match “{{ $search }}”. Try a different term or clear the filter.</p></div>
+            @else
+                <div class="cbx-empty"><h3>No usage to show.</h3><p>Metered organizations and their allowances will appear here.</p></div>
+            @endif
+        </div>
+    @endif
+
+    {{ $cards->links('partials.pagination') }}
 </div>
 @endsection

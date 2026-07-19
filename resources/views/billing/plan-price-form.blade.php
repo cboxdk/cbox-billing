@@ -1,6 +1,11 @@
 @extends('layouts.app')
 @section('title', 'Plan price')
-@section('crumb', 'Catalog')
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Catalog', 'href' => route('billing.catalog')],
+        ['label' => $price !== null ? 'Edit price' : 'New price'],
+    ]" />
+@endsection
 
 @php
     use App\Billing\Support\MoneyFormatter;
@@ -46,20 +51,7 @@
         <a href="{{ route('billing.catalog') }}" class="cbx-btn">Back to catalog</a>
     </header>
 
-    @if (session('catalog_error'))
-        <div class="cbx-panel" style="padding:12px 20px;margin-bottom:14px;border-left:3px solid var(--destructive)">
-            <strong style="color:var(--destructive)">Could not save the price.</strong> <span class="mut">{{ session('catalog_error') }}</span>
-        </div>
-    @endif
-
-    @if ($errors->any())
-        <div class="cbx-panel" style="padding:12px 20px;margin-bottom:14px;border-left:3px solid var(--destructive)">
-            <strong style="color:var(--destructive)">Check the form.</strong>
-            <ul class="mut" style="margin:6px 0 0;padding-left:18px;font-size:12px">
-                @foreach ($errors->all() as $message)<li>{{ $message }}</li>@endforeach
-            </ul>
-        </div>
-    @endif
+    @include('partials.flash')
 
     <section class="cbx-panel">
         <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">{{ $editing ? $price->plan?->name.' — '.$price->currency : 'Price details' }}</h2></header>
@@ -68,7 +60,7 @@
             @csrf
             @if ($editing)@method('PUT')@endif
 
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end">
+            <div class="cbx-grid-3" style="align-items:end">
                 <label style="{{ $labelStyle }}">Plan
                     @if ($editing)
                         <input type="text" value="{{ $price->plan?->name }} ({{ $price->plan?->key }})" disabled style="{{ $inputStyle }};opacity:.7">
@@ -103,7 +95,7 @@
 
             <p class="mut" id="model-help" style="font-size:12px;margin:-6px 0 0"></p>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end">
+            <div class="cbx-grid-2" style="gap:12px;align-items:end">
                 <label style="{{ $labelStyle }}"><span id="base-label">Base amount (minor units)</span>
                     <input type="number" name="price_minor" value="{{ $curBase }}" required min="0" step="1" placeholder="124000" style="{{ $inputStyle }}">
                 </label>

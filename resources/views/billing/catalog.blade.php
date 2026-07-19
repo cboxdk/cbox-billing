@@ -27,17 +27,7 @@
         <a href="{{ route('billing.catalog.prices.create') }}" class="cbx-btn cbx-btn--primary">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New price</a>
     </header>
 
-    @if (session('catalog_error'))
-        <div class="cbx-panel" style="padding:12px 20px;margin-bottom:14px;border-left:3px solid var(--destructive)">
-            <strong style="color:var(--destructive)">Could not save the price.</strong> <span class="mut">{{ session('catalog_error') }}</span>
-        </div>
-    @endif
-
-    @if (session('catalog_notice'))
-        <div class="cbx-panel" style="padding:12px 20px;margin-bottom:14px;border-left:3px solid var(--success)">
-            <span class="mut">{{ session('catalog_notice') }}</span>
-        </div>
-    @endif
+    @include('partials.flash')
 
     @foreach ($products as $product)
         <section class="cbx-panel">
@@ -86,10 +76,12 @@
                                 @if ($plan['retiring'])
                                     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px;color:var(--muted-foreground)">
                                         <span>Retires <strong style="color:var(--foreground)">{{ $plan['retires_at'] }}</strong>@if($plan['default_successor']) · default successor <strong style="color:var(--foreground)">{{ $plan['default_successor'] }}</strong>@else · <span style="color:var(--destructive)">no default (unresolved subscribers flagged)</span>@endif</span>
-                                        <form method="POST" action="{{ route('billing.catalog.plans.unretire', $plan['id']) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Un-retire</button></form>
+                                        <form method="POST" action="{{ route('billing.catalog.plans.unretire', $plan['id']) }}" style="margin:0"
+                                              data-confirm="Un-retire {{ $plan['name'] }}? It will no longer be scheduled to retire and subscribers stay on it." data-confirm-title="Un-retire plan?" data-confirm-label="Un-retire" data-confirm-variant="primary">@csrf<button type="submit" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Un-retire</button></form>
                                     </div>
                                 @else
-                                    <form method="POST" action="{{ route('billing.catalog.plans.retire', $plan['id']) }}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                                    <form method="POST" action="{{ route('billing.catalog.plans.retire', $plan['id']) }}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"
+                                          data-confirm="Mark {{ $plan['name'] }} as retiring? Subscribers must move to a successor or the default plan before their next renewal, or they are flagged unresolved." data-confirm-title="Retire this plan?" data-confirm-label="Mark retiring" data-confirm-variant="primary">
                                         @csrf
                                         <span class="mut" style="font-size:12px">Retire this plan</span>
                                         <input type="date" name="retires_at" required style="height:30px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--card);color:var(--foreground);padding:0 8px;font-family:var(--font-sans);font-size:12px">

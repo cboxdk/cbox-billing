@@ -13,21 +13,24 @@
     <header class="cbx-page-header">
         <div>
             <h1 class="cbx-page-title" style="font-size:20px">Customers</h1>
-            <p class="cbx-page-desc" style="font-size:13px">{{ count($customers) }} organizations · plan, standing and outstanding balance</p>
+            <p class="cbx-page-desc" style="font-size:13px">{{ $customers->total() }} organizations · plan, standing and outstanding balance</p>
         </div>
     </header>
 
-    <div class="filters">
-        <div class="fsearch">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<input placeholder="Filter customers…"><kbd class="k">F</kbd></div>
-        <span style="margin-left:auto" class="num mut">{{ count($customers) }} results</span>
-    </div>
+    <form method="GET" action="{{ route('billing.customers') }}" class="filters" role="search">
+        <div class="fsearch">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<input name="q" value="{{ $search }}" placeholder="Filter customers…" aria-label="Filter customers"><kbd class="k">F</kbd></div>
+        @if ($search)
+            <a href="{{ route('billing.customers') }}" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Clear</a>
+        @endif
+        <span style="margin-left:auto" class="num mut">{{ $customers->total() }}{{ $search ? ' matching' : '' }} results</span>
+    </form>
 
     <section class="cbx-panel">
         <table class="tbl">
             <thead><tr><th>Organization</th><th style="width:110px">Plan</th><th style="width:110px">Status</th><th style="width:100px">Standing</th><th class="right" style="width:140px">Outstanding</th><th style="width:36px"></th></tr></thead>
             <tbody>
-                @foreach ($customers as $cust)
-                    <tr onclick="window.location='{{ route('billing.customers.show', $cust['id']) }}'">
+                @forelse ($customers as $cust)
+                    <tr data-href="{{ route('billing.customers.show', $cust['id']) }}" tabindex="0" role="link" aria-label="Open customer {{ $cust['org'] }}">
                         <td><span style="display:flex;align-items:center;gap:10px"><span class="avatar-sm">{{ $cust['ini'] }}</span><span><span style="display:block;font-weight:500">{{ $cust['org'] }}</span><span class="num mut" style="display:block;font-size:11px">{{ $cust['id'] }} · {{ $cust['country'] }}</span></span></span></td>
                         <td>{{ $cust['plan'] ?? '—' }}</td>
                         <td><span class="cbx-pill cbx-pill--{{ $statusPill[$cust['status']] ?? 'muted' }}">{{ $cust['status'] === 'none' ? 'no sub' : $cust['status'] }}</span></td>
@@ -35,9 +38,19 @@
                         <td class="right num">{{ $cust['outstanding_label'] }}</td>
                         <td class="rowchev">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])</td>
                     </tr>
-                @endforeach
+                @empty
+                    <tr><td colspan="6" style="padding:0">
+                        @if ($search)
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No organizations match “{{ $search }}”. Try a different term or clear the filter.</p></div>
+                        @else
+                            <div class="cbx-empty"><h3>No customers yet.</h3><p>Organizations you bill will appear here.</p></div>
+                        @endif
+                    </td></tr>
+                @endforelse
             </tbody>
         </table>
     </section>
+
+    {{ $customers->links('partials.pagination') }}
 </div>
 @endsection

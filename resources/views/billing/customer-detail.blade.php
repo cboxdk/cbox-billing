@@ -1,6 +1,11 @@
 @extends('layouts.app')
 @section('title', 'Customer')
-@section('crumb', 'Customer')
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Customers', 'href' => route('billing.customers')],
+        ['label' => $customer['org'] ?? 'Customer'],
+    ]" />
+@endsection
 
 @php
     use App\Billing\Support\MoneyFormatter;
@@ -27,7 +32,7 @@
         </div>
     </header>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div class="cbx-grid-2">
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Account</h2></header>
             <dl style="margin:0;padding:2px 20px 6px">
@@ -54,7 +59,7 @@
             <thead><tr><th style="width:170px">Invoice</th><th style="width:110px">Date</th><th class="right" style="width:150px">Amount</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($c['invoices'] as $inv)
-                    <tr onclick="window.location='{{ route('billing.invoices.show', $inv['id']) }}'">
+                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" role="link" aria-label="Open invoice {{ $inv['number'] }}">
                         <td class="num">{{ $inv['number'] }}</td>
                         <td class="num mut">{{ $inv['date'] }}</td>
                         <td class="right num">{{ MoneyFormatter::minor($inv['minor'], $inv['currency']) }}</td>

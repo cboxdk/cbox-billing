@@ -16,12 +16,20 @@
         </div>
     </header>
 
+    <form method="GET" action="{{ route('billing.subscriptions.dunning') }}" class="filters" role="search">
+        <div class="fsearch">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<input name="q" value="{{ $search }}" placeholder="Filter by customer…" aria-label="Filter dunning"><kbd class="k">F</kbd></div>
+        @if ($search)
+            <a href="{{ route('billing.subscriptions.dunning') }}" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Clear</a>
+        @endif
+        <span style="margin-left:auto" class="num mut">{{ $retries->total() }}{{ $search ? ' matching' : '' }} in dunning</span>
+    </form>
+
     <section class="cbx-panel">
         <table class="tbl">
             <thead><tr><th>Customer</th><th style="width:150px">Invoice</th><th class="right" style="width:130px">Amount</th><th class="right" style="width:100px">Attempts</th><th style="width:120px">Next retry</th><th style="width:110px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($retries as $r)
-                    <tr @if($r['subscription_id'])onclick="window.location='{{ route('billing.subscriptions.show', $r['subscription_id']) }}'"@else style="cursor:default"@endif>
+                    <tr @if($r['subscription_id']) data-href="{{ route('billing.subscriptions.show', $r['subscription_id']) }}" tabindex="0" role="link" aria-label="Open subscription for {{ $r['org'] }}" @else style="cursor:default" @endif>
                         <td><span style="display:flex;align-items:center;gap:10px"><span class="avatar-sm">{{ $r['ini'] }}</span>{{ $r['org'] }}</span></td>
                         <td class="num">{{ $r['invoice'] }}</td>
                         <td class="right num">{{ MoneyFormatter::minor($r['invoice_minor'], $r['currency']) }}</td>
@@ -31,10 +39,18 @@
                         <td class="rowchev">@if($r['subscription_id'])@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])@endif</td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="mut" style="padding:24px;text-align:center">No failed charges in dunning.</td></tr>
+                    <tr><td colspan="7" style="padding:0">
+                        @if ($search)
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No accounts in dunning match “{{ $search }}”.</p></div>
+                        @else
+                            <div class="cbx-empty"><h3>No failed charges in dunning.</h3><p>Renewals that fail to charge appear here while smart-retry chases them.</p></div>
+                        @endif
+                    </td></tr>
                 @endforelse
             </tbody>
         </table>
     </section>
+
+    {{ $retries->links('partials.pagination') }}
 </div>
 @endsection

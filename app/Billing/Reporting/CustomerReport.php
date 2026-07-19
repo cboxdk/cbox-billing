@@ -14,6 +14,7 @@ use App\Models\Subscription;
 use Cbox\Billing\Account\Contracts\AccountStanding;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 /**
@@ -35,6 +36,33 @@ readonly class CustomerReport
             ->orderBy('name')
             ->get()
             ->map(fn (Organization $organization): array => $this->row($organization));
+    }
+
+    /**
+     * The paginated, optionally searched list for the Customers screen. Search matches the
+     * organization name, id, or billing country.
+     *
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    public function paginate(?string $search = null, int $perPage = 20): LengthAwarePaginator
+    {
+        $query = Organization::query()
+            ->with(['subscriptions.plan.prices', 'subscriptions.organization', 'invoices'])
+            ->orderBy('name');
+
+        $search = $search !== null ? trim($search) : null;
+
+        if ($search !== null && $search !== '') {
+            $query->where(function ($sub) use ($search): void {
+                $sub->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('id', 'like', '%'.$search.'%')
+                    ->orWhere('billing_country', 'like', '%'.$search.'%');
+            });
+        }
+
+        return $query->paginate($perPage)
+            ->through(fn (Organization $organization): array => $this->row($organization))
+            ->withQueryString();
     }
 
     /**

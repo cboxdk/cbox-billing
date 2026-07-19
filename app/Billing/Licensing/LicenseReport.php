@@ -9,7 +9,10 @@ use Cbox\Billing\Licensing\RevocationPublisher;
 use Cbox\Billing\Licensing\ValueObjects\IssuedLicense;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Read model for the Licenses console area. It assembles the issued-license list with a
@@ -55,6 +58,44 @@ readonly class LicenseReport
             'expires_at' => Carbon::parse($license->expiresAt->format(DATE_ATOM)),
             'status' => $this->status($license, $now),
         ], $this->store->all());
+    }
+
+    /**
+     * The paginated, optionally searched issued-license list. Search matches the customer id,
+     * deployment id, or plan.
+     *
+     * @return LengthAwarePaginatorContract<int, array<string, mixed>>
+     */
+    public function paginate(?string $search = null, int $perPage = 20): LengthAwarePaginatorContract
+    {
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = new Collection($this->list());
+
+        $search = $search !== null ? trim($search) : null;
+
+        if ($search !== null && $search !== '') {
+            $needle = mb_strtolower($search);
+            $rows = $rows->filter(static function (array $row) use ($needle): bool {
+                foreach (['customer_id', 'deployment_id', 'plan'] as $field) {
+                    $value = $row[$field] ?? '';
+                    if (is_string($value) && str_contains(mb_strtolower($value), $needle)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })->values();
+        }
+
+        $page = LengthAwarePaginator::resolveCurrentPage();
+
+        return new LengthAwarePaginator(
+            $rows->forPage($page, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => request()->query()],
+        );
     }
 
     /**

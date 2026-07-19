@@ -32,17 +32,21 @@
         </nav>
     </div>
 
-    <div class="filters">
-        <div class="fsearch">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<input placeholder="Filter invoices…"><kbd class="k">F</kbd></div>
-        <span style="margin-left:auto" class="num mut">{{ count($invoices) }} results</span>
-    </div>
+    <form method="GET" action="{{ route('billing.invoices') }}" class="filters" role="search">
+        @if ($status)<input type="hidden" name="status" value="{{ $status }}">@endif
+        <div class="fsearch">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<input name="q" value="{{ $search }}" placeholder="Filter invoices…" aria-label="Filter invoices"><kbd class="k">F</kbd></div>
+        @if ($search)
+            <a href="{{ $status ? route('billing.invoices', ['status' => $status]) : route('billing.invoices') }}" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Clear</a>
+        @endif
+        <span style="margin-left:auto" class="num mut">{{ $invoices->total() }}{{ $search ? ' matching' : '' }} results</span>
+    </form>
 
     <section class="cbx-panel">
         <table class="tbl">
             <thead><tr><th style="width:160px">Invoice</th><th>Customer</th><th style="width:100px">Date</th><th class="right" style="width:150px">Amount</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($invoices as $inv)
-                    <tr onclick="window.location='{{ route('billing.invoices.show', $inv['id']) }}'">
+                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" role="link" aria-label="Open invoice {{ $inv['number'] }}">
                         <td class="num">{{ $inv['number'] }}</td>
                         <td><span style="display:flex;align-items:center;gap:8px"><span class="avatar-sm" style="width:20px;height:20px;font-size:8px">{{ $inv['ini'] }}</span>{{ $inv['org'] }}</span></td>
                         <td class="num mut">{{ $inv['date'] }}</td>
@@ -54,10 +58,18 @@
                         <td class="rowchev">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])</td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="mut" style="padding:24px;text-align:center">No invoices in this view.</td></tr>
+                    <tr><td colspan="6" style="padding:0">
+                        @if ($search)
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No invoices match “{{ $search }}” in this view. Try a different term or clear the filter.</p></div>
+                        @else
+                            <div class="cbx-empty"><h3>No invoices in this view.</h3><p>Issued invoices will appear here.</p></div>
+                        @endif
+                    </td></tr>
                 @endforelse
             </tbody>
         </table>
     </section>
+
+    {{ $invoices->links('partials.pagination') }}
 </div>
 @endsection

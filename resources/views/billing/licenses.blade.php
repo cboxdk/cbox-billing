@@ -5,8 +5,6 @@
 @php
     $statusPill = ['active' => 'success', 'expiring' => 'warning', 'expired' => 'muted', 'revoked' => 'destructive'];
     $issued = session('issued_license');
-    $error = session('license_error');
-    $notice = session('license_notice');
 @endphp
 
 @section('screen')
@@ -18,17 +16,7 @@
         </div>
     </header>
 
-    @if ($error)
-        <div class="cbx-panel" style="padding:12px 20px;margin-bottom:14px;border-left:3px solid var(--destructive)">
-            <strong style="color:var(--destructive)">Could not issue license.</strong> <span class="mut">{{ $error }}</span>
-        </div>
-    @endif
-
-    @if ($notice)
-        <div class="cbx-panel" style="padding:12px 20px;margin-bottom:14px;border-left:3px solid var(--primary)">
-            <span class="mut">{{ $notice }}</span>
-        </div>
-    @endif
+    @include('partials.flash')
 
     {{-- The freshly minted artifact — the copy-pasteable key the operator hands off. --}}
     @if (is_array($issued))
@@ -52,7 +40,7 @@
                 <p class="cbx-page-desc" style="font-size:12px;margin:8px 0 0">Set <span class="num">CBOX_LICENSE_SIGNING_KEY</span> before issuing. Generate a keypair with <span class="num">php artisan billing:license-keygen</span>.</p>
             </div>
         @else
-            <form method="POST" action="{{ route('billing.licenses.issue') }}" style="padding:8px 20px 18px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end">
+            <form method="POST" action="{{ route('billing.licenses.issue') }}" class="cbx-grid-2" style="padding:8px 20px 18px;gap:12px;align-items:end">
                 @csrf
                 <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500">Customer
                     <select name="customer_id" required style="height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px">
@@ -84,6 +72,14 @@
     </section>
 
     {{-- Issued licenses --}}
+    <form method="GET" action="{{ route('billing.licenses') }}" class="filters" role="search" style="margin-bottom:12px">
+        <div class="fsearch">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<input name="q" value="{{ $search }}" placeholder="Filter by customer, deployment or plan…" aria-label="Filter licenses"><kbd class="k">F</kbd></div>
+        @if ($search)
+            <a href="{{ route('billing.licenses') }}" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Clear</a>
+        @endif
+        <span style="margin-left:auto" class="num mut">{{ $licenses->total() }}{{ $search ? ' matching' : '' }} of {{ $counts['all'] }}</span>
+    </form>
+
     <section class="cbx-panel">
         <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Issued licenses</h2></header>
         <table class="tbl">
@@ -104,7 +100,9 @@
                                         @csrf
                                         <button type="submit" class="cbx-btn" style="font-size:11px;padding:3px 9px">Renew</button>
                                     </form>
-                                    <form method="POST" action="{{ route('billing.licenses.revoke', ['id' => $license['id']]) }}" style="margin:0" onsubmit="return confirm('Revoke {{ $license['id'] }}? It will be refused once the new revocation list is pulled.')">
+                                    <form method="POST" action="{{ route('billing.licenses.revoke', ['id' => $license['id']]) }}" style="margin:0"
+                                          data-confirm="Revoke license {{ $license['id'] }}? It will be refused once the new revocation list is pulled. This cannot be undone."
+                                          data-confirm-title="Revoke license?" data-confirm-label="Revoke license">
                                         @csrf
                                         <button type="submit" class="cbx-btn" style="font-size:11px;padding:3px 9px;color:var(--destructive)">Revoke</button>
                                     </form>
@@ -115,10 +113,18 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="mut" style="padding:20px;text-align:center">No licenses issued yet.</td></tr>
+                    <tr><td colspan="7" style="padding:0">
+                        @if ($search)
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No issued licenses match “{{ $search }}”. Try a different term or clear the filter.</p></div>
+                        @else
+                            <div class="cbx-empty"><h3>No licenses issued yet.</h3><p>Licenses you mint for self-hosted deployments will appear here.</p></div>
+                        @endif
+                    </td></tr>
                 @endforelse
             </tbody>
         </table>
     </section>
+
+    {{ $licenses->links('partials.pagination') }}
 </div>
 @endsection

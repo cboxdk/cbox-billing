@@ -1,6 +1,11 @@
 @extends('layouts.app')
 @section('title', $invoice->number)
-@section('crumb', 'Invoice')
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Invoices', 'href' => route('billing.invoices')],
+        ['label' => $invoice->number],
+    ]" />
+@endsection
 
 @php
     use App\Billing\Support\Initials;
@@ -26,7 +31,7 @@
         </div>
     </header>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div class="cbx-grid-2">
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Bill to</h2></header>
             <dl style="margin:0;padding:2px 20px 6px">

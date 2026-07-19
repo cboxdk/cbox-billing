@@ -6,6 +6,8 @@ namespace App\Billing\Reporting;
 
 use App\Billing\Support\Initials;
 use App\Models\Invoice;
+use App\Models\Organization;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 /**
@@ -32,6 +34,35 @@ readonly class InvoiceReport
         }
 
         return $query->get()->map(fn (Invoice $invoice): array => $this->row($invoice));
+    }
+
+    /**
+     * The paginated, optionally searched list for the Invoices screen. Search matches the
+     * invoice number or the customer's name; the status tab narrows at the database.
+     *
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    public function paginate(?string $status = null, ?string $search = null, int $perPage = 20): LengthAwarePaginator
+    {
+        $query = Invoice::query()->with('organization')->orderByDesc('issued_at')->orderByDesc('id');
+
+        if ($status !== null && $status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        $search = $search !== null ? trim($search) : null;
+
+        if ($search !== null && $search !== '') {
+            $matchingOrgIds = Organization::query()->where('name', 'like', '%'.$search.'%')->pluck('id');
+            $query->where(function ($sub) use ($search, $matchingOrgIds): void {
+                $sub->where('number', 'like', '%'.$search.'%')
+                    ->orWhereIn('organization_id', $matchingOrgIds);
+            });
+        }
+
+        return $query->paginate($perPage)
+            ->through(fn (Invoice $invoice): array => $this->row($invoice))
+            ->withQueryString();
     }
 
     public function find(int $id): ?Invoice

@@ -23,6 +23,7 @@ use Cbox\Billing\Retention\Contracts\CancellationSurvey;
 use Cbox\Billing\Retention\Contracts\RetentionOffers;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -50,24 +51,29 @@ class BillingController extends Controller
     public function subscriptions(Request $request, SubscriptionReport $report, PlanRetirementService $retirements): View
     {
         $status = $this->filter($request, ['active', 'trialing', 'past_due', 'paused', 'non_renewing', 'canceled']);
+        $search = $this->search($request);
 
         return view('billing.subscriptions', [
             'activeArea' => 'subscriptions',
             'activeNav' => $status ?? 'all',
             'status' => $status,
+            'search' => $search,
             'counts' => $report->counts(),
-            'subscriptions' => $report->list($status),
+            'subscriptions' => $report->paginate($status, $search),
             'unresolvedRetirements' => $this->unresolvedRetirements($retirements),
         ]);
     }
 
-    public function dunning(SubscriptionReport $report): View
+    public function dunning(Request $request, SubscriptionReport $report): View
     {
+        $search = $this->search($request);
+
         return view('billing.dunning', [
             'activeArea' => 'subscriptions',
             'activeNav' => 'dunning',
+            'search' => $search,
             'counts' => $report->counts(),
-            'retries' => $report->dunning(),
+            'retries' => $report->paginateDunning($search),
         ]);
     }
 
@@ -101,13 +107,15 @@ class BillingController extends Controller
     public function invoices(Request $request, InvoiceReport $report): View
     {
         $status = $this->filter($request, ['open', 'paid', 'draft']);
+        $search = $this->search($request);
 
         return view('billing.invoices', [
             'activeArea' => 'invoices',
             'activeNav' => $status ?? 'all',
             'status' => $status,
+            'search' => $search,
             'counts' => $report->counts(),
-            'invoices' => $report->list($status),
+            'invoices' => $report->paginate($status, $search),
         ]);
     }
 
@@ -134,12 +142,41 @@ class BillingController extends Controller
     {
         $selected = $request->query('org');
         $organization = is_string($selected) ? Organization::query()->find($selected) : null;
+        $search = $this->search($request);
+
+        $all = $report->forAllOrganizations();
+
+        // The cards to render: a single selected org (chip), else the optionally-searched
+        // full set — paginated so a large fleet doesn't render every meter panel at once.
+        $cards = $organization !== null
+            ? $all->where('org_id', $organization->id)->values()
+            : $all;
+
+        if ($organization === null && $search !== null) {
+            $needle = mb_strtolower($search);
+            $cards = $cards->filter(static function (array $org) use ($needle): bool {
+                $name = $org['org'] ?? '';
+
+                return is_string($name) && str_contains(mb_strtolower($name), $needle);
+            })->values();
+        }
+
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $perPage = 8;
 
         return view('billing.usage', [
             'activeArea' => 'usage',
             'activeNav' => 'meters',
             'selectedOrg' => $organization?->id,
-            'organizations' => $report->forAllOrganizations(),
+            'search' => $search,
+            'organizations' => $all,
+            'cards' => new LengthAwarePaginator(
+                $cards->forPage($page, $perPage)->values(),
+                $cards->count(),
+                $perPage,
+                $page,
+                ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => $request->query()],
+            ),
         ]);
     }
 
@@ -168,12 +205,15 @@ class BillingController extends Controller
         ]);
     }
 
-    public function customers(CustomerReport $report): View
+    public function customers(Request $request, CustomerReport $report): View
     {
+        $search = $this->search($request);
+
         return view('billing.customers', [
             'activeArea' => 'customers',
             'activeNav' => 'organizations',
-            'customers' => $report->list(),
+            'search' => $search,
+            'customers' => $report->paginate($search),
         ]);
     }
 
@@ -263,6 +303,14 @@ class BillingController extends Controller
         $status = $request->query('status');
 
         return is_string($status) && in_array($status, $allowed, true) ? $status : null;
+    }
+
+    /** The trimmed `?q=` search term, or null when absent/blank. */
+    private function search(Request $request): ?string
+    {
+        $q = $request->query('q');
+
+        return is_string($q) && trim($q) !== '' ? trim($q) : null;
     }
 
     /**

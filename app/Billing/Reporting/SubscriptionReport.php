@@ -7,11 +7,14 @@ namespace App\Billing\Reporting;
 use App\Billing\Support\Initials;
 use App\Billing\Support\SubscriptionRevenue;
 use App\Billing\Support\SubscriptionStanding;
+use App\Models\Organization;
 use App\Models\PaymentRetry;
 use App\Models\PlanCreditGrant;
 use App\Models\PlanEntitlement;
 use App\Models\Subscription;
 use App\Models\SubscriptionCancellation;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 /**
@@ -39,6 +42,42 @@ readonly class SubscriptionReport
         }
 
         return $rows;
+    }
+
+    /**
+     * The paginated, optionally searched Subscriptions list. The display standing is derived
+     * per row (not a stored column), so the status filter and search are applied to the
+     * projected collection and paginated in memory — the console's dataset is modest and this
+     * keeps the derived-standing tabs working alongside the filter.
+     *
+     * @return LengthAwarePaginatorContract<int, array<string, mixed>>
+     */
+    public function paginate(?string $status = null, ?string $search = null, int $perPage = 20): LengthAwarePaginatorContract
+    {
+        $rows = $this->list($status);
+
+        $search = $search !== null ? trim($search) : null;
+
+        if ($search !== null && $search !== '') {
+            $needle = mb_strtolower($search);
+            $rows = $rows->filter(static function (array $row) use ($needle): bool {
+                $org = $row['org'] ?? '';
+                $plan = $row['plan'] ?? '';
+
+                return (is_string($org) && str_contains(mb_strtolower($org), $needle))
+                    || (is_string($plan) && str_contains(mb_strtolower($plan), $needle));
+            })->values();
+        }
+
+        $page = LengthAwarePaginator::resolveCurrentPage();
+
+        return new LengthAwarePaginator(
+            $rows->forPage($page, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => request()->query()],
+        );
     }
 
     /**
@@ -121,6 +160,30 @@ readonly class SubscriptionReport
             ->orderByDesc('first_failed_at')
             ->get()
             ->map(fn (PaymentRetry $retry): array => $this->dunningRow($retry));
+    }
+
+    /**
+     * The paginated dunning view, optionally searched by the customer's name.
+     *
+     * @return LengthAwarePaginatorContract<int, array<string, mixed>>
+     */
+    public function paginateDunning(?string $search = null, int $perPage = 20): LengthAwarePaginatorContract
+    {
+        $query = PaymentRetry::query()
+            ->with(['subscription.organization', 'invoice'])
+            ->orderByRaw("CASE status WHEN 'retrying' THEN 0 WHEN 'exhausted' THEN 1 ELSE 2 END")
+            ->orderByDesc('first_failed_at');
+
+        $search = $search !== null ? trim($search) : null;
+
+        if ($search !== null && $search !== '') {
+            $matchingOrgIds = Organization::query()->where('name', 'like', '%'.$search.'%')->pluck('id');
+            $query->whereIn('organization_id', $matchingOrgIds);
+        }
+
+        return $query->paginate($perPage)
+            ->through(fn (PaymentRetry $retry): array => $this->dunningRow($retry))
+            ->withQueryString();
     }
 
     /**

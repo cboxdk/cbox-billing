@@ -57,6 +57,23 @@ readonly class SeatManager implements ManagesSeats
         return $this->depth->changeQuantity($subscription, $seats);
     }
 
+    public function previewPurchased(Subscription $subscription, int $seats): QuantityPreview
+    {
+        if ($seats < 1) {
+            throw SeatException::belowOne();
+        }
+
+        $assigned = $this->assignedCount($subscription->organization_id);
+
+        if ($seats < $assigned) {
+            throw SeatException::belowAssigned($seats, $assigned);
+        }
+
+        // Non-destructive: the engine's own preview, guardrailed identically to setPurchased so
+        // the previewed charge is exactly what a confirm would collect.
+        return $this->depth->previewQuantity($subscription, $seats);
+    }
+
     public function assign(Subscription $subscription, string $subject, SeatSource $source = SeatSource::Manual): SeatAssignment
     {
         $org = $subscription->organization_id;

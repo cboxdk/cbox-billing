@@ -34,6 +34,16 @@ interface ManagesSeats
     public function setPurchased(Subscription $subscription, int $seats): QuantityPreview;
 
     /**
+     * The prorated consequence of setting the purchased count to `$seats` — the exact charge
+     * {@see setPurchased()} would make (preview == charge) — WITHOUT applying it. Enforces the
+     * same guardrails (below one / below the assigned count) so a preview never suggests a
+     * change the confirm would refuse.
+     *
+     * @throws SeatException
+     */
+    public function previewPurchased(Subscription $subscription, int $seats): QuantityPreview;
+
+    /**
      * Assign one free purchased seat to `$subject` (drawn from the eligibility mirror).
      * Idempotent: re-assigning a seated subject returns the existing row. Refuses when no
      * purchased seat is free or the subject is not an eligible member.

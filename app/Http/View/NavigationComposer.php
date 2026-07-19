@@ -9,6 +9,7 @@ use App\Billing\Reporting\InvoiceReport;
 use App\Billing\Reporting\SettingsReport;
 use App\Billing\Support\SubscriptionStanding;
 use App\Models\CboxIdAccessGrant;
+use App\Models\Coupon;
 use App\Models\CreditNote;
 use App\Models\Meter;
 use App\Models\Organization;
@@ -137,6 +138,7 @@ readonly class NavigationComposer
             ],
             'catalog' => [
                 'products' => Product::query()->count(),
+                'coupons' => Coupon::query()->count(),
                 'plans' => Plan::query()->count(),
             ],
             'customers' => [

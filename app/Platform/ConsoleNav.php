@@ -82,6 +82,7 @@ class ConsoleNav
             'pages' => [
                 ['route' => 'billing.catalog', 'label' => 'Catalog', 'key' => 'catalog', 'params' => [], 'feature' => null, 'order' => 10],
                 ['route' => 'billing.products', 'label' => 'Products', 'key' => 'products', 'params' => [], 'feature' => null, 'order' => 20],
+                ['route' => 'billing.coupons', 'label' => 'Coupons', 'key' => 'coupons', 'params' => [], 'feature' => null, 'order' => 25],
                 ['route' => 'billing.pricing', 'label' => 'Plans & pricing', 'key' => 'plans', 'params' => [], 'feature' => null, 'order' => 30],
                 ['route' => 'billing.catalog.prices.create', 'label' => 'New price', 'key' => 'price-new', 'params' => [], 'feature' => null, 'order' => 40],
             ],

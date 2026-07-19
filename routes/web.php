@@ -8,6 +8,7 @@ use App\Http\Controllers\ApiTokenController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CatalogController;
+use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\CustomerOpsController;
 use App\Http\Controllers\DunningController;
@@ -132,6 +133,19 @@ Route::middleware(['auth.cbox', 'billing.operator'])->group(function (): void {
     Route::post('/products/{product}/archive', [ProductController::class, 'archive'])->middleware('billing.permission:catalog:manage')->name('billing.products.archive');
     Route::post('/products/{product}/unarchive', [ProductController::class, 'unarchive'])->middleware('billing.permission:catalog:manage')->name('billing.products.unarchive');
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.products.destroy');
+
+    // Coupons — routable list + detail + create/edit/archive/delete. A redeemed coupon is
+    // archived (its ledger + live discounts preserved); only a never-redeemed coupon is
+    // hard-deleted. Same catalog:read / catalog:manage gate as the rest of the catalog.
+    Route::get('/coupons', [CouponController::class, 'index'])->middleware('billing.permission:catalog:read')->name('billing.coupons');
+    Route::get('/coupons/new', [CouponController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.coupons.create');
+    Route::post('/coupons', [CouponController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.coupons.store');
+    Route::get('/coupons/{coupon}', [CouponController::class, 'show'])->middleware('billing.permission:catalog:read')->name('billing.coupons.show');
+    Route::get('/coupons/{coupon}/edit', [CouponController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.coupons.edit');
+    Route::put('/coupons/{coupon}', [CouponController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.coupons.update');
+    Route::post('/coupons/{coupon}/archive', [CouponController::class, 'archive'])->middleware('billing.permission:catalog:manage')->name('billing.coupons.archive');
+    Route::post('/coupons/{coupon}/unarchive', [CouponController::class, 'unarchive'])->middleware('billing.permission:catalog:manage')->name('billing.coupons.unarchive');
+    Route::delete('/coupons/{coupon}', [CouponController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.coupons.destroy');
 
     // Catalog price authoring: create/edit a plan price and (for tiered models) its tier
     // table; delete a price version (guarded by the currency-lock invariant).

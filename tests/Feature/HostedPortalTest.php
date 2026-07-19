@@ -129,4 +129,32 @@ class HostedPortalTest extends TestCase
 
         $this->assertNotEmpty($gateway->paymentMethods('org_pm'));
     }
+
+    public function test_the_portal_lists_multiple_methods_and_removes_one(): void
+    {
+        $gateway = new FakePaymentGateway(PaymentResult::succeeded('gw_ref'));
+        $this->app->instance(PaymentGateway::class, $gateway);
+
+        $this->subscribedOrg('org_methods');
+        $gateway->attachPaymentMethod('org_methods', 'pm_a');
+        $gateway->attachPaymentMethod('org_methods', 'pm_b');
+
+        // The portal lists the vaulted methods with the remove control.
+        $this->get('/billing/portal/'.$this->portalSession('org_methods')->token)
+            ->assertOk()
+            ->assertSee('Payment methods')
+            ->assertSee('data-pm-remove', false);
+
+        // Set-default returns the refreshed list, then remove detaches through the gateway.
+        $session = $this->portalSession('org_methods');
+        $this->postJson('/billing/portal/'.$session->token.'/payment-method/default', ['payment_method' => 'pm_a'])
+            ->assertOk()->assertJsonPath('methods.0.id', 'pm_a');
+
+        $this->postJson('/billing/portal/'.$session->token.'/payment-method/remove', ['payment_method' => 'pm_a'])
+            ->assertOk();
+
+        $remaining = array_map(static fn ($m): string => $m->id, $gateway->paymentMethods('org_methods'));
+        $this->assertNotContains('pm_a', $remaining);
+        $this->assertContains('pm_b', $remaining);
+    }
 }

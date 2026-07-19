@@ -224,7 +224,45 @@ class PortalController extends HostedController
         $method = $this->gateway->attachPaymentMethod($session->organization_id, $paymentMethodId);
         $this->gateway->setDefaultPaymentMethod($session->organization_id, $paymentMethodId);
 
-        return new JsonResponse(['method' => $this->presentMethod($method)]);
+        return new JsonResponse(['method' => $this->presentMethod($method), 'methods' => $this->methodsFor($session->organization_id)]);
+    }
+
+    /**
+     * `POST` {payment_method} — make an already-vaulted method the off-session default. The
+     * id is a non-sensitive gateway token — never card data.
+     */
+    public function setDefaultMethod(Request $request, string $token): JsonResponse
+    {
+        $request->validate(['payment_method' => ['required', 'string']]);
+
+        $session = $this->require($token, SessionType::Portal);
+        $this->gateway->setDefaultPaymentMethod($session->organization_id, $request->string('payment_method')->toString());
+
+        return new JsonResponse(['methods' => $this->methodsFor($session->organization_id)]);
+    }
+
+    /**
+     * `POST` {payment_method} — detach a vaulted method from the account. The customer keeps
+     * whatever methods remain; the gateway owns the vault, so this is a gateway detach.
+     */
+    public function removeMethod(Request $request, string $token): JsonResponse
+    {
+        $request->validate(['payment_method' => ['required', 'string']]);
+
+        $session = $this->require($token, SessionType::Portal);
+        $this->gateway->detachPaymentMethod($session->organization_id, $request->string('payment_method')->toString());
+
+        return new JsonResponse(['methods' => $this->methodsFor($session->organization_id)]);
+    }
+
+    /**
+     * The account's vaulted methods in the portal's display shape.
+     *
+     * @return list<array{id: string, brand: string, last4: string, exp_month: int|null, exp_year: int|null, default: bool}>
+     */
+    private function methodsFor(string $organizationId): array
+    {
+        return array_map($this->presentMethod(...), $this->gateway->paymentMethods($organizationId));
     }
 
     /**

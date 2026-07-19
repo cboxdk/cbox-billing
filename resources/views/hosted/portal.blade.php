@@ -102,16 +102,26 @@
 
 @if ($subscription)
 <div class="hosted-card">
-    <header><h1>Payment method</h1><p>Update the card future renewals are charged to.</p></header>
+    <header><h1>Payment methods</h1><p>Manage the cards future renewals are charged to.</p></header>
     <div class="hosted-body">
         <div id="methods">
             @forelse ($methods as $method)
-                <div class="line"><span class="k">{{ ucfirst($method->brand) }} ···· {{ $method->last4 ?: '—' }}</span><span class="v">@if($method->isDefault)<span class="cbx-pill cbx-pill--info">default</span>@endif</span></div>
+                <div class="line">
+                    <span class="k">{{ ucfirst($method->brand) }} ···· {{ $method->last4 ?: '—' }}</span>
+                    <span class="v" style="display:flex;gap:8px;align-items:center">
+                        @if($method->isDefault)
+                            <span class="cbx-pill cbx-pill--info">default</span>
+                        @else
+                            <button class="cbx-btn cbx-btn--ghost cbx-btn--sm" data-pm-default="{{ $method->id }}" style="width:auto">Make default</button>
+                        @endif
+                        <button class="cbx-btn cbx-btn--ghost cbx-btn--sm" style="width:auto;color:var(--destructive)" data-pm-remove="{{ $method->id }}" data-pm-label="{{ ucfirst($method->brand) }} ···· {{ $method->last4 ?: '' }}">Remove</button>
+                    </span>
+                </div>
             @empty
                 <div class="line"><span class="k">No saved payment method.</span></div>
             @endforelse
         </div>
-        <button class="cbx-btn cbx-btn--secondary" id="update-pm" style="margin-top:12px">Update payment method</button>
+        <button class="cbx-btn cbx-btn--secondary" id="update-pm" style="margin-top:12px">Add payment method</button>
         <div id="pm-section" style="display:none;margin-top:14px">
             <div class="element" id="setup-element"></div>
             <button class="cbx-btn cbx-btn--primary" id="save-pm" style="margin-top:12px" disabled>Save card</button>
@@ -258,6 +268,26 @@
         if (!ok) { showErr('sunset-error', body.error); sunsetCancel.disabled = false; return; }
         window.location.reload();
     });
+
+    // --- Manage existing methods: set-default + remove (with the confirm modal) ---
+    document.querySelectorAll('[data-pm-default]').forEach(btn => btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const { ok, body } = await post('/payment-method/default', { payment_method: btn.dataset.pmDefault });
+        if (!ok) { showErr('pm-error', body.error); btn.disabled = false; return; }
+        window.location.reload();
+    }));
+    document.querySelectorAll('[data-pm-remove]').forEach(btn => btn.addEventListener('click', async () => {
+        const confirmed = await window.cboxConfirm({
+            title: 'Remove payment method?',
+            body: 'The ' + (btn.dataset.pmLabel || 'card') + ' is detached from your account. Future renewals will need a card on file.',
+            confirmLabel: 'Remove', variant: 'destructive',
+        });
+        if (!confirmed) return;
+        btn.disabled = true;
+        const { ok, body } = await post('/payment-method/remove', { payment_method: btn.dataset.pmRemove });
+        if (!ok) { showErr('pm-error', body.error); btn.disabled = false; return; }
+        window.location.reload();
+    }));
 
     // --- Update payment method: SetupIntent + gateway element ---
     const updateBtn = document.getElementById('update-pm');

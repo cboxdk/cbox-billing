@@ -27,4 +27,6 @@ Route::prefix('billing')->name('hosted.')->group(function (): void {
     Route::post('portal/{token}/retirement/successor', [PortalController::class, 'chooseSuccessor'])->name('portal.retirement.successor');
     Route::post('portal/{token}/setup-intent', [PortalController::class, 'setupIntent'])->name('portal.setup-intent');
     Route::post('portal/{token}/payment-method', [PortalController::class, 'paymentMethod'])->name('portal.payment-method');
+    Route::post('portal/{token}/payment-method/default', [PortalController::class, 'setDefaultMethod'])->name('portal.payment-method.default');
+    Route::post('portal/{token}/payment-method/remove', [PortalController::class, 'removeMethod'])->name('portal.payment-method.remove');
 });

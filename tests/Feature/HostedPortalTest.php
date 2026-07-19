@@ -84,6 +84,10 @@ class HostedPortalTest extends TestCase
         $preview = $this->postJson('/billing/portal/'.$session->token.'/preview', ['plan' => 'team']);
         $preview->assertOk()->assertJsonPath('new_recurring_minor', 124_000)->assertJsonPath('currency', 'DKK');
         $this->assertGreaterThan(0, $preview->json('due_now_minor'));
+        // The preview also carries a server-preformatted amount string (single money seam),
+        // so the client never re-derives it with a hardcoded /100 + locale.
+        $preview->assertJsonPath('new_recurring', 'DKK 1.240,00');
+        $this->assertIsString($preview->json('due_now'));
 
         // Preview does not mutate.
         $this->assertSame('starter', Subscription::query()->where('organization_id', 'org_change')->firstOrFail()->plan->key);

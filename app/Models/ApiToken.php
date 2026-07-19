@@ -19,13 +19,14 @@ use Illuminate\Support\Str;
  * @property string $name
  * @property string|null $organization_id
  * @property int|null $product_id
+ * @property string|null $created_by_sub
  * @property string $hash
  * @property Carbon|null $last_used_at
  * @property Carbon|null $revoked_at
  */
 class ApiToken extends Model
 {
-    protected $fillable = ['name', 'organization_id', 'product_id', 'hash', 'last_used_at', 'revoked_at'];
+    protected $fillable = ['name', 'organization_id', 'product_id', 'created_by_sub', 'hash', 'last_used_at', 'revoked_at'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -52,10 +53,12 @@ class ApiToken extends Model
 
     /**
      * Issue a fresh token, returning the one-time plaintext alongside the stored row.
+     * `$createdBySub` records the Cbox ID subject of the minting operator (SEC-1 audit) —
+     * null for CLI-issued tokens that carry no console session.
      *
      * @return array{token: self, plaintext: string}
      */
-    public static function issue(string $name, ?string $organizationId = null, ?int $productId = null): array
+    public static function issue(string $name, ?string $organizationId = null, ?int $productId = null, ?string $createdBySub = null): array
     {
         $plaintext = Str::random(48);
 
@@ -63,6 +66,7 @@ class ApiToken extends Model
             'name' => $name,
             'organization_id' => $organizationId,
             'product_id' => $productId,
+            'created_by_sub' => $createdBySub,
             'hash' => hash('sha256', $plaintext),
         ]);
 

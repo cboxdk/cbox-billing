@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Auth\CurrentUser;
+use App\Http\Middleware\EnsureOperator;
 use App\Models\ApiToken;
 use App\Models\Organization;
 use App\Models\Product;
@@ -15,11 +17,18 @@ use Illuminate\Http\Request;
  * Self-service API-token authoring (Wave 4) — the console equivalent of the `billing:token`
  * CLI. An operator mints a bearer token for the management/enforcement API (scoped operator,
  * org, or product) and the plaintext is shown ONCE (only its SHA-256 is stored), then revokes
- * it (a confirmed, soft revoke that stops it authenticating immediately). Gated
- * `settings:manage`. Thin over the {@see ApiToken} model's own `issue()`/`revoke()`.
+ * it (a confirmed, soft revoke that stops it authenticating immediately).
+ *
+ * An operator-scoped (org-null) token acts for ANY org — the cross-tenant takeover vector
+ * (SEC-1). It is now doubly protected: the whole console is behind the operator-org gate
+ * ({@see EnsureOperator}), so only a verified operator reaches this
+ * surface at all, and the mint records the minting operator's subject for an audit trail.
+ * Gated `settings:manage`. Thin over the {@see ApiToken} model's own `issue()`/`revoke()`.
  */
 class ApiTokenController extends Controller
 {
+    public function __construct(private readonly CurrentUser $current) {}
+
     public function create(): View
     {
         return view('billing.settings.api-token-form', [
@@ -45,6 +54,7 @@ class ApiTokenController extends Controller
             $request->string('name')->toString(),
             $organizationId,
             $productId,
+            $this->current->user()?->sub,
         );
 
         // Show the plaintext ONCE via a one-shot flash (copybox on the settings page), like the

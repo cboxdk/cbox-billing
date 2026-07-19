@@ -20,6 +20,14 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <!--
+            SEC-1 console operator-org gate. The suite signs into the console as principals in
+            these operator orgs, so the gate stays ACTIVE (deny-by-default is NOT disabled) while
+            the existing console tests still reach it. Tests that assert the deny path override
+            this via config()->set() to an empty allowlist. Keep in sync with the orgs used in
+            the console feature tests' session fixtures.
+        -->
+        <env name="CBOX_BILLING_OPERATOR_ORGS" value="Cbox Systems,org_hverdag,Cbox"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>

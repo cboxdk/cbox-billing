@@ -1,7 +1,7 @@
 ---
 title: Per-environment tenancy
 description: How Cbox Billing is environment-AWARE — the org's home-environment key, the single-default fallback, and how per-environment separation lights up once Cbox ID emits the environment claim.
-weight: 34
+weight: 35
 ---
 
 # Per-environment tenancy

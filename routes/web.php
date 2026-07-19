@@ -41,7 +41,12 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // claim AND CBOX_ID_RBAC_ENFORCE is flipped on (see App\Http\Middleware\EnforcePermission),
 // so declaring it here is safe today and correct the day the signal ships. Read pages carry
 // the `:read` slug; write actions carry `:manage`/`:issue`/`:revoke`.
-Route::middleware('auth.cbox')->group(function (): void {
+//
+// COARSE operator-org gate (SEC-1): `billing.operator` runs right after `auth.cbox` on EVERY
+// console route below — a valid Cbox ID session is not enough, the principal must belong to an
+// allowlisted operator organization (config/billing.php → console.operator_orgs). It is
+// fail-closed (deny-all when unconfigured) and independent of the flag-gated RBAC above.
+Route::middleware(['auth.cbox', 'billing.operator'])->group(function (): void {
     Route::get('/', [BillingController::class, 'dashboard'])->name('billing.dashboard');
 
     Route::get('/subscriptions', [BillingController::class, 'subscriptions'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions');

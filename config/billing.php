@@ -4,6 +4,29 @@ declare(strict_types=1);
 
 use Cbox\License\Capabilities;
 
+/**
+ * Parse a comma-separated env value into a de-duplicated list of trimmed, non-empty strings.
+ * Used by the console operator allowlists; an unset/blank value yields an empty list (which
+ * makes the console fail closed — see the `console` section below).
+ *
+ * @return list<string>
+ */
+$csv = static function (?string $value): array {
+    if ($value === null || trim($value) === '') {
+        return [];
+    }
+
+    $out = [];
+    foreach (explode(',', $value) as $item) {
+        $item = trim($item);
+        if ($item !== '' && ! in_array($item, $out, true)) {
+            $out[] = $item;
+        }
+    }
+
+    return $out;
+};
+
 return [
 
     /*
@@ -13,6 +36,34 @@ return [
      * authority — this value never overrides it.
      */
     'default_currency' => env('CBOX_BILLING_DEFAULT_CURRENCY', 'DKK'),
+
+    /*
+     * The provider console's COARSE authorization boundary (SEC-1).
+     *
+     * The console is for the host's INTERNAL operators, who live in a dedicated operator
+     * organization on Cbox ID (e.g. the `cbox` tenant). A valid Cbox ID session alone is NOT
+     * enough to reach it — Cbox ID is a live, multi-tenant issuer that also holds customer and
+     * end-user accounts, so "can complete OIDC" must never mean "administers the provider".
+     * Only a session whose identity belongs to an allowlisted operator organization (or an
+     * explicitly allowlisted subject, for break-glass) may reach ANY console route.
+     *
+     * DENY-BY-DEFAULT / FAIL-CLOSED: when BOTH lists are empty the console denies every
+     * session and logs an actionable warning telling the operator to set
+     * `CBOX_BILLING_OPERATOR_ORGS`. This is orthogonal to — and coarser than — the per-
+     * permission RBAC below: this gate decides WHETHER a session may touch the console at
+     * all; RBAC (once Cbox ID emits `permissions`) refines access WITHIN the operator org.
+     *
+     * Enforced by {@see \App\Http\Middleware\EnsureOperator} on the whole `auth.cbox` console
+     * group. The management/enforcement API (token-authed, org-scoped) and the customer portal
+     * (signed-token) have their own correct scoping and are deliberately NOT gated here.
+     *
+     * `operator_orgs` — comma-separated Cbox ID org ids whose members may operate the console.
+     * `operator_subjects` — comma-separated Cbox ID `sub`s allowlisted individually (break-glass).
+     */
+    'console' => [
+        'operator_orgs' => $csv(env('CBOX_BILLING_OPERATOR_ORGS')),
+        'operator_subjects' => $csv(env('CBOX_BILLING_OPERATOR_SUBJECTS')),
+    ],
 
     /*
      * Console RBAC enforcement (the `billing.permission:<feature:action>` middleware).

@@ -1,7 +1,7 @@
 ---
 title: Federated RBAC manifest
 description: The roles and permissions Cbox Billing declares in code and publishes to Cbox ID with cbox-id:publish-manifest — the apps.manifest scope, the capability catalog, and the three built-in roles.
-weight: 32
+weight: 33
 ---
 
 # Federated RBAC manifest
@@ -80,6 +80,12 @@ The app never inflates or invents claims — it declares the vocabulary and enfo
 what Cbox ID assigns.
 
 ## Enforcement
+
+> **This is the *fine* layer.** Beneath it sits a coarser, always-on boundary: the
+> [operator-org gate](console-access.md), which decides *whether* a session may reach the
+> console at all (deny-by-default). RBAC refines *which* actions an already-admitted operator
+> may perform. The two compose — the coarse gate never depends on the `permissions` claim and
+> is enforced today; RBAC lights up when that claim ships.
 
 The console carries a permission gate, the `billing.permission:<feature:action>`
 route middleware ([`EnforcePermission`](https://github.com/cboxdk/cbox-billing/blob/main/app/Http/Middleware/EnforcePermission.php)).

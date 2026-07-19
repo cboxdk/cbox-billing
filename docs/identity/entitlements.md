@@ -1,7 +1,7 @@
 ---
 title: Org-level entitlements
 description: Why Cbox Billing enforces entitlements at the organization level on the application hot path — one billing account per identity organization — instead of inflating identity tokens.
-weight: 33
+weight: 34
 ---
 
 # Org-level entitlements

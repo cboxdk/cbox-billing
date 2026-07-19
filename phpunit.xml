@@ -28,6 +28,10 @@
             the console feature tests' session fixtures.
         -->
         <env name="CBOX_BILLING_OPERATOR_ORGS" value="Cbox Systems,org_hverdag,Cbox"/>
+        <!-- Federated RBAC enforcement is opt-in; pin it OFF so the suite is hermetic
+             regardless of a developer's local .env (the console tests exercise the
+             default inert gate — the enforced path has its own dedicated coverage). -->
+        <env name="CBOX_ID_RBAC_ENFORCE" value="false"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>

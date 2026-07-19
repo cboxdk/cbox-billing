@@ -65,6 +65,28 @@ class ProductScopedTokenTest extends TestCase
             ->assertCreated();
     }
 
+    public function test_a_product_bound_token_cannot_change_or_preview_onto_another_products_plan(): void
+    {
+        $auth = $this->assistantAuth();
+        // A billing address so a real (paid) plan change can assess tax + charge.
+        Organization::query()->create(['id' => 'ws_1', 'name' => 'Ws', 'billing_country' => 'DK']);
+
+        // Start on our own product's plan.
+        $this->postJson('/api/v1/subscriptions', ['org' => 'ws_1', 'plan' => 'assistant-starter'], $auth)
+            ->assertCreated();
+
+        // Neither change nor preview may retarget the subscription onto another
+        // product's plan — the isolation seam must hold on the mutation paths too.
+        $this->postJson('/api/v1/subscriptions/ws_1/change', ['plan' => 'starter'], $auth)
+            ->assertNotFound();
+        $this->postJson('/api/v1/subscriptions/ws_1/preview', ['plan' => 'starter'], $auth)
+            ->assertNotFound();
+
+        // ...but our own upgrade path works.
+        $this->postJson('/api/v1/subscriptions/ws_1/change', ['plan' => 'assistant-growth'], $auth)
+            ->assertOk();
+    }
+
     public function test_an_unbound_token_keeps_the_whole_catalog(): void
     {
         $this->seed(CatalogSeeder::class);

@@ -85,41 +85,47 @@ readonly class CycleRenewalService
 
         $org = $subscription->organization_id;
         $nowMs = $this->toMillis($now);
-        $periodEnd = $subscription->current_period_end;
-        $baseDue = $periodEnd !== null && $periodEnd->toDateTimeImmutable() <= $now;
 
-        // A due end-of-period cancellation ends the subscription instead of renewing it:
-        // forfeit the forfeitable allotment and stamp it canceled.
-        if ($baseDue && $subscription->cancel_at_period_end) {
-            $previousMrr = $this->movements->contributing($subscription);
+        // Contributing MRR before any state change, captured for a churn movement if a due
+        // cancellation lands (recorded after the transaction commits).
+        $previousMrr = $this->movements->contributing($subscription);
 
-            $this->db->transaction(function () use ($subscription, $org, $nowMs): void {
+        // Everything that reads the period and mutates state runs UNDER a row lock (H5): two
+        // concurrent RenewSubscriptionJobs serialize on the claim, and the loser re-reads the
+        // now-advanced period and finds nothing due — so the period advance is exactly-once,
+        // the durable backstop being the (subscription, period) unique invoice guard (H4).
+        $outcome = $this->db->transaction(function () use ($subscription, $plan, $org, $now, $nowMs): array {
+            $this->claim($subscription);
+
+            // Re-check deny-by-default against the freshly-read row.
+            if ($subscription->isPaused() || $subscription->status === SubscriptionStatus::Canceled) {
+                return ['kind' => 'skipped'];
+            }
+
+            $periodEnd = $subscription->current_period_end;
+            $baseDue = $periodEnd !== null && $periodEnd->toDateTimeImmutable() <= $now;
+
+            // A due end-of-period cancellation ends the subscription instead of renewing it:
+            // forfeit the forfeitable allotment and stamp it canceled.
+            if ($baseDue && $subscription->cancel_at_period_end) {
                 $this->wallet->forfeit($org, $nowMs);
                 $subscription->forceFill([
                     'status' => SubscriptionStatus::Canceled,
                     'cancel_at_period_end' => false,
                     'canceled_at' => Carbon::now(),
                 ])->save();
-            });
 
-            // Churn recorded as the scheduled cancel lands: contributing MRR moves amount → 0.
-            $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
+                return ['kind' => 'canceled'];
+            }
 
-            return RenewalOutcome::canceled();
-        }
+            // Deny-by-default (ADR-0016): never renew — and so never charge — a subscription
+            // still on a retired plan. Retiring plans' subscribers are migrated off by
+            // `billing:migrate-retiring-plans` before renewal; any left on a past-cutoff plan
+            // at its boundary is unresolved and must be surfaced, not billed on the retired plan.
+            if ($baseDue && $plan->isRetiredAt($now)) {
+                return ['kind' => 'skipped'];
+            }
 
-        // Deny-by-default (ADR-0016): never renew — and so never charge — a subscription
-        // still on a retired plan. Retiring plans' subscribers are migrated off by
-        // `billing:migrate-retiring-plans` before renewal; any left on a past-cutoff plan at
-        // its boundary is unresolved and must be surfaced, not billed on the retired plan.
-        if ($baseDue && $plan->isRetiredAt($now)) {
-            return RenewalOutcome::skipped();
-        }
-
-        $baseRenewed = false;
-        $addOnsRenewed = 0;
-
-        $this->db->transaction(function () use ($subscription, $plan, $org, $baseDue, $now, $nowMs, &$baseRenewed, &$addOnsRenewed): void {
             // 1. Grant every recurring slice of the CURRENT period that has vested by now.
             //    Idempotent per slice, so a re-run inside the cycle deposits nothing new
             //    and a finer cadence drips exactly on its own boundary.
@@ -132,6 +138,7 @@ readonly class CycleRenewalService
             // 3. Advance onto the next cycle once the boundary is passed: grant the new
             //    period's opening slices and mark it for invoicing.
             $basePeriod = $this->basePeriod($subscription);
+            $baseRenewed = false;
 
             if ($baseDue) {
                 $basePeriod = $this->advanceBase($subscription, $plan, $now);
@@ -141,9 +148,48 @@ readonly class CycleRenewalService
             // 4. Renew add-ons: an aligned add-on follows the (now-advanced) base period, an
             //    independent one its own cycle — each idempotent on its resolved boundary.
             $addOnsRenewed = $this->renewAddOns($subscription, $basePeriod, $now);
+
+            return ['kind' => 'processed', 'baseRenewed' => $baseRenewed, 'addOnsRenewed' => $addOnsRenewed];
         });
 
-        return RenewalOutcome::processed($baseRenewed, $addOnsRenewed, $this->invoiceRenewal($subscription, $baseRenewed));
+        if ($outcome['kind'] === 'skipped') {
+            return RenewalOutcome::skipped();
+        }
+
+        if ($outcome['kind'] === 'canceled') {
+            // Churn recorded as the scheduled cancel lands: contributing MRR moves amount → 0.
+            $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
+
+            return RenewalOutcome::canceled();
+        }
+
+        return RenewalOutcome::processed(
+            $outcome['baseRenewed'],
+            $outcome['addOnsRenewed'],
+            $this->invoiceRenewal($subscription, $outcome['baseRenewed']),
+        );
+    }
+
+    /**
+     * Claim the subscription for this renewal with a `SELECT … FOR UPDATE`, then refresh the
+     * in-memory row's period + status from the locked copy so every decision that follows is
+     * made against the freshly-read state, not the caller's possibly-stale snapshot. Two
+     * concurrent renewals serialize here; the loser sees the already-advanced period.
+     */
+    private function claim(Subscription $subscription): void
+    {
+        $locked = Subscription::query()->whereKey($subscription->getKey())->lockForUpdate()->first();
+
+        if (! $locked instanceof Subscription) {
+            return;
+        }
+
+        $subscription->setAttribute('current_period_start', $locked->current_period_start);
+        $subscription->setAttribute('current_period_end', $locked->current_period_end);
+        $subscription->setAttribute('cancel_at_period_end', $locked->cancel_at_period_end);
+        $subscription->setAttribute('status', $locked->status);
+        $subscription->setAttribute('paused_at', $locked->paused_at);
+        $subscription->syncOriginal();
     }
 
     /**
@@ -275,10 +321,7 @@ readonly class CycleRenewalService
     /** Map the plan's stored interval onto the engine's {@see BillingInterval}. */
     private function intervalFor(Plan $plan): BillingInterval
     {
-        return match (strtolower($plan->interval)) {
-            'year', 'yearly', 'annual', 'annually' => BillingInterval::Yearly,
-            default => BillingInterval::Monthly,
-        };
+        return $plan->billingInterval();
     }
 
     /** The plan with the collections the provisioner and invoicer read, eager-loaded. */

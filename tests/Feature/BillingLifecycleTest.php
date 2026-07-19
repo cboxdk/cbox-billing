@@ -55,7 +55,11 @@ class BillingLifecycleTest extends TestCase
 
         $plan = Plan::query()->where('key', 'team')->firstOrFail();
 
-        $subscription = app(SubscribesOrganizations::class)->subscribe($organization, $plan, seats: 5);
+        // 20 seats: `team` is graduated with the first 10 seats free, so the seat-aware,
+        // pricing-model-aware recurring charge is 10 × 0 + 10 × 9 900 = 99 000 DKK (the same
+        // figure MRR and the console preview compute — the invoice bills through the engine,
+        // never the raw base price).
+        $subscription = app(SubscribesOrganizations::class)->subscribe($organization, $plan, seats: 20);
 
         $this->assertDatabaseHas('subscriptions', [
             'organization_id' => 'org_acme',
@@ -118,10 +122,11 @@ class BillingLifecycleTest extends TestCase
         // --- 4. Invoice the subscription period (composes the tax engine) ---
         $invoice = app(GeneratesInvoices::class)->generate($subscription->refresh());
 
-        // Team plan is 124000 DKK minor; DK domestic B2B VAT is 25%.
-        $this->assertSame(124_000, $invoice->subtotal_minor);
-        $this->assertSame(31_000, $invoice->tax_minor);
-        $this->assertSame(155_000, $invoice->total_minor);
+        // Team graduated @ 20 seats is 99 000 DKK net (seat-aware, via the engine); DK
+        // domestic B2B VAT is 25% → 24 750 tax, 123 750 gross.
+        $this->assertSame(99_000, $invoice->subtotal_minor);
+        $this->assertSame(24_750, $invoice->tax_minor);
+        $this->assertSame(123_750, $invoice->total_minor);
         $this->assertSame('open', $invoice->status);
         $this->assertStringStartsWith('CBOX-DK-', $invoice->number);
         $this->assertDatabaseHas('invoice_lines', ['invoice_id' => $invoice->id]);

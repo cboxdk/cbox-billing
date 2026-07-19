@@ -46,8 +46,10 @@ the catalog console renders tier tables:
 - **Scale** → `package` (a block price per pack of 10 seats).
 - **Starter** → `stairstep` (one flat price for the whole seat bracket).
 
-The base `price_minor` stays the list recurring amount the MRR read model sums; the
-tier set is the per-seat schedule that price scales by.
+The base `price_minor` is the plan's list "from" price shown in the catalog; a tiered
+plan's actual recurring charge (invoice, MRR, and change preview alike) is priced from
+its tier schedule via the engine, so e.g. seeded Team (graduated, first 10 seats free)
+bills nothing until the 11th seat.
 
 ### `LicensingSeeder` — on-prem licensing profiles
 

@@ -7,6 +7,7 @@ namespace App\Billing\Subscriptions;
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
+use App\Billing\Subscriptions\Contracts\CollectsProration;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Tax\TaxContextFactory;
 use App\Billing\Wallet\WalletProvisioner;
@@ -15,12 +16,14 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Subscription\Contracts\TransitionPolicy;
+use Cbox\Billing\Subscription\Enums\BillingInterval;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Cbox\Billing\Subscription\PlanChange\PlanChangePreview;
 use Cbox\Billing\Subscription\PlanChange\PlanChangePreviewer;
 use Cbox\Billing\Subscription\PlanChange\ValueObjects\CreditConsequenceRequest;
 use Cbox\Billing\Subscription\SubscriptionLifecycle;
 use Cbox\Billing\Subscription\SubscriptionManager;
+use Cbox\Billing\Subscription\ValueObjects\BillingCycle;
 use Cbox\Billing\Subscription\ValueObjects\BillingPeriod;
 use Cbox\Billing\Subscription\ValueObjects\Subscription as EngineSubscription;
 use Cbox\Billing\Wallet\Contracts\Wallet;
@@ -63,6 +66,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
         private ResolvesAccountCurrency $currencies,
         private NotifiesCustomers $notifier,
         private SubscriptionMrrMovementRecorder $movements,
+        private CollectsProration $collector,
     ) {}
 
     public function subscribe(Organization $organization, Plan $plan, int $seats = 1, ?string $currency = null): Subscription
@@ -134,7 +138,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
     /** Open a subscription for the current period, optionally opening it in a trial. */
     private function open(Organization $organization, Plan $plan, int $seats, ?string $currency, ?DateTimeImmutable $trialEndsAt): Subscription
     {
-        [$periodStart, $periodEnd] = $this->currentPeriod();
+        [$periodStart, $periodEnd] = $this->currentPeriod($plan);
 
         return $this->db->transaction(function () use ($organization, $plan, $seats, $currency, $periodStart, $periodEnd, $trialEndsAt): Subscription {
             $this->pinCurrency($organization, $currency);
@@ -227,6 +231,12 @@ readonly class SubscriptionService implements SubscribesOrganizations
         // Record the MRR movement: an upgrade is expansion, a downgrade contraction (the
         // recorder no-ops when the two amounts are equal).
         $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
+
+        // Collect the previewed amount due now (H6): an upgrade prorated over the days still to
+        // run is charged, not provisioned free. The engine's proration IS the charge, so the
+        // issued gross equals the preview's due-now. A deferred downgrade or a net credit owes
+        // nothing now and is a no-op.
+        $this->collector->collect($subscription, $preview->proration->dueNow(), sprintf('Change to %s', $newPlan->name));
 
         return $preview;
     }
@@ -383,10 +393,26 @@ readonly class SubscriptionService implements SubscribesOrganizations
         return Carbon::now()->toDateTimeImmutable();
     }
 
-    /** @return array{0: Carbon, 1: Carbon} */
-    private function currentPeriod(): array
+    /**
+     * The opening billing period for a new subscription, derived from the plan's interval
+     * via the engine {@see BillingCycle} (H3) — so a yearly plan opens a FULL year and does
+     * not renew (and re-charge the annual price) at the next month boundary. A monthly plan
+     * keeps calendar-month alignment: everyone renews together on the 1st, the opening
+     * period being the current calendar month. A yearly plan anchors on the signup day, so
+     * its first period runs to the signup anniversary.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function currentPeriod(Plan $plan): array
     {
         $now = Carbon::now();
+
+        if ($plan->billingInterval() === BillingInterval::Yearly) {
+            $cycle = BillingCycle::anchoredOnSignup($now->toDateTimeImmutable(), BillingInterval::Yearly);
+            $period = $cycle->periodContaining($now->toDateTimeImmutable());
+
+            return [Carbon::instance($period->start), Carbon::instance($period->end)];
+        }
 
         return [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()];
     }

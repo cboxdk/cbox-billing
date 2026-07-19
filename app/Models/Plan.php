@@ -9,6 +9,7 @@ use Cbox\Billing\Catalog\ValueObjects\PlanRetirement;
 use Cbox\Billing\Catalog\ValueObjects\Product as CatalogProduct;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Subscription\Contracts\TransitionPolicy;
+use Cbox\Billing\Subscription\Enums\BillingInterval;
 use DateTimeImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -67,6 +68,49 @@ class Plan extends Model
         }
 
         return $price->money();
+    }
+
+    /**
+     * The recurring charge for `$seats` units in `$currency`, priced by the SAME engine
+     * calculator that bills the subscription ({@see PlanPrice::toPrice()} →
+     * {@see Price::amountFor()}). A `flat` price is the fixed amount regardless of seats
+     * (the engine bills quantity 1); a `per_unit` price is the unit amount times seats;
+     * the tiered models (graduated / volume / package / stairstep) are priced from their
+     * tier set. This is the full period amount — the figure the renewal/period invoice
+     * charges — so a per-unit plan @500/seat × 10 seats yields 5000, not the base 500.
+     *
+     * Deny-by-default: a currency the plan is not priced in is refused (mirrors
+     * {@see priceFor()}), never billed at a fabricated rate. Seats below one price as one.
+     */
+    public function amountFor(string $currency, int $seats): Money
+    {
+        $price = $this->prices->firstWhere('currency', $currency);
+
+        if (! $price instanceof PlanPrice) {
+            throw new RuntimeException(sprintf(
+                'Plan [%s] is not priced in %s (available: %s).',
+                $this->key,
+                $currency,
+                implode(', ', $this->pricedCurrencies()) ?: 'none',
+            ));
+        }
+
+        return $price->toPrice()->amountFor(max(1, $seats));
+    }
+
+    /**
+     * The plan's stored interval mapped onto the engine's {@see BillingInterval} — the
+     * single place the app translates the durable string. The engine bills only
+     * {@see BillingInterval::Monthly} and {@see BillingInterval::Yearly}; a plan is only
+     * ever authored on `month`/`year` (see the plan authoring validation), so any other
+     * stored value is a legacy row normalized to Monthly.
+     */
+    public function billingInterval(): BillingInterval
+    {
+        return match (strtolower($this->interval)) {
+            'year', 'yearly', 'annual', 'annually' => BillingInterval::Yearly,
+            default => BillingInterval::Monthly,
+        };
     }
 
     /**

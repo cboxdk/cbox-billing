@@ -177,11 +177,14 @@ class ManagementApiTest extends TestCase
     {
         [$organization, $auth] = $this->orgWithToken('org_eur');
 
-        // Choose EUR at signup.
+        // Choose EUR at signup. 20 seats: `team` is graduated (first 10 seats free, then
+        // 1 300/seat in EUR), so the seat-aware recurring charge the invoice bills is
+        // 10 × 1 300 = 13 000 EUR — through the engine, not the raw base price.
         $this->postJson('/api/v1/subscriptions', [
             'org' => 'org_eur',
             'plan' => 'team',
             'currency' => 'EUR',
+            'seats' => 20,
         ], $auth)->assertCreated();
 
         $this->assertSame('EUR', $organization->refresh()->billing_currency);
@@ -189,11 +192,11 @@ class ManagementApiTest extends TestCase
         $subscription = $organization->subscriptions()->firstOrFail();
         $invoice = app(GeneratesInvoices::class)->generate($subscription);
 
-        // Priced and invoiced in EUR (Team EUR = 16 900 minor; DK domestic VAT 25%).
+        // Priced and invoiced in EUR (Team graduated @ 20 seats = 13 000 minor; DK VAT 25%).
         $this->assertSame('EUR', $invoice->currency);
-        $this->assertSame(16_900, $invoice->subtotal_minor);
-        $this->assertSame(4_225, $invoice->tax_minor);
-        $this->assertSame(21_125, $invoice->total_minor);
+        $this->assertSame(13_000, $invoice->subtotal_minor);
+        $this->assertSame(3_250, $invoice->tax_minor);
+        $this->assertSame(16_250, $invoice->total_minor);
 
         // The first finalized invoice locked the account's currency, one-way.
         $lock = app(BillingCurrencyLock::class);

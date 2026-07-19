@@ -96,10 +96,12 @@ class SubscriptionDepthApiTest extends TestCase
 
     public function test_quantity_change_prorates_and_preview_equals_charge(): void
     {
-        $auth = $this->subscribed('org_qty', 'team', seats: 2);
+        $auth = $this->subscribed('org_qty', 'business', seats: 2);
 
-        // Team is 124 000 minor/seat in DKK; going 2 -> 4 adds two seats (248 000) prorated
-        // over the days still to run, so the charge is positive but below the full delta.
+        // Business is `volume`-priced at 12 000 minor/seat (first tier) in DKK; going 2 -> 4
+        // adds two seats (24 000 full) prorated over the days still to run, so the charge is
+        // positive but below the full delta. (`team` is graduated with a free first tier, so a
+        // small seat move there nets zero — this exercises a plan that genuinely moves money.)
         $preview = $this->postJson('/api/v1/subscriptions/org_qty/quantity', [
             'seats' => 4,
             'preview' => true,
@@ -114,7 +116,7 @@ class SubscriptionDepthApiTest extends TestCase
         $dueNow = $preview->json('due_now_minor');
         $this->assertIsInt($dueNow);
         $this->assertGreaterThan(0, $dueNow);
-        $this->assertLessThan(248_000, $dueNow);
+        $this->assertLessThan(24_000, $dueNow);
 
         // Preview does not mutate the seat count.
         $this->getJson('/api/v1/subscriptions/org_qty', $auth)->assertJsonPath('seats', 2);

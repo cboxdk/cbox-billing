@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Models\Subscription;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -22,7 +23,7 @@ use RuntimeException;
  * A tax-pending org (no resolvable billing address) is a permanent skip for this cycle — it
  * is logged, not retried — while an infrastructure error propagates so the queue retries it.
  */
-class IssueSubscriptionInvoiceJob implements ShouldQueue
+class IssueSubscriptionInvoiceJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -30,7 +31,19 @@ class IssueSubscriptionInvoiceJob implements ShouldQueue
 
     public int $backoff = 30;
 
+    /** Hold the uniqueness lock for at most this many seconds if the job dies mid-run. */
+    public int $uniqueFor = 600;
+
     public function __construct(public int $subscriptionId) {}
+
+    /**
+     * One in-flight invoicing pass per subscription. Belt-and-suspenders over the idempotent
+     * (subscription, period) issuance guard, so overlapping passes never even reach it.
+     */
+    public function uniqueId(): string
+    {
+        return 'issue-invoice:'.$this->subscriptionId;
+    }
 
     public function handle(GeneratesInvoices $invoices, LoggerInterface $log): void
     {

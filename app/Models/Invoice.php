@@ -18,6 +18,9 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property string $organization_id
+ * @property int|null $subscription_id
+ * @property Carbon|null $period_start
+ * @property Carbon|null $period_end
  * @property string $seller
  * @property string $number
  * @property string $currency
@@ -33,7 +36,8 @@ use Illuminate\Support\Carbon;
 class Invoice extends Model
 {
     protected $fillable = [
-        'organization_id', 'seller', 'number', 'currency',
+        'organization_id', 'subscription_id', 'period_start', 'period_end',
+        'seller', 'number', 'currency',
         'subtotal_minor', 'tax_minor', 'total_minor',
         'status', 'issued_at', 'due_at', 'paid_at', 'gateway_reference',
     ];
@@ -45,6 +49,8 @@ class Invoice extends Model
             'subtotal_minor' => 'integer',
             'tax_minor' => 'integer',
             'total_minor' => 'integer',
+            'period_start' => 'datetime',
+            'period_end' => 'datetime',
             'issued_at' => 'datetime',
             'due_at' => 'datetime',
             'paid_at' => 'datetime',

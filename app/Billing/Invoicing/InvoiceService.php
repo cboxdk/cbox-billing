@@ -15,11 +15,13 @@ use App\Models\Organization;
 use App\Models\Subscription;
 use Cbox\Billing\Invoice\Contracts\Invoicer;
 use Cbox\Billing\Invoice\ValueObjects\Invoice as IssuedInvoice;
+use Cbox\Billing\Money\Money;
 use Cbox\Billing\Quote\Contracts\QuoteBuilder;
 use Cbox\Billing\Quote\ValueObjects\LineInput;
 use Cbox\Billing\Quote\ValueObjects\Quote;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use RuntimeException;
 
@@ -63,6 +65,19 @@ readonly class InvoiceService implements GeneratesInvoices
     {
         $organization = $this->organizationOf($subscription);
         $seller = $this->sellers->default();
+
+        $periodStart = $subscription->current_period_start;
+        $periodEnd = $subscription->current_period_end;
+
+        // Idempotent per (subscription, period) [H4]: issuance is at-least-once (a job retry,
+        // a concurrent renewal), so a period already invoiced returns the existing invoice
+        // rather than minting a second legal number and double-charging.
+        $existing = $this->existingPeriodInvoice($subscription, $periodStart, $periodEnd);
+
+        if ($existing instanceof Invoice) {
+            return $existing;
+        }
+
         $quote = $this->quoteFor($subscription);
 
         if (! $quote->isTaxResolved()) {
@@ -73,17 +88,83 @@ readonly class InvoiceService implements GeneratesInvoices
             ));
         }
 
-        $invoice = $this->db->transaction(function () use ($subscription, $organization, $seller, $quote): Invoice {
-            $issued = $this->invoicer->issue($quote, $seller, $organization->id, $this->issuedAt());
+        try {
+            $invoice = $this->db->transaction(function () use ($subscription, $organization, $seller, $quote, $periodStart, $periodEnd): Invoice {
+                $issued = $this->invoicer->issue($quote, $seller, $organization->id, $this->issuedAt());
 
-            return $this->persist($subscription, $seller->id, $issued);
-        });
+                return $this->persist($subscription, $seller->id, $issued, $periodStart, $periodEnd);
+            });
+        } catch (QueryException $e) {
+            // Lost the race to a concurrent issuance: the (subscription, period) unique guard
+            // rejected the duplicate. Return whatever the winner committed.
+            $winner = $this->existingPeriodInvoice($subscription, $periodStart, $periodEnd);
+
+            if ($winner instanceof Invoice) {
+                return $winner;
+            }
+
+            throw $e;
+        }
 
         // Notify the billing contact once the invoice is durably finalized (outside the
         // transaction, so a queued send never rides an uncommitted invoice).
         $this->notifier->invoiceIssued($invoice, $subscription);
 
         return $invoice;
+    }
+
+    /**
+     * Issue an ad-hoc invoice for a mid-cycle amount due now (a plan-change / seat / add-on
+     * proration), stamped to the subscription but with no period key so it is exempt from the
+     * period-idempotency guard (a subscription can be charged several prorations in one
+     * cycle). The amount is taxed through the same {@see QuoteBuilder} the period invoice
+     * uses, so the charged gross equals the previewed due-now by construction (H6).
+     */
+    public function issueDueNow(Subscription $subscription, Money $dueNow, string $description): Invoice
+    {
+        $organization = $this->organizationOf($subscription);
+        $seller = $this->sellers->default();
+
+        $quote = $this->quotes->build(
+            [new LineInput($description, 1, $dueNow)],
+            $this->taxContexts->forOrganization($organization),
+        );
+
+        if (! $quote->isTaxResolved()) {
+            throw new RuntimeException(sprintf(
+                'Cannot charge organization [%s]: tax is pending (%s). Set a billing address first.',
+                $organization->id,
+                $quote->taxResolution->reason ?? 'unresolved jurisdiction',
+            ));
+        }
+
+        $invoice = $this->db->transaction(function () use ($subscription, $organization, $seller, $quote): Invoice {
+            $issued = $this->invoicer->issue($quote, $seller, $organization->id, $this->issuedAt());
+
+            return $this->persist($subscription, $seller->id, $issued, null, null);
+        });
+
+        $this->notifier->invoiceIssued($invoice, $subscription);
+
+        return $invoice;
+    }
+
+    /**
+     * The already-issued period invoice for this subscription's `[start, end]`, or null when
+     * none exists (or the period is not fully bounded, in which case there is no key to
+     * dedup on). Proration invoices carry a null period and are never matched here.
+     */
+    private function existingPeriodInvoice(Subscription $subscription, ?Carbon $periodStart, ?Carbon $periodEnd): ?Invoice
+    {
+        if ($periodStart === null || $periodEnd === null) {
+            return null;
+        }
+
+        return Invoice::query()
+            ->where('subscription_id', $subscription->id)
+            ->where('period_start', $periodStart)
+            ->where('period_end', $periodEnd)
+            ->first();
     }
 
     private function organizationOf(Subscription $subscription): Organization
@@ -93,8 +174,15 @@ readonly class InvoiceService implements GeneratesInvoices
     }
 
     /**
-     * The catalog line inputs for the period: the plan's recurring subscription fee,
-     * priced in the account's billing currency.
+     * The catalog line inputs for the period: the plan's recurring subscription fee for
+     * the subscription's seat count, priced in the account's billing currency by the
+     * engine's pricing-model calculator ({@see Plan::amountFor()} → {@see Price::amountFor()}).
+     * So a per-unit plan bills unit × seats and a tiered plan bills from its tier set —
+     * the same seat-aware figure MRR and the change preview compute, never the raw base.
+     *
+     * The line is quantity 1 at the full computed amount (the shape the engine's own
+     * plan-change quote uses): a tiered charge has no single "unit", so the honest
+     * representation is the computed period total, with the seat count in the description.
      *
      * @return list<LineInput>
      */
@@ -104,19 +192,22 @@ readonly class InvoiceService implements GeneratesInvoices
 
         return [
             new LineInput(
-                description: sprintf('%s — subscription (%s)', $plan->name, $this->periodLabel($subscription)),
+                description: sprintf('%s — subscription, %d seat(s) (%s)', $plan->name, max(1, $subscription->seats), $this->periodLabel($subscription)),
                 quantity: 1,
-                unitAmount: $plan->priceFor($currency),
+                unitAmount: $plan->amountFor($currency, $subscription->seats),
             ),
         ];
     }
 
-    private function persist(Subscription $subscription, string $sellerId, IssuedInvoice $issued): Invoice
+    private function persist(Subscription $subscription, string $sellerId, IssuedInvoice $issued, ?Carbon $periodStart, ?Carbon $periodEnd): Invoice
     {
         $totals = $issued->totals;
 
         $invoice = Invoice::query()->create([
             'organization_id' => $subscription->organization_id,
+            'subscription_id' => $subscription->id,
+            'period_start' => $periodStart,
+            'period_end' => $periodEnd,
             'seller' => $sellerId,
             'number' => $issued->number,
             'currency' => $issued->currency,

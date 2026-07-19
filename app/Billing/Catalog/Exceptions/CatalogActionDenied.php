@@ -73,6 +73,14 @@ class CatalogActionDenied extends RuntimeException
         return new self(sprintf('The key "%s" is already in use. Keys must be unique.', $key));
     }
 
+    public static function unbillableInterval(string $interval): self
+    {
+        return new self(sprintf(
+            'Interval "%s" cannot be billed — the engine renews only month and year cadences. Author the plan as month or year.',
+            $interval,
+        ));
+    }
+
     public static function unknownMeter(int $meterId): self
     {
         return new self(sprintf('Meter [%d] does not exist.', $meterId));

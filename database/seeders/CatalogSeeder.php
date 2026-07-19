@@ -76,10 +76,12 @@ class CatalogSeeder extends Seeder
 
     /**
      * Give a few plan prices a tiered pricing model (engine v0.8 catalog depth) so the
-     * catalog console renders real tier tables. The base `price_minor` is left unchanged —
-     * it stays the list recurring amount the MRR read model sums — and each tier set is the
-     * per-seat schedule that price scales by. One plan per tiered model so all four are
-     * exercised: Team `graduated`, Business `volume`, Scale `package`, Starter `stairstep`.
+     * catalog console renders real tier tables. The base `price_minor` is left unchanged as
+     * the catalog "from" list price, but for a tiered plan the actual recurring charge — the
+     * period invoice, MRR, and the change preview alike — is priced from the tier schedule via
+     * the engine (`Price::amountFor(seats)`), NOT the base. One plan per tiered model so all
+     * four are exercised: Team `graduated` (first 10 seats free), Business `volume`, Scale
+     * `package`, Starter `stairstep`.
      */
     private function seedTieredPricing(): void
     {

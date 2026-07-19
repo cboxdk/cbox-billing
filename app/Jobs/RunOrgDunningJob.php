@@ -14,6 +14,7 @@ use Cbox\Billing\Payment\Dunning\Enums\InvoicePaymentState;
 use Cbox\Billing\Payment\Dunning\ValueObjects\DelinquentInvoice;
 use DateTimeImmutable;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -28,7 +29,7 @@ use Illuminate\Support\Collection;
  * so one org's failure retries in isolation. Suspension gates ACCESS only; this job never
  * touches credits or the ledger.
  */
-class RunOrgDunningJob implements ShouldQueue
+class RunOrgDunningJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -36,7 +37,16 @@ class RunOrgDunningJob implements ShouldQueue
 
     public int $backoff = 30;
 
+    /** Hold the uniqueness lock for at most this many seconds if the job dies mid-run (H5). */
+    public int $uniqueFor = 600;
+
     public function __construct(public string $organizationId) {}
+
+    /** One in-flight dunning evaluation per organization (H5): overlapping passes are dropped. */
+    public function uniqueId(): string
+    {
+        return 'org-dunning:'.$this->organizationId;
+    }
 
     public function handle(DunningRunner $runner, NotifiesCustomers $notifier): void
     {

@@ -89,9 +89,11 @@ class EndToEndBillingTest extends TestCase
     public function test_the_whole_billing_lifecycle_end_to_end(): void
     {
         // =================================================================================
-        // 1. ONBOARD + SUBSCRIBE — the org subscribes to Team (3 seats) in DKK; the wallet
+        // 1. ONBOARD + SUBSCRIBE — the org subscribes to Team (20 seats) in DKK; the wallet
         //    is provisioned with the recurring credit allotment + every meter's included
-        //    allowance, and the account currency pins on subscribe.
+        //    allowance, and the account currency pins on subscribe. Team is graduated (first
+        //    10 seats free, then 9 900/seat), so 20 seats bill the seat-aware 99 000 DKK — the
+        //    same figure MRR and the change preview compute, through the engine.
         // =================================================================================
         Organization::query()->create([
             'id' => self::ORG,
@@ -106,14 +108,14 @@ class EndToEndBillingTest extends TestCase
         $subscribe = $this->postJson('/api/v1/subscriptions', [
             'org' => self::ORG,
             'plan' => 'team',
-            'seats' => 3,
+            'seats' => 20,
             'currency' => 'DKK',
         ], $auth);
 
         $subscribe->assertCreated()
             ->assertJsonPath('subscription.plan', 'team')
             ->assertJsonPath('subscription.status', 'active')
-            ->assertJsonPath('subscription.seats', 3)
+            ->assertJsonPath('subscription.seats', 20)
             // The manual gateway settles out of band, so there is no client-confirmable intent.
             ->assertJsonPath('payment_intent', null);
 
@@ -231,11 +233,12 @@ class EndToEndBillingTest extends TestCase
         $subscription = Subscription::query()->where('organization_id', self::ORG)->firstOrFail();
         $invoice = app(GeneratesInvoices::class)->generate($subscription->refresh());
 
-        // Team is 124 000 DKK minor; DK domestic B2B VAT is 25% → 31 000 tax, 155 000 gross.
+        // Team graduated @ 20 seats is 99 000 DKK net (seat-aware, through the engine); DK
+        // domestic B2B VAT is 25% → 24 750 tax, 123 750 gross.
         $this->assertSame('DKK', $invoice->currency);
-        $this->assertSame(124_000, $invoice->subtotal_minor);
-        $this->assertSame(31_000, $invoice->tax_minor);
-        $this->assertSame(155_000, $invoice->total_minor);
+        $this->assertSame(99_000, $invoice->subtotal_minor);
+        $this->assertSame(24_750, $invoice->tax_minor);
+        $this->assertSame(123_750, $invoice->total_minor);
         $this->assertSame('open', $invoice->status);
         // Per-seller legal number sequence (Cbox DK).
         $this->assertSame('CBOX-DK-2026-00001', $invoice->number);
@@ -313,6 +316,15 @@ class EndToEndBillingTest extends TestCase
             ->assertJsonPath('new_recurring_minor', 349_000);
         $this->assertSame($dueNow, $change->json('due_now_minor'));
 
+        // H6 — the immediate upgrade COLLECTS the previewed due-now: a prorated invoice is
+        // issued (the second legal number) for exactly the taxed amount the preview promised,
+        // so preview == charge holds in cash, not just on the review page. Before this fix the
+        // upgrade was provisioned free.
+        $prorationInvoice = Invoice::query()->where('organization_id', self::ORG)->orderByDesc('id')->firstOrFail();
+        $this->assertSame('CBOX-DK-2026-00002', $prorationInvoice->number);
+        $this->assertSame($dueNow, $prorationInvoice->total_minor);
+        $this->assertSame(2, Invoice::query()->where('organization_id', self::ORG)->count());
+
         // The wallet reset (ADR-0011): the outgoing included allotment was forfeited before the
         // incoming one was granted, so the balance is the new plan's 1 000 000, never the sum.
         $this->getJson('/api/v1/subscriptions/'.self::ORG, $auth)->assertJsonPath('plan', 'business');
@@ -351,13 +363,16 @@ class EndToEndBillingTest extends TestCase
         $this->assertSame(1_000_000, $this->included('credit'));
         $this->assertGreaterThan($lotsBeforeRenew, DB::table('billing_wallet_lots')->where('org', self::ORG)->count());
 
-        // The renewal issued the second legal invoice — Business, 349 000 + 25% = 436 250.
+        // The renewal issued the THIRD legal invoice (after the team period invoice and the
+        // upgrade proration) — Business is volume-priced at 12 000/seat in its first tier, so
+        // @ 20 seats the seat-aware charge is 240 000 + 25% = 300 000 (through the engine, not
+        // the 349 000 base list price).
         $renewalInvoice = Invoice::query()->where('organization_id', self::ORG)->orderByDesc('id')->firstOrFail();
-        $this->assertSame('CBOX-DK-2026-00002', $renewalInvoice->number);
-        $this->assertSame(349_000, $renewalInvoice->subtotal_minor);
-        $this->assertSame(87_250, $renewalInvoice->tax_minor);
-        $this->assertSame(436_250, $renewalInvoice->total_minor);
-        $this->assertSame(2, Invoice::query()->where('organization_id', self::ORG)->count());
+        $this->assertSame('CBOX-DK-2026-00003', $renewalInvoice->number);
+        $this->assertSame(240_000, $renewalInvoice->subtotal_minor);
+        $this->assertSame(60_000, $renewalInvoice->tax_minor);
+        $this->assertSame(300_000, $renewalInvoice->total_minor);
+        $this->assertSame(3, Invoice::query()->where('organization_id', self::ORG)->count());
 
         // Idempotent: a second run at the same instant grants nothing and issues no duplicate
         // invoice — the period has already advanced, so nothing is due.
@@ -365,7 +380,7 @@ class EndToEndBillingTest extends TestCase
         $this->assertSame(0, Artisan::call('billing:renew'));
         $this->assertSame(1_000_000, $this->included('credit'));
         $this->assertSame($lotsAfterRenew, DB::table('billing_wallet_lots')->where('org', self::ORG)->count());
-        $this->assertSame(2, Invoice::query()->where('organization_id', self::ORG)->count());
+        $this->assertSame(3, Invoice::query()->where('organization_id', self::ORG)->count());
 
         // =================================================================================
         // 7. CANCEL — an immediate cancel runs the engine's forfeiture-on-transition: the

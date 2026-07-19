@@ -40,7 +40,10 @@ class InvoiceLifecycleConsoleTest extends TestCase
         Carbon::setTestNow('2026-07-18 10:00:00');
     }
 
-    /** Team plan in DKK: 124 000 net, 25% DK VAT → 31 000 tax, 155 000 gross. */
+    /**
+     * Team graduated @ 20 seats in DKK (first 10 seats free, then 9 900/seat): 99 000 net,
+     * 25% DK VAT → 24 750 tax, 123 750 gross. The invoice bills the seat-aware engine amount.
+     */
     private function invoicedOrg(string $org = 'org_inv'): Invoice
     {
         Organization::query()->create(['id' => $org, 'name' => ucfirst($org), 'billing_email' => $org.'@example.test', 'billing_country' => 'DK', 'billing_currency' => 'DKK']);
@@ -51,7 +54,7 @@ class InvoiceLifecycleConsoleTest extends TestCase
             'organization_id' => $org,
             'plan_id' => $team->id,
             'status' => SubscriptionStatus::Active,
-            'seats' => 1,
+            'seats' => 20,
             'current_period_start' => Carbon::parse('2026-07-01', 'UTC'),
             'current_period_end' => Carbon::parse('2026-08-01', 'UTC'),
             'cancel_at_period_end' => false,
@@ -96,23 +99,23 @@ class InvoiceLifecycleConsoleTest extends TestCase
         ])->assertRedirect('/invoices/'.$invoice->id)->assertSessionHas('status');
 
         $note = CreditNote::query()->where('invoice_number', $invoice->number)->firstOrFail();
-        $this->assertSame(124_000, $note->net_minor);
-        $this->assertSame(31_000, $note->tax_minor);
-        $this->assertSame(155_000, $note->gross_minor);
+        $this->assertSame(99_000, $note->net_minor);
+        $this->assertSame(24_750, $note->tax_minor);
+        $this->assertSame(123_750, $note->gross_minor);
         $this->assertSame('service_issue', $note->reason);
         $this->assertSame('DKK', $note->currency);
         // Legal credit-note number off the seller's own CN sequence.
         $this->assertSame('CBOX-DK-CN-2026-00001', $note->number);
 
         // The engine refund record (idempotency + over-refund cap) and its ledger reversal.
-        $this->assertDatabaseHas('refunds', ['refund_id' => 'op-refund:k-full-1', 'gross_minor' => 155_000, 'invoice_number' => $invoice->number]);
+        $this->assertDatabaseHas('refunds', ['refund_id' => 'op-refund:k-full-1', 'gross_minor' => 123_750, 'invoice_number' => $invoice->number]);
     }
 
     public function test_partial_refund_reverses_net_and_proportional_tax(): void
     {
         $invoice = $this->invoicedOrg();
 
-        // Partial net 50 000; tax reversed in proportion: 31 000 * 50 000 / 124 000 = 12 500.
+        // Partial net 50 000; tax reversed in proportion: 24 750 * 50 000 / 99 000 = 12 500.
         $this->withSession($this->session)->post('/invoices/'.$invoice->id.'/refund', [
             'mode' => 'partial',
             'amount_minor' => 50_000,

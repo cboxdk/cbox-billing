@@ -9,6 +9,7 @@ use App\Models\Plan;
 use App\Models\PlanPrice;
 use App\Models\Subscription;
 use Cbox\Billing\Catalog\Enums\PlanStatus;
+use Cbox\Billing\Subscription\Enums\BillingInterval;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -26,6 +27,14 @@ use Illuminate\Database\ConnectionInterface;
  */
 readonly class PlanAuthoring
 {
+    /**
+     * The intervals the billing engine can renew — {@see BillingInterval}
+     * carries only Monthly and Yearly. Deny-by-default: authoring any other cadence is
+     * refused here (not only in the controller), so no plan can be created on an interval
+     * that would then be silently billed monthly.
+     */
+    private const BILLABLE_INTERVALS = ['month', 'year'];
+
     public function __construct(private ConnectionInterface $db) {}
 
     /**
@@ -34,6 +43,7 @@ readonly class PlanAuthoring
     public function create(array $data): Plan
     {
         $this->assertKeyUnique($data['key'], null);
+        $this->assertBillableInterval($data['interval']);
 
         return Plan::query()->create([
             'product_id' => $data['product_id'],
@@ -50,6 +60,7 @@ readonly class PlanAuthoring
     public function update(Plan $plan, array $data): Plan
     {
         $this->assertKeyUnique($data['key'], $plan->id);
+        $this->assertBillableInterval($data['interval']);
 
         // Only metadata — never the price. Grandfathering is preserved because the
         // per-currency PlanPrice rows a subscriber grandfathered onto are untouched.
@@ -104,6 +115,13 @@ readonly class PlanAuthoring
 
             $plan->delete();
         });
+    }
+
+    private function assertBillableInterval(string $interval): void
+    {
+        if (! in_array(strtolower($interval), self::BILLABLE_INTERVALS, true)) {
+            throw CatalogActionDenied::unbillableInterval($interval);
+        }
     }
 
     private function assertKeyUnique(string $key, ?int $ignoreId): void

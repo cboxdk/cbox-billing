@@ -6,6 +6,7 @@ namespace App\Billing\Subscriptions;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
+use App\Billing\Subscriptions\Contracts\CollectsProration;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
@@ -54,6 +55,7 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         private ResolvesAccountCurrency $currencies,
         private SubscribesOrganizations $subscriptions,
         private SubscriptionMrrMovementRecorder $movements,
+        private CollectsProration $collector,
     ) {}
 
     public function pause(Subscription $subscription): Subscription
@@ -92,11 +94,14 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
     {
         $plan = $this->planOf($subscription);
         $currency = $this->currencies->for($this->organizationOf($subscription));
-        $unit = $plan->priceFor($currency);
 
+        // Price both seat counts through the plan's pricing model (M3): a flat plan is
+        // seat-invariant, so from == to and the change nets zero; a per-unit plan scales by
+        // seats; a tiered plan prices each count from its tier set. Never `base × seats`,
+        // which over-charged a flat plan and ignored tiers.
         $charge = $this->proration->prorate(
-            $unit->multipliedBy($subscription->seats),
-            $unit->multipliedBy($seats),
+            $plan->amountFor($currency, $subscription->seats),
+            $plan->amountFor($currency, $seats),
             $this->basePeriod($subscription),
             $this->now(),
             GatewayRounding::HalfUp,
@@ -139,6 +144,11 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         // does not move (seats do not change its amount), so record() no-ops on the equal edges.
         $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription->loadMissing('plan.prices.tiers')));
 
+        // Collect the previewed seat-delta proration (H6): a seat increase is charged over the
+        // days still to run, not provisioned free. A flat plan nets zero and a reduction nets a
+        // credit — both owe nothing now, so the collector no-ops.
+        $this->collector->collect($subscription, $preview->charge, sprintf('Seat change to %d', $seats));
+
         return $preview;
     }
 
@@ -168,8 +178,9 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         $at = $this->now();
         $period = $addOn->periodFor($basePeriod, $at);
         $allotment = $addOn->grantedAllotment($basePeriod, $at, CreditGrantMode::Prorated);
+        $charge = $addOn->proratedCharge($this->proration, $basePeriod, $at, GatewayRounding::HalfUp);
 
-        return $this->db->transaction(function () use ($subscription, $request, $period, $allotment): SubscriptionAddOn {
+        $row = $this->db->transaction(function () use ($subscription, $request, $period, $allotment): SubscriptionAddOn {
             $row = SubscriptionAddOn::query()->updateOrCreate(
                 ['subscription_id' => $subscription->id, 'key' => $request->key],
                 [
@@ -202,6 +213,13 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
 
             return $row;
         });
+
+        // Collect the previewed prorated add-on charge (H6): attaching an add-on mid-cycle is
+        // charged over the days still to run, not granted free. A zero-priced add-on owes
+        // nothing, so the collector no-ops.
+        $this->collector->collect($subscription->loadMissing('organization'), $charge, sprintf('Add-on “%s”', $request->key));
+
+        return $row;
     }
 
     public function removeAddOn(Subscription $subscription, string $key): bool

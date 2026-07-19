@@ -9,6 +9,7 @@ use App\Billing\Catalog\PlanAuthoring;
 use App\Billing\Reporting\PlanReport;
 use App\Models\Plan;
 use App\Models\Product;
+use Cbox\Billing\Subscription\Enums\BillingInterval;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,8 +22,15 @@ use Illuminate\Http\Request;
  */
 class PlanController extends Controller
 {
-    /** The intervals a plan can bill on. */
-    private const INTERVALS = ['week', 'month', 'quarter', 'year'];
+    /**
+     * The intervals a plan can bill on. Restricted to the two the billing engine can
+     * actually represent and renew — {@see BillingInterval}
+     * carries only Monthly and Yearly. Authoring `week`/`quarter` was silently billed on a
+     * monthly cadence (a quarter over-charged 3×, a week under-charged), so they are refused
+     * here rather than mis-billed; a proper sub-monthly/quarterly cadence needs an engine
+     * feature, not an app workaround.
+     */
+    private const INTERVALS = ['month', 'year'];
 
     public function show(Plan $plan, PlanReport $report): View
     {

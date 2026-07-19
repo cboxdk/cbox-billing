@@ -11,6 +11,7 @@ use App\Models\Subscription;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Config\Repository as Config;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -23,7 +24,7 @@ use Illuminate\Support\Carbon;
  * sends the renewal reminder on the day the term crosses into the reminder lead window. The
  * per-tenant unit the `billing:renew` pass dispatches, so one org's failure retries alone.
  */
-class RenewSubscriptionJob implements ShouldQueue
+class RenewSubscriptionJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -31,7 +32,21 @@ class RenewSubscriptionJob implements ShouldQueue
 
     public int $backoff = 30;
 
+    /** Hold the uniqueness lock for at most this many seconds if the job dies mid-run (H5). */
+    public int $uniqueFor = 600;
+
     public function __construct(public int $subscriptionId) {}
+
+    /**
+     * One in-flight renewal per subscription (H5): a second dispatch for the same
+     * subscription is dropped while one is queued/running, so overlapping passes cannot both
+     * advance the period and invoice. The DB row lock + unique period guard are the durable
+     * backstop should two ever run anyway.
+     */
+    public function uniqueId(): string
+    {
+        return 'renew-subscription:'.$this->subscriptionId;
+    }
 
     public function handle(CycleRenewalService $renewals, NotifiesCustomers $notifier, Config $config, RetriesPayments $retries): void
     {

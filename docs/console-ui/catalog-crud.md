@@ -39,6 +39,12 @@ entitlement" pickers but still resolve for everything already pointing at them.
 - **Plan edits are metadata only** — name, interval, product, active. A plan's money lives in
   the versioned per-currency `PlanPrice` authoring, which the engine resolves per subscriber,
   so editing a plan through this surface can never reprice an existing subscriber.
+- **Interval is `month` or `year` only** — the two cadences the billing engine can represent
+  and renew (`BillingInterval` carries just Monthly and Yearly). `week` and `quarter` are
+  refused by the authoring guard (server-side, not just the form): they were previously billed
+  on a monthly cadence, so a quarter over-charged 3× and a week under-charged. A genuine
+  sub-monthly or quarterly cadence needs an engine feature, not an app workaround; any legacy
+  plan stored on `week`/`quarter` is normalized to `month` by migration.
 - **Archiving a plan** flips it to `Legacy` (a valid transition source, closed to new
   signups); current subscribers keep their plan and their grandfathered price untouched.
 - **Removing a price version** is refused while a serving subscriber's org is billed in that

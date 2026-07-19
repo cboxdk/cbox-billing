@@ -15,7 +15,7 @@ pricing) and the management API (`GET /api/v1/plans`).
 | Model | Table | Holds |
 | --- | --- | --- |
 | `Product` | `products` | A named product; its `key` is also the plan **family** key for transitions. |
-| `Plan` | `plans` | A plan on a product: `key`, `name`, `interval` (e.g. `month`), `active`. |
+| `Plan` | `plans` | A plan on a product: `key`, `name`, `interval` (`month` or `year` — the only cadences the engine renews), `active`. |
 | `PlanPrice` | `plan_prices` | The recurring list price per currency (integer minor units), plus a `pricing_model` and `package_size`. |
 | `PlanPriceTier` | `plan_price_tiers` | The per-tier schedule (`up_to`, `unit_minor`, `flat_minor`) for tiered models. |
 | `PlanEntitlement` | `plan_entitlements` | The per-meter policy: `enabled`, `allowance`, `multiplier` (overage weight), `unlimited`, `overage`. |
@@ -28,9 +28,13 @@ account transacts in on its first finalized invoice.
 
 ## The six pricing models
 
-Each `PlanPrice` carries a `pricing_model`. The base `price_minor` is always the
-list recurring amount the MRR read model sums; a tiered model adds a per-seat tier
-schedule that the price scales by.
+Each `PlanPrice` carries a `pricing_model`. The recurring amount a subscription is
+billed — the period invoice, MRR, and the change preview all agree here — is the
+engine's `Price::amountFor(seats)` for the plan's model: `flat` bills the base
+`price_minor` once, `per_unit` bills it per seat, and the tiered models price the seat
+count from their `PlanPriceTier` schedule (the base `price_minor` is not billed for a
+tiered plan, only its tiers). Invoicing, MRR, and preview run the same call, so they
+never disagree.
 
 | Model | Meaning |
 | --- | --- |

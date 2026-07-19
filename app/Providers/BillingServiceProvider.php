@@ -53,9 +53,11 @@ use App\Billing\Seats\Contracts\ManagesSeats;
 use App\Billing\Seats\SeatManager;
 use App\Billing\Seller\ConfiguredEntityRouter;
 use App\Billing\Seller\SellerCatalog;
+use App\Billing\Subscriptions\Contracts\CollectsProration;
 use App\Billing\Subscriptions\Contracts\ConvertsTrials;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Subscriptions\ProrationCharger;
 use App\Billing\Subscriptions\SubscriptionDepthService;
 use App\Billing\Subscriptions\SubscriptionService;
 use App\Billing\Subscriptions\TrialService;
@@ -353,6 +355,8 @@ class BillingServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(EntityRouter::class, ConfiguredEntityRouter::class);
+
+        $this->app->singleton(CollectsProration::class, ProrationCharger::class);
 
         $this->app->singleton(SubscribesOrganizations::class, SubscriptionService::class);
 

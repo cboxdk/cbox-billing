@@ -287,6 +287,50 @@ class OutboundWebhookTest extends TestCase
         $this->assertSame(DeliveryStatus::Delivered, $delivery->status);
     }
 
+    public function test_a_delivery_resolves_the_most_specific_subject_link_from_its_payload(): void
+    {
+        // Invoice event → invoice (most specific).
+        $paymentFailed = (new WebhookDelivery)->forceFill([
+            'event_type' => 'payment.failed',
+            'payload' => ['invoice_id' => 42, 'organization_id' => 'org_acme', 'subscription_id' => 7],
+        ]);
+        $this->assertSame(
+            ['label' => 'Invoice #42', 'route' => 'billing.invoices.show', 'param' => 42],
+            $paymentFailed->subjectLink(),
+        );
+
+        // Subscription event carries the id as `id`.
+        $subCreated = (new WebhookDelivery)->forceFill([
+            'event_type' => 'subscription.created',
+            'payload' => ['id' => 7, 'organization_id' => 'org_acme'],
+        ]);
+        $this->assertSame(
+            ['label' => 'Subscription #7', 'route' => 'billing.subscriptions.show', 'param' => 7],
+            $subCreated->subjectLink(),
+        );
+
+        // Coupon redeemed → the subscription it applied to.
+        $couponRedeemed = (new WebhookDelivery)->forceFill([
+            'event_type' => 'coupon.redeemed',
+            'payload' => ['subscription_id' => 9, 'organization_id' => 'org_acme'],
+        ]);
+        $this->assertSame('billing.subscriptions.show', $couponRedeemed->subjectLink()['route'] ?? null);
+
+        // Only an organization → the customer.
+        $orgOnly = (new WebhookDelivery)->forceFill([
+            'event_type' => 'dunning.exhausted',
+            'payload' => ['organization_id' => 'org_acme'],
+        ]);
+        $this->assertSame(
+            ['label' => 'org_acme', 'route' => 'billing.customers.show', 'param' => 'org_acme'],
+            $orgOnly->subjectLink(),
+        );
+
+        // A ping (no subject) → null, so the log falls back to the event id.
+        $ping = (new WebhookDelivery)->forceFill(['event_type' => 'ping', 'payload' => ['nonce' => 'abc']]);
+        $this->assertNull($ping->subjectLink());
+    }
+
     // ---- 6. Console CRUD + permission gate ----
 
     public function test_the_console_registers_an_endpoint_and_shows_the_secret_once(): void

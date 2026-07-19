@@ -80,6 +80,9 @@ The app is organized around a few load-bearing ideas:
   checkout/portal, license activation, authentication, throttling, and idempotency.
 - **[Outbound webhooks](webhooks/_index.md)** — the integrator event bus: register
   endpoints, subscribe to the billing event catalog, and verify signed deliveries.
+- **[Data export & warehouse sinks](data-export/_index.md)** — stream any dataset to
+  CSV/NDJSON, and stage partitioned files plus copy-paste `COPY`/`bq load`/DDL load
+  manifests to Snowflake, BigQuery and Redshift, with incremental, cursor-driven sync.
 - **[Open core](open-core/_index.md)** — the plugin model, capability gating, the
   five commercial plugins, and how a deployment composes them.
 - **[Console UI](console-ui/_index.md)** — the reusable console UX conventions

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4a3d84a361ff1a218092c935efa9123b",
+    "content-hash": "2baca40137dd92152680de68915dbdac",
     "packages": [
         {
             "name": "brick/math",
@@ -577,6 +577,78 @@
                 "source": "https://github.com/cboxdk/laravel-id-client/tree/v0.3.1"
             },
             "time": "2026-07-17T17:20:43+00:00"
+        },
+        {
+            "name": "cboxdk/laravel-ssrf",
+            "version": "v1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cboxdk/laravel-ssrf.git",
+                "reference": "9595ef91ca4a995611019dd8bd4f1104938ac4cc"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cboxdk/laravel-ssrf/zipball/9595ef91ca4a995611019dd8bd4f1104938ac4cc",
+                "reference": "9595ef91ca4a995611019dd8bd4f1104938ac4cc",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/contracts": "^12.0 || ^13.0",
+                "illuminate/http": "^12.0 || ^13.0",
+                "illuminate/support": "^12.0 || ^13.0",
+                "php": "^8.4",
+                "symfony/http-foundation": "^7.0 || ^8.0"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.18",
+                "orchestra/testbench": "^10.0 || ^11.0",
+                "pestphp/pest": "^3.5 || ^4.0"
+            },
+            "bin": [
+                "bin/check-licenses.php",
+                "bin/generate-sbom.php"
+            ],
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Cbox\\Ssrf\\SsrfServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "1.0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cbox\\Ssrf\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Cbox",
+                    "homepage": "https://cboxdk.com"
+                }
+            ],
+            "description": "Cbox SSRF — a hardened, config-driven guard against server-side request forgery for outbound URLs in Laravel. Blocks private/reserved/cloud-metadata targets, pins DNS, and refuses redirects.",
+            "keywords": [
+                "http",
+                "laravel",
+                "security",
+                "ssrf",
+                "url"
+            ],
+            "support": {
+                "issues": "https://github.com/cboxdk/laravel-ssrf/issues",
+                "security": "https://github.com/cboxdk/laravel-ssrf/security/policy",
+                "source": "https://github.com/cboxdk/laravel-ssrf"
+            },
+            "time": "2026-07-15T23:19:12+00:00"
         },
         {
             "name": "cboxdk/laravel-tax",

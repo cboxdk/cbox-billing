@@ -1,7 +1,7 @@
 {
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:3d11e5f8-3ac6-4487-abfa-3b5aaf86bcbc",
+    "serialNumber": "urn:uuid:97ef3406-ba6c-4c75-8e95-a1c5e55ff988",
     "version": 1,
     "metadata": {
         "tools": [
@@ -155,6 +155,22 @@
             "version": "v0.3.1",
             "purl": "pkg:composer/cboxdk/laravel-id-client@v0.3.1",
             "description": "Laravel/PHP consumer SDK for Cbox ID \u2014 turnkey OIDC login, hosted profile-management redirect, machine tokens, and webhook verification against a Cbox ID instance.",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "bom-ref": "pkg:composer/cboxdk/laravel-ssrf@v1.1.0",
+            "group": "cboxdk",
+            "name": "laravel-ssrf",
+            "version": "v1.1.0",
+            "purl": "pkg:composer/cboxdk/laravel-ssrf@v1.1.0",
+            "description": "Cbox SSRF \u2014 a hardened, config-driven guard against server-side request forgery for outbound URLs in Laravel. Blocks private/reserved/cloud-metadata targets, pins DNS, and refuses redirects.",
             "licenses": [
                 {
                     "license": {

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Reporting\Consolidated\ConsolidatedRevenueReport;
+use App\Billing\Reporting\Consolidated\ValueObjects\ConsolidatedMrr;
 use App\Billing\Reporting\RevenueAnalytics;
 use Cbox\Billing\Reporting\ValueObjects\MrrLine;
 use Illuminate\Contracts\View\View;
@@ -18,7 +20,7 @@ use Illuminate\Support\Carbon;
  */
 class AnalyticsController extends Controller
 {
-    public function revenue(Request $request, RevenueAnalytics $analytics): View
+    public function revenue(Request $request, RevenueAnalytics $analytics, ConsolidatedRevenueReport $consolidated): View
     {
         [$start, $end] = $this->window();
         $revenue = $analytics->revenue();
@@ -26,6 +28,16 @@ class AnalyticsController extends Controller
 
         $movement = $analytics->movement($start, $end);
         $waterfall = $movement->waterfallFor($currency);
+
+        // Consolidated (multi-entity, multi-currency) overlay — additive on top of the
+        // per-currency figures. The reporting currency + entity filter come from the URL (state
+        // lives in the query string); an unknown entity falls back to the whole book.
+        $entityOptions = $consolidated->entityOptions();
+        $entityId = $this->entityFilter($request, $entityOptions);
+        $reporting = $consolidated->reportingCurrency($this->requestedReporting($request));
+
+        $mrr = $consolidated->mrr($reporting, $entityId);
+        $consolidatedMovement = $consolidated->movement($reporting, $start, $end);
 
         return view('analytics.revenue', [
             'activeArea' => 'analytics',
@@ -37,7 +49,62 @@ class AnalyticsController extends Controller
             'arr' => $waterfall?->toArr(),
             'windowStart' => $start->format('Y-m-d'),
             'windowEnd' => $end->format('Y-m-d'),
+            // Consolidated overlay.
+            'consolidated' => $mrr,
+            'consolidatedMovement' => $consolidatedMovement,
+            'reporting' => $reporting,
+            'reportingOptions' => $this->reportingOptions($mrr, $reporting),
+            'entityOptions' => $entityOptions,
+            'entityId' => $entityId,
         ]);
+    }
+
+    /**
+     * The requested reporting currency from `?reporting=`, upper-cased, or null to let the report
+     * resolve its default (config, else the seller currency).
+     */
+    private function requestedReporting(Request $request): ?string
+    {
+        $requested = $request->query('reporting');
+
+        return is_string($requested) && $requested !== '' ? strtoupper($requested) : null;
+    }
+
+    /**
+     * The `?entity=` filter when it names a real selling entity, else null (the whole book).
+     *
+     * @param  list<array{id: string, name: string}>  $options
+     */
+    private function entityFilter(Request $request, array $options): ?string
+    {
+        $requested = $request->query('entity');
+
+        if (! is_string($requested) || $requested === '') {
+            return null;
+        }
+
+        $ids = array_map(static fn (array $option): string => $option['id'], $options);
+
+        return in_array($requested, $ids, true) ? $requested : null;
+    }
+
+    /**
+     * The reporting-currency choices offered in the selector: the currencies the book actually
+     * bills in, plus the current reporting currency (so it is always selectable), sorted.
+     *
+     * @return list<string>
+     */
+    private function reportingOptions(ConsolidatedMrr $mrr, string $reporting): array
+    {
+        $currencies = array_map(
+            static fn ($line): string => $line->currency,
+            $mrr->byCurrency,
+        );
+        $currencies[] = $reporting;
+        $currencies = array_values(array_unique($currencies));
+        sort($currencies);
+
+        return $currencies;
     }
 
     public function retention(Request $request, RevenueAnalytics $analytics): View

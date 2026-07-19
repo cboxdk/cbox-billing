@@ -83,6 +83,9 @@ The app is organized around a few load-bearing ideas:
 - **[Data export & warehouse sinks](data-export/_index.md)** — stream any dataset to
   CSV/NDJSON, and stage partitioned files plus copy-paste `COPY`/`bq load`/DDL load
   manifests to Snowflake, BigQuery and Redshift, with incremental, cursor-driven sync.
+- **[Consolidated reporting & FX](reporting/_index.md)** — multi-entity, multi-currency
+  consolidated MRR/ARR normalized to one reporting currency with real ECB reference rates
+  (plus operator overrides), the as-of/rounding policy, and auditable breakdowns.
 - **[Open core](open-core/_index.md)** — the plugin model, capability gating, the
   five commercial plugins, and how a deployment composes them.
 - **[Console UI](console-ui/_index.md)** — the reusable console UX conventions

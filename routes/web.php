@@ -14,6 +14,7 @@ use App\Http\Controllers\CustomerOpsController;
 use App\Http\Controllers\DunningController;
 use App\Http\Controllers\DunningStrategyController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\FxRateController;
 use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MailTemplateController;
@@ -285,6 +286,12 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode'])->group(func
     Route::post('/settings/sellers/{sellerEntity}/archive', [SellerEntityController::class, 'archive'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.archive');
     Route::post('/settings/sellers/{sellerEntity}/unarchive', [SellerEntityController::class, 'unarchive'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.unarchive');
     Route::delete('/settings/sellers/{sellerEntity}', [SellerEntityController::class, 'destroy'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.destroy');
+
+    // --- FX rates for consolidated reporting. The rates view is a read; refreshing the ECB feed
+    // and authoring an override rate are writes (settings:manage).
+    Route::get('/settings/fx', [FxRateController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.settings.fx');
+    Route::post('/settings/fx/refresh', [FxRateController::class, 'refresh'])->middleware('billing.permission:settings:manage')->name('billing.settings.fx.refresh');
+    Route::post('/settings/fx/overrides', [FxRateController::class, 'storeOverride'])->middleware('billing.permission:settings:manage')->name('billing.settings.fx.overrides');
 
     Route::get('/settings/api-tokens/new', [ApiTokenController::class, 'create'])->middleware('billing.permission:settings:manage')->name('billing.settings.tokens.create');
     Route::post('/settings/api-tokens', [ApiTokenController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.settings.tokens.store');

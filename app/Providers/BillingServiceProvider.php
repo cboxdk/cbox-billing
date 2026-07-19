@@ -17,6 +17,10 @@ use App\Billing\Enforcement\Contracts\ReservationStore;
 use App\Billing\Enforcement\EventLogUsageBuffer;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredPlan;
 use App\Billing\Enforcement\Upgrade\UpgradeGate;
+use App\Billing\Fx\EcbFxRateSource;
+use App\Billing\Fx\EcbRatesParser;
+use App\Billing\Fx\FxRateRefresher;
+use App\Billing\Fx\StaticFxRateSource;
 use App\Billing\Hosted\BillingSessionService;
 use App\Billing\Hosted\CheckoutActivation;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
@@ -131,6 +135,7 @@ use Cbox\Billing\Wallet\Contracts\Wallet;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\UrlGenerator;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -162,6 +167,7 @@ class BillingServiceProvider extends ServiceProvider
         $this->registerUpgradeGate();
         $this->registerApi();
         $this->registerRetentionSeam();
+        $this->registerFx();
 
         // The per-org opt-out store for the OPTIONAL lifecycle mails; the notifier consults it
         // before an optional send and the portal reads/writes it from the toggle UI.
@@ -584,6 +590,45 @@ class BillingServiceProvider extends ServiceProvider
     {
         $this->app->singleton(CancellationSurvey::class, BasicCancellationSurvey::class);
         $this->app->singleton(RetentionOffers::class, BasicRetentionOffers::class);
+    }
+
+    /**
+     * The FX-rate ingestion for consolidated reporting: the ECB feed adapter (real, cited) and
+     * the operator-override source, assembled into the refresher in the config-declared order.
+     * The converter and repository auto-wire from their constructors, so only the sources and the
+     * refresher's source list need binding. Rates are only ever read from here — never fabricated.
+     */
+    private function registerFx(): void
+    {
+        $this->app->singleton(EcbFxRateSource::class, static function (Application $app): EcbFxRateSource {
+            $url = $app->make(Config::class)->get('billing.fx.ecb.url');
+
+            return new EcbFxRateSource(
+                $app->make(HttpFactory::class),
+                $app->make(EcbRatesParser::class),
+                is_string($url) ? $url : 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml',
+            );
+        });
+
+        $this->app->singleton(FxRateRefresher::class, static function (Application $app): FxRateRefresher {
+            $configured = $app->make(Config::class)->get('billing.fx.sources', ['ecb', 'override']);
+            $names = is_array($configured) ? $configured : ['ecb', 'override'];
+
+            $sources = [];
+            foreach ($names as $name) {
+                $source = match ($name) {
+                    'ecb' => $app->make(EcbFxRateSource::class),
+                    'override' => $app->make(StaticFxRateSource::class),
+                    default => null,
+                };
+
+                if ($source !== null) {
+                    $sources[] = $source;
+                }
+            }
+
+            return new FxRateRefresher($sources);
+        });
     }
 
     /** Bind the pluggable API token authenticator (operator static token + per-org rows). */

@@ -38,6 +38,51 @@ return [
     'default_currency' => env('CBOX_BILLING_DEFAULT_CURRENCY', 'DKK'),
 
     /*
+     * Consolidated reporting (multi-entity + multi-currency). The ledger always stays in each
+     * transaction's own currency; these settings drive only the reporting overlay that
+     * normalizes the whole book to one currency for a single consolidated MRR/ARR view.
+     *
+     *  - `currency` — the reporting currency every entity's/currency's MRR is converted to. Null
+     *    (the default) means "use the default selling entity's currency", so a single-entity
+     *    deployment needs no config. A console operator can pick another currency per request.
+     *  - `fx.as_of` — the FX as-of basis for a period bridge: `period_end` (the default, the most
+     *    reproducible — a closed period's rate never moves) or `today` (spot). The per-currency
+     *    table always shows the exact date of the rate row applied, so the basis is auditable.
+     */
+    'reporting' => [
+        'currency' => env('CBOX_BILLING_REPORTING_CURRENCY'),
+        'fx' => [
+            'as_of' => env('CBOX_BILLING_REPORTING_FX_ASOF', 'period_end'),
+        ],
+    ],
+
+    /*
+     * Foreign-exchange rate ingestion for consolidated reporting. Rates are NEVER fabricated —
+     * they come from a cited, public feed or an operator/treasury override, and an unavailable
+     * pair is reported honestly as "rate unavailable".
+     *
+     *  - `sources` — the rate sources `fx:refresh` pulls, in order. `ecb` is the European Central
+     *    Bank euro foreign-exchange reference-rate feed (free, public, citable); `override` is the
+     *    operator overrides below. Drop a source to disable it.
+     *  - `ecb.url` — the ECB daily reference-rate XML. Source: European Central Bank, "Euro foreign
+     *    exchange reference rates" (see docs/reporting/fx-rates.md). Base EUR; non-EUR cross-rates
+     *    are derived via the EUR pivot at read time, not fetched.
+     *  - `overrides` — operator/treasury-fixed directed rates (`1 base = rate quote`) for a pair ECB
+     *    does not publish, or to pin an internal rate. Each entry: `{date?, base, quote, rate}`
+     *    (`date` defaults to today). An override supersedes ECB on the same (date, pair). The
+     *    console can author more of these into the `fx_rates` table.
+     */
+    'fx' => [
+        'sources' => ['ecb', 'override'],
+        'ecb' => [
+            'url' => env('CBOX_BILLING_FX_ECB_URL', 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml'),
+        ],
+        'overrides' => [
+            // ['date' => '2026-07-20', 'base' => 'USD', 'quote' => 'XOF', 'rate' => '600.0'],
+        ],
+    ],
+
+    /*
      * The provider console's COARSE authorization boundary (SEC-1).
      *
      * The console is for the host's INTERNAL operators, who live in a dedicated operator

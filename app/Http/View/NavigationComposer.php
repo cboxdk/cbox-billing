@@ -11,6 +11,7 @@ use App\Billing\Support\SubscriptionStanding;
 use App\Models\CboxIdAccessGrant;
 use App\Models\Coupon;
 use App\Models\CreditNote;
+use App\Models\FxRate;
 use App\Models\Meter;
 use App\Models\Organization;
 use App\Models\PaymentRetry;
@@ -153,6 +154,7 @@ readonly class NavigationComposer
                 'gateways' => count($this->settings->gateways()),
                 'tokens' => $this->settings->apiTokens()->count(),
                 'webhooks' => WebhookEndpoint::query()->count(),
+                'fx' => FxRate::query()->count(),
             ],
         ];
     }

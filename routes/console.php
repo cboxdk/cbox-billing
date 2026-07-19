@@ -87,3 +87,11 @@ Schedule::command('billing:prune-idempotency')->hourly()->withoutOverlapping();
  * it more often, or a per-sink cron via the sink's own schedule.
  */
 Schedule::command('warehouse:sync')->hourly()->withoutOverlapping();
+
+/*
+ * Pull the ECB euro reference rates (and any operator overrides) into the fx_rates store for
+ * consolidated reporting. Daily on weekdays after the ECB publishes (~16:00 CET); the store keeps
+ * serving the last good rates under the nearest-before as-of policy, so a missed pull (weekend,
+ * holiday, transient outage) never fabricates a rate. Idempotent — a re-run upserts.
+ */
+Schedule::command('fx:refresh')->weekdays()->at('16:30')->withoutOverlapping();

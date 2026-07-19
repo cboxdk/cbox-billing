@@ -73,14 +73,16 @@ class ConsoleNav
             'label' => 'Usage', 'icon' => 'activity', 'order' => 40, 'feature' => null,
             'pages' => [
                 ['route' => 'billing.usage', 'label' => 'Meters', 'key' => 'meters', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.meters', 'label' => 'Manage meters', 'key' => 'meters-manage', 'params' => [], 'feature' => null, 'order' => 20],
             ],
         ],
         'catalog' => [
             'label' => 'Catalog', 'icon' => 'box', 'order' => 50, 'feature' => null,
             'pages' => [
-                ['route' => 'billing.catalog', 'label' => 'Products', 'key' => 'products', 'params' => [], 'feature' => null, 'order' => 10],
-                ['route' => 'billing.pricing', 'label' => 'Plans &amp; pricing', 'key' => 'plans', 'params' => [], 'feature' => null, 'order' => 20],
-                ['route' => 'billing.catalog.prices.create', 'label' => 'New price', 'key' => 'price-new', 'params' => [], 'feature' => null, 'order' => 30],
+                ['route' => 'billing.catalog', 'label' => 'Catalog', 'key' => 'catalog', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.products', 'label' => 'Products', 'key' => 'products', 'params' => [], 'feature' => null, 'order' => 20],
+                ['route' => 'billing.pricing', 'label' => 'Plans &amp; pricing', 'key' => 'plans', 'params' => [], 'feature' => null, 'order' => 30],
+                ['route' => 'billing.catalog.prices.create', 'label' => 'New price', 'key' => 'price-new', 'params' => [], 'feature' => null, 'order' => 40],
             ],
         ],
         'customers' => [

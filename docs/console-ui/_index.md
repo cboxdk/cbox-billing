@@ -14,3 +14,6 @@ and every page is keyboard-operable and responsive without per-screen effort.
 - **[Reusable patterns](reusable-patterns.md)** — the confirm dialog, pagination partial,
   breadcrumb component, accessible row pattern, flash banner, and responsive utilities, with
   the exact snippet to copy for each.
+- **[Catalog CRUD](catalog-crud.md)** — the routable pages and full authoring for every
+  catalog resource, the archive-vs-hard-delete decision per resource, and the referential
+  guards that keep grandfathering and the currency lock intact.

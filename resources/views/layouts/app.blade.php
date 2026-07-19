@@ -132,12 +132,17 @@
         <a class="cmd" href="{{ route('billing.customers') }}">@include('partials.icon', ['name' => 'building', 'size' => 15, 'sw' => 1.7])Go to Customers</a>
         <a class="cmd" href="{{ route('billing.usage') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Usage</a>
         <a class="cmd" href="{{ route('billing.catalog') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Catalog</a>
+        <a class="cmd" href="{{ route('billing.products') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Products</a>
+        <a class="cmd" href="{{ route('billing.meters') }}">@include('partials.icon', ['name' => 'gauge', 'size' => 15, 'sw' => 1.7])Go to Meters</a>
     </div>
     {{-- Only real, existing actions — no no-op commands. (Create-subscription/create-invoice
          flows land in waves 2-4; until then the palette deep-links to what exists.) --}}
     <div class="grp" id="palgroup-actions" style="border-top:1px solid var(--border)">
         <p>Actions</p>
+        <a class="cmd" href="{{ route('billing.products.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New product</a>
+        <a class="cmd" href="{{ route('billing.plans.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New plan</a>
         <a class="cmd" href="{{ route('billing.catalog.prices.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New price</a>
+        <a class="cmd" href="{{ route('billing.meters.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New meter</a>
         <a class="cmd" href="{{ route('billing.subscriptions.dunning') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Review dunning</a>
     </div>
     <div class="grp" id="palgroup-empty" style="display:none;padding:14px 16px">

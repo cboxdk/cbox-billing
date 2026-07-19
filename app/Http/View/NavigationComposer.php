@@ -126,7 +126,10 @@ readonly class NavigationComposer
                 'paid' => $invoiceCounts['paid'],
                 'draft' => $invoiceCounts['draft'],
             ],
-            'usage' => ['meters' => Meter::query()->count()],
+            'usage' => [
+                'meters' => Meter::query()->count(),
+                'meters-manage' => Meter::query()->count(),
+            ],
             'catalog' => [
                 'products' => Product::query()->count(),
                 'plans' => Plan::query()->count(),

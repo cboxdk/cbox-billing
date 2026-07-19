@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Billing\Catalog\Contracts\AuthorsPlanPrices;
+use App\Billing\Catalog\Exceptions\CatalogActionDenied;
 use App\Billing\Catalog\Exceptions\CatalogAuthoringException;
 use App\Billing\Catalog\ValueObjects\PlanPriceDraft;
 use App\Models\Plan;
@@ -40,6 +41,29 @@ class CatalogController extends Controller
     public function update(Request $request, PlanPrice $price, AuthorsPlanPrices $authoring): RedirectResponse
     {
         return $this->persist($request, $authoring, $price);
+    }
+
+    /**
+     * Remove a price version and its tier set. Guarded by the currency-lock invariant: the
+     * effective price a serving subscriber grandfathers on cannot be pulled out from under
+     * them (the service refuses it), so the guard is enforced server-side — never on the
+     * confirm dialog alone.
+     */
+    public function destroyPrice(PlanPrice $price, AuthorsPlanPrices $authoring): RedirectResponse
+    {
+        $planModel = $price->plan;
+        $plan = $planModel instanceof Plan ? $planModel->name : 'plan';
+        $currency = $price->currency;
+
+        try {
+            $authoring->delete($price);
+        } catch (CatalogActionDenied $e) {
+            return back()->with('catalog_error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('billing.catalog')
+            ->with('catalog_notice', sprintf('Removed the %s %s price.', $plan, $currency));
     }
 
     /**

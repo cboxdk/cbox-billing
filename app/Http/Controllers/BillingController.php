@@ -184,7 +184,7 @@ class BillingController extends Controller
     {
         return view('billing.catalog', [
             'activeArea' => 'catalog',
-            'activeNav' => 'products',
+            'activeNav' => 'catalog',
             'products' => $report->products(),
             'successorChoices' => $report->successorChoices(),
         ]);

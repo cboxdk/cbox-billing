@@ -7,6 +7,11 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\LicenseController;
+use App\Http\Controllers\MeterController;
+use App\Http\Controllers\PlanController;
+use App\Http\Controllers\PlanCreditGrantController;
+use App\Http\Controllers\PlanEntitlementController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RetentionController;
 use App\Http\Controllers\SeatController;
 use Illuminate\Support\Facades\Route;
@@ -56,15 +61,73 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/catalog', [BillingController::class, 'catalog'])->middleware('billing.permission:catalog:read')->name('billing.catalog');
     Route::get('/pricing', [BillingController::class, 'pricing'])->middleware('billing.permission:catalog:read')->name('billing.pricing');
 
-    // Catalog authoring: create/edit a plan price and (for tiered models) its tier table.
+    // --- Catalog CRUD (Wave 2): routable pages + full authoring for the whole catalog.
+    // Reads carry `catalog:read`, writes `catalog:manage`. Destructive actions are guarded
+    // server-side (referential integrity / grandfathering) in the authoring services, never
+    // on the confirm dialog alone. `…/new` is declared before `…/{model}` so the static
+    // segment is never captured by the model binding.
+
+    // Products — routable list + detail + create/edit/archive/delete (archive when it has plans).
+    Route::get('/products', [ProductController::class, 'index'])->middleware('billing.permission:catalog:read')->name('billing.products');
+    Route::get('/products/new', [ProductController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.products.create');
+    Route::post('/products', [ProductController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.products.store');
+    Route::get('/products/{product}', [ProductController::class, 'show'])->middleware('billing.permission:catalog:read')->name('billing.products.show');
+    Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.products.edit');
+    Route::put('/products/{product}', [ProductController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.products.update');
+    Route::post('/products/{product}/archive', [ProductController::class, 'archive'])->middleware('billing.permission:catalog:manage')->name('billing.products.archive');
+    Route::post('/products/{product}/unarchive', [ProductController::class, 'unarchive'])->middleware('billing.permission:catalog:manage')->name('billing.products.unarchive');
+    Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.products.destroy');
+
+    // Catalog price authoring: create/edit a plan price and (for tiered models) its tier
+    // table; delete a price version (guarded by the currency-lock invariant).
     Route::get('/catalog/prices/new', [CatalogController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.catalog.prices.create');
     Route::post('/catalog/prices', [CatalogController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.catalog.prices.store');
     Route::get('/catalog/prices/{price}/edit', [CatalogController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.catalog.prices.edit');
     Route::put('/catalog/prices/{price}', [CatalogController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.catalog.prices.update');
+    Route::delete('/catalog/prices/{price}', [CatalogController::class, 'destroyPrice'])->middleware('billing.permission:catalog:manage')->name('billing.catalog.prices.destroy');
+
+    // Plans — the per-plan detail hub + metadata create/edit/archive/delete, plus its
+    // entitlement and credit-grant editors (scope-bound to the plan). `…/new` before `{plan}`.
+    Route::get('/catalog/plans/new', [PlanController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.plans.create');
+    Route::post('/catalog/plans', [PlanController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.plans.store');
+    Route::get('/catalog/plans/{plan}', [PlanController::class, 'show'])->middleware('billing.permission:catalog:read')->name('billing.plans.show');
+    Route::get('/catalog/plans/{plan}/edit', [PlanController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.plans.edit');
+    Route::put('/catalog/plans/{plan}', [PlanController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.plans.update');
+    Route::post('/catalog/plans/{plan}/archive', [PlanController::class, 'archive'])->middleware('billing.permission:catalog:manage')->name('billing.plans.archive');
+    Route::post('/catalog/plans/{plan}/unarchive', [PlanController::class, 'unarchive'])->middleware('billing.permission:catalog:manage')->name('billing.plans.unarchive');
+    Route::delete('/catalog/plans/{plan}', [PlanController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.plans.destroy');
+
+    Route::scopeBindings()->group(function (): void {
+        // Plan entitlements — full editor (create/edit/delete) reachable from the plan detail.
+        Route::get('/catalog/plans/{plan}/entitlements/new', [PlanEntitlementController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.plans.entitlements.create');
+        Route::post('/catalog/plans/{plan}/entitlements', [PlanEntitlementController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.plans.entitlements.store');
+        Route::get('/catalog/plans/{plan}/entitlements/{entitlement}/edit', [PlanEntitlementController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.plans.entitlements.edit');
+        Route::put('/catalog/plans/{plan}/entitlements/{entitlement}', [PlanEntitlementController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.plans.entitlements.update');
+        Route::delete('/catalog/plans/{plan}/entitlements/{entitlement}', [PlanEntitlementController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.plans.entitlements.destroy');
+
+        // Plan credit grants — full editor (create/edit/delete) reachable from the plan detail.
+        Route::get('/catalog/plans/{plan}/credit-grants/new', [PlanCreditGrantController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.plans.credit-grants.create');
+        Route::post('/catalog/plans/{plan}/credit-grants', [PlanCreditGrantController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.plans.credit-grants.store');
+        Route::get('/catalog/plans/{plan}/credit-grants/{credit_grant}/edit', [PlanCreditGrantController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.plans.credit-grants.edit');
+        Route::put('/catalog/plans/{plan}/credit-grants/{credit_grant}', [PlanCreditGrantController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.plans.credit-grants.update');
+        Route::delete('/catalog/plans/{plan}/credit-grants/{credit_grant}', [PlanCreditGrantController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.plans.credit-grants.destroy');
+    });
 
     // Plan retirement authoring (ADR-0016): mark a plan retiring / un-retire it.
     Route::post('/catalog/plans/{plan}/retire', [CatalogController::class, 'retire'])->middleware('billing.permission:catalog:manage')->name('billing.catalog.plans.retire');
     Route::post('/catalog/plans/{plan}/unretire', [CatalogController::class, 'unretire'])->middleware('billing.permission:catalog:manage')->name('billing.catalog.plans.unretire');
+
+    // Meters — full CRUD (list + detail + create/edit/archive/delete). Archived/referenced
+    // meters keep resolving their historical policy; only never-referenced meters delete.
+    Route::get('/meters', [MeterController::class, 'index'])->middleware('billing.permission:catalog:read')->name('billing.meters');
+    Route::get('/meters/new', [MeterController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.meters.create');
+    Route::post('/meters', [MeterController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.meters.store');
+    Route::get('/meters/{meter}', [MeterController::class, 'show'])->middleware('billing.permission:catalog:read')->name('billing.meters.show');
+    Route::get('/meters/{meter}/edit', [MeterController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.meters.edit');
+    Route::put('/meters/{meter}', [MeterController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.meters.update');
+    Route::post('/meters/{meter}/archive', [MeterController::class, 'archive'])->middleware('billing.permission:catalog:manage')->name('billing.meters.archive');
+    Route::post('/meters/{meter}/unarchive', [MeterController::class, 'unarchive'])->middleware('billing.permission:catalog:manage')->name('billing.meters.unarchive');
+    Route::delete('/meters/{meter}', [MeterController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.meters.destroy');
 
     Route::get('/customers', [BillingController::class, 'customers'])->middleware('billing.permission:customers:read')->name('billing.customers');
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->middleware('billing.permission:customers:read')->name('billing.customers.show');

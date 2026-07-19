@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Billing\Catalog;
 
 use App\Billing\Catalog\Contracts\AuthorsPlanPrices;
+use App\Billing\Catalog\Exceptions\CatalogActionDenied;
 use App\Billing\Catalog\Exceptions\CatalogAuthoringException;
 use App\Billing\Catalog\ValueObjects\PlanPriceDraft;
 use App\Models\Plan;
 use App\Models\PlanPrice;
 use App\Models\PlanPriceTier;
+use App\Models\Subscription;
 use Cbox\Billing\Catalog\Enums\PricingModel;
 use Cbox\Billing\Catalog\Exceptions\MalformedTierSet;
 use Cbox\Billing\Catalog\Pricing\TierCalculator;
@@ -69,6 +71,32 @@ readonly class PlanPriceAuthoring implements AuthorsPlanPrices
             }
 
             return $price->load('tiers');
+        });
+    }
+
+    public function delete(PlanPrice $price): void
+    {
+        $plan = $price->plan;
+
+        // Currency-lock guard: an active plan's serving subscribers whose org is billed in
+        // this price's currency are grandfathered onto it — removing it would strip the
+        // currency out from under them. A legacy (inactive) plan takes no new signups, but a
+        // grandfathered subscriber may still be serving on it, so the guard holds there too.
+        if ($plan instanceof Plan) {
+            $onCurrency = Subscription::query()
+                ->where('plan_id', $plan->id)
+                ->serving()
+                ->whereRelation('organization', 'billing_currency', $price->currency)
+                ->count();
+
+            if ($onCurrency > 0) {
+                throw CatalogActionDenied::priceInUse($plan->name, $price->currency, $onCurrency);
+            }
+        }
+
+        $this->db->transaction(function () use ($price): void {
+            $price->tiers()->delete();
+            $price->delete();
         });
     }
 

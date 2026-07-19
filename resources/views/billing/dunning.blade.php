@@ -48,7 +48,7 @@
                                     <form method="POST" action="{{ route('billing.subscriptions.dunning.stop', $r['id']) }}" style="display:flex;gap:4px;align-items:center"
                                           data-confirm="Stop dunning for {{ $r['org'] }}? The retry schedule halts." data-confirm-title="Stop dunning?" data-confirm-label="Stop" data-confirm-variant="destructive">
                                         @csrf
-                                        <select name="terminal" aria-label="Terminal action" style="height:28px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);font-size:12px">
+                                        <select name="terminal" aria-label="Terminal action" style="height:28px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);font-size:12px">
                                             <option value="keep">leave past due</option>
                                             <option value="cancel">cancel</option>
                                         </select>

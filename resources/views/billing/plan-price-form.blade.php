@@ -38,7 +38,7 @@
     ];
 
     $labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500';
-    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px';
+    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px';
 @endphp
 
 @section('screen')
@@ -135,7 +135,7 @@
 
     function tierRow(upTo, unit, flat) {
         const i = tierIndex++;
-        const cell = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px';
+        const cell = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px';
         const row = document.createElement('div');
         row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr 32px;gap:8px';
         row.innerHTML =

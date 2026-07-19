@@ -17,7 +17,7 @@
         <div style="padding:6px 20px 16px">
             @if ($settings['public_key_configured'])
                 <p class="cbx-page-desc" style="font-size:12px;margin:0 0 6px">Safe to share. Bundle it in the self-hosted deployment as <span class="num">CBOX_LICENSE_PUBLIC_KEY</span> so it can verify licenses offline:</p>
-                <textarea readonly rows="2" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);resize:vertical">{{ $settings['public_key'] }}</textarea>
+                <textarea readonly rows="2" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);resize:vertical">{{ $settings['public_key'] }}</textarea>
             @else
                 <span class="cbx-pill cbx-pill--warning"><span class="dot"></span>not configured</span>
                 <p class="cbx-page-desc" style="font-size:12px;margin:8px 0 0">Set <span class="num">CBOX_LICENSE_PUBLIC_KEY</span>. Generate a keypair with <span class="num">php artisan billing:license-keygen</span>.</p>
@@ -40,7 +40,7 @@
         <div style="padding:6px 20px 16px">
             @if ($settings['signing_key_configured'])
                 <p class="cbx-page-desc" style="font-size:12px;margin:0 0 6px">The current signed list of revoked license ids ({{ $settings['revoked_count'] }}). Distribute it to deployments (or expose the activation endpoint) so a revoked license is refused offline once pulled:</p>
-                <textarea readonly rows="3" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);resize:vertical">{{ $settings['revocation_list'] }}</textarea>
+                <textarea readonly rows="3" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);resize:vertical">{{ $settings['revocation_list'] }}</textarea>
             @else
                 <p class="cbx-page-desc" style="font-size:12px;margin:0">Available once a signing key is configured.</p>
             @endif

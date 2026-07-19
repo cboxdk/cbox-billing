@@ -4,23 +4,16 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
+use App\Billing\Notifications\MailEventType;
 
 /**
  * The dunning notice, sent to the billing contact at each dunning step for a past-due
- * account. It states the outstanding amount and — when the account has crossed into
- * suspension — that access is now gated, so the customer is never suspended un-warned. The
- * `suspended` flag drives the copy and the accent (a warning reminder vs a suspension notice).
+ * account. The `suspended` flag drives the copy (a warning reminder vs a suspension notice)
+ * so the customer is never suspended un-warned. Rendered through the branded, localized
+ * template system (see {@see TransactionalMailable}).
  */
-class PaymentFailedMail extends Mailable implements ShouldQueue
+class PaymentFailedMail extends TransactionalMailable
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public string $organizationName,
         public string $amountDueFormatted,
@@ -28,15 +21,18 @@ class PaymentFailedMail extends Mailable implements ShouldQueue
         public ?string $oldestDueLabel = null,
     ) {}
 
-    public function envelope(): Envelope
+    public function eventType(): MailEventType
     {
-        return new Envelope(subject: $this->suspended
-            ? 'Your Cbox account has been suspended for non-payment'
-            : 'Payment reminder — action needed on your Cbox account');
+        return MailEventType::PaymentFailed;
     }
 
-    public function content(): Content
+    public function variables(): array
     {
-        return new Content(view: 'mail.payment-failed');
+        return [
+            'organization_name' => $this->organizationName,
+            'amount_due_formatted' => $this->amountDueFormatted,
+            'suspended' => $this->suspended,
+            'oldest_due_label' => $this->oldestDueLabel ?? '',
+        ];
     }
 }

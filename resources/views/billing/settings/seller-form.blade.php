@@ -76,6 +76,46 @@
             </div>
 
             <div>
+                <h2 class="cbx-panel-title" style="font-size:13px;margin:6px 0 4px">Email branding</h2>
+                <p class="cbx-page-desc" style="font-size:11px;margin:0 0 10px">The customer-facing brand wrapped around every transactional email this entity sends. Leave a field blank to fall back to the app default.</p>
+                <div class="cbx-grid-3" style="align-items:start">
+                    <label style="{{ $labelStyle }}">Accent colour
+                        <input type="text" name="brand_color" value="{{ old('brand_color', $editing ? $seller->brand_color : '') }}" maxlength="9" placeholder="#2743b3" pattern="#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})" style="{{ $inputStyle }}">
+                        <span class="mut" style="font-size:11px">Hex, e.g. #2743b3.</span>
+                    </label>
+                    <label style="{{ $labelStyle }}">Logo URL
+                        <input type="url" name="logo_url" value="{{ old('logo_url', $editing ? $seller->logo_url : '') }}" maxlength="500" placeholder="https://…/logo.png" style="{{ $inputStyle }}">
+                    </label>
+                    <label style="{{ $labelStyle }}">Default email locale
+                        <input type="text" name="default_locale" value="{{ old('default_locale', $editing ? $seller->default_locale : '') }}" maxlength="12" placeholder="en" style="{{ $inputStyle }}">
+                        <span class="mut" style="font-size:11px">Middle layer of the locale chain.</span>
+                    </label>
+                </div>
+                <div class="cbx-grid-3" style="align-items:start;margin-top:12px">
+                    <label style="{{ $labelStyle }}">From name
+                        <input type="text" name="from_name" value="{{ old('from_name', $editing ? $seller->from_name : '') }}" maxlength="190" placeholder="Cbox Billing" style="{{ $inputStyle }}">
+                    </label>
+                    <label style="{{ $labelStyle }}">From email
+                        <input type="email" name="from_email" value="{{ old('from_email', $editing ? $seller->from_email : '') }}" maxlength="254" placeholder="billing@cbox.dk" style="{{ $inputStyle }}">
+                    </label>
+                    <label style="{{ $labelStyle }}">Reply-to
+                        <input type="email" name="reply_to" value="{{ old('reply_to', $editing ? $seller->reply_to : '') }}" maxlength="254" placeholder="support@cbox.dk" style="{{ $inputStyle }}">
+                    </label>
+                </div>
+                <div class="cbx-grid-3" style="align-items:start;margin-top:12px">
+                    <label style="{{ $labelStyle }}">Support URL
+                        <input type="url" name="support_url" value="{{ old('support_url', $editing ? $seller->support_url : '') }}" maxlength="500" placeholder="https://cbox.dk/support" style="{{ $inputStyle }}">
+                    </label>
+                    <label style="{{ $labelStyle }}">Support email
+                        <input type="email" name="support_email" value="{{ old('support_email', $editing ? $seller->support_email : '') }}" maxlength="254" placeholder="support@cbox.dk" style="{{ $inputStyle }}">
+                    </label>
+                    <label style="{{ $labelStyle }}">Footer legal address
+                        <input type="text" name="footer_address" value="{{ old('footer_address', $editing ? $seller->footer_address : '') }}" maxlength="500" placeholder="Street 1, 1000 Copenhagen, DK" style="{{ $inputStyle }}">
+                    </label>
+                </div>
+            </div>
+
+            <div>
                 <h2 class="cbx-panel-title" style="font-size:13px;margin:6px 0 4px">Tax registrations</h2>
                 <p class="cbx-page-desc" style="font-size:11px;margin:0 0 8px">The entity's VAT/GST nexus per jurisdiction. Leave a row blank to skip it. Rates are never entered here — they resolve from the cited rate-source feeds.</p>
                 <table class="tbl">

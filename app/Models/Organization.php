@@ -28,10 +28,15 @@ use Illuminate\Support\Carbon;
  * already unique — there is no composite key. `suspended_at` reflects a Cbox ID org
  * suspension (kept fresh by the provisioning webhooks); null = active.
  *
+ * `locale` is the customer's preferred language for transactional email — the top layer of
+ * the locale resolution chain (customer → seller default → app fallback); nullable, so an
+ * org with none falls through rather than dead-ending.
+ *
  * @property string $id
  * @property string $name
  * @property string|null $environment_key
  * @property string|null $billing_email
+ * @property string|null $locale
  * @property string|null $billing_currency
  * @property string|null $billing_country
  * @property string|null $billing_subdivision
@@ -48,7 +53,7 @@ class Organization extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'id', 'name', 'environment_key', 'billing_email', 'billing_currency',
+        'id', 'name', 'environment_key', 'billing_email', 'locale', 'billing_currency',
         'billing_country', 'billing_subdivision', 'tax_id', 'tax_id_validated',
     ];
 

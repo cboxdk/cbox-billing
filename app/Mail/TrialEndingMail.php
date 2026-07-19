@@ -4,23 +4,15 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
+use App\Billing\Notifications\MailEventType;
 
 /**
  * The trial-ending reminder, sent ahead of a trial's conversion so the customer knows the
- * free trial is about to become a paying subscription (and its first charge is coming)
- * before it lands. Carries the plan, the trial-end date, and the recurring amount. Queued
- * from the trial-conversion pass.
+ * free trial is about to become a paying subscription (and its first charge is coming).
+ * Rendered through the branded, localized template system (see {@see TransactionalMailable}).
  */
-class TrialEndingMail extends Mailable implements ShouldQueue
+class TrialEndingMail extends TransactionalMailable
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public string $organizationName,
         public string $planName,
@@ -28,13 +20,18 @@ class TrialEndingMail extends Mailable implements ShouldQueue
         public string $amountFormatted,
     ) {}
 
-    public function envelope(): Envelope
+    public function eventType(): MailEventType
     {
-        return new Envelope(subject: 'Your '.$this->planName.' trial ends on '.$this->endsAtLabel);
+        return MailEventType::TrialEnding;
     }
 
-    public function content(): Content
+    public function variables(): array
     {
-        return new Content(view: 'mail.trial-ending');
+        return [
+            'organization_name' => $this->organizationName,
+            'plan_name' => $this->planName,
+            'ends_at_label' => $this->endsAtLabel,
+            'amount_formatted' => $this->amountFormatted,
+        ];
     }
 }

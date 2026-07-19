@@ -4,23 +4,16 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
+use App\Billing\Notifications\MailEventType;
 
 /**
  * Delivers an on-prem license to the customer's billing contact when it is issued or
- * reissued. Carries the copy-pasteable `CBOX_ID_LICENSE_KEY` value and install notes so the
- * operator can drop it straight into their self-hosted deployment. Queued from the licensing
- * service. `reissued` distinguishes a renewal (fresh key, extended window) from a first issue.
+ * reissued. Carries the copy-pasteable `CBOX_ID_LICENSE_KEY` value and install notes.
+ * `reissued` distinguishes a renewal from a first issue. Rendered through the branded,
+ * localized template system (see {@see TransactionalMailable}).
  */
-class LicenseDeliveryMail extends Mailable implements ShouldQueue
+class LicenseDeliveryMail extends TransactionalMailable
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public string $organizationName,
         public string $licenseKey,
@@ -30,15 +23,20 @@ class LicenseDeliveryMail extends Mailable implements ShouldQueue
         public bool $reissued = false,
     ) {}
 
-    public function envelope(): Envelope
+    public function eventType(): MailEventType
     {
-        return new Envelope(subject: $this->reissued
-            ? 'Your renewed Cbox license key'
-            : 'Your Cbox license key');
+        return MailEventType::LicenseDelivered;
     }
 
-    public function content(): Content
+    public function variables(): array
     {
-        return new Content(view: 'mail.license-delivery');
+        return [
+            'organization_name' => $this->organizationName,
+            'license_key' => $this->licenseKey,
+            'plan_label' => $this->planLabel,
+            'deployment_id' => $this->deploymentId,
+            'expires_at_label' => $this->expiresAtLabel,
+            'reissued' => $this->reissued,
+        ];
     }
 }

@@ -4,22 +4,16 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
+use App\Billing\Notifications\MailEventType;
 
 /**
  * Sent to the customer's billing contact when a period invoice is finalized. Carries the
  * legal invoice number, the taxed total, and the due date — the copy the customer needs to
- * recognise and pay the charge. Queued (`ShouldQueue`) so finalization never blocks on SMTP.
+ * recognise and pay the charge. Queued so finalization never blocks on SMTP; rendered through
+ * the branded, localized template system (see {@see TransactionalMailable}).
  */
-class InvoiceIssuedMail extends Mailable implements ShouldQueue
+class InvoiceIssuedMail extends TransactionalMailable
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public string $organizationName,
         public string $invoiceNumber,
@@ -30,13 +24,21 @@ class InvoiceIssuedMail extends Mailable implements ShouldQueue
         public ?string $viewUrl = null,
     ) {}
 
-    public function envelope(): Envelope
+    public function eventType(): MailEventType
     {
-        return new Envelope(subject: 'Invoice '.$this->invoiceNumber.' from Cbox Billing');
+        return MailEventType::InvoiceIssued;
     }
 
-    public function content(): Content
+    public function variables(): array
     {
-        return new Content(view: 'mail.invoice-issued');
+        return [
+            'organization_name' => $this->organizationName,
+            'invoice_number' => $this->invoiceNumber,
+            'amount_formatted' => $this->amountFormatted,
+            'period_label' => $this->periodLabel,
+            'issued_at_label' => $this->issuedAtLabel,
+            'due_at_label' => $this->dueAtLabel,
+            'view_url' => $this->viewUrl ?? '',
+        ];
     }
 }

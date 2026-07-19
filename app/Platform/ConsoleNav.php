@@ -113,6 +113,7 @@ class ConsoleNav
                 ['route' => 'billing.settings.gateways', 'label' => 'Payment gateways', 'key' => 'gateways', 'params' => [], 'feature' => null, 'order' => 30],
                 ['route' => 'billing.settings', 'label' => 'API tokens', 'key' => 'tokens', 'params' => ['tab' => 'tokens'], 'fragment' => 'tokens', 'feature' => null, 'order' => 40],
                 ['route' => 'billing.settings.webhooks', 'label' => 'Webhooks', 'key' => 'webhooks', 'params' => [], 'feature' => null, 'order' => 50],
+                ['route' => 'billing.settings.emails', 'label' => 'Emails', 'key' => 'emails', 'params' => [], 'feature' => null, 'order' => 55],
                 ['route' => 'billing.test-mode.clocks', 'label' => 'Test clocks', 'key' => 'test-clocks', 'params' => [], 'feature' => null, 'order' => 60],
             ],
         ],
@@ -147,11 +148,25 @@ class ConsoleNav
                 $meta[$areaKey][$page['label']] = [
                     'key' => $page['key'],
                     'params' => $page['params'],
-                    'fragment' => $page['fragment'] ?? null,
+                    'fragment' => self::fragmentOf($page),
                 ];
             }
         }
 
         return $meta;
+    }
+
+    /**
+     * The optional on-page anchor for a page (the Settings tabs deep-link to it), or null. Kept
+     * behind a plain-array boundary so the optional `fragment` key reads uniformly regardless of
+     * which pages in the const declare it.
+     *
+     * @param  array<string, mixed>  $page
+     */
+    private static function fragmentOf(array $page): ?string
+    {
+        $fragment = $page['fragment'] ?? null;
+
+        return is_string($fragment) ? $fragment : null;
     }
 }

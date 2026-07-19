@@ -510,6 +510,37 @@ return [
     ],
 
     /*
+     * Transactional email — the brandable, localized lifecycle-email system. Templates ship
+     * as defaults in code (resources/mail-templates/{locale}.php) and are overridden per
+     * (event, locale, seller) in the `mail_templates` table; per-seller branding rides on the
+     * selling entity (its brand colour, logo, from-identity, footer). These are the app-level
+     * fallbacks used when a selling entity has not authored its own branding.
+     *
+     *  - `locales`         — the supported email locales (drop a new file in to add one).
+     *  - `fallback_locale` — the last-resort locale; a resolution chain never dead-ends past it.
+     *  - `branding`        — app defaults an entity's own values override.
+     */
+    'mail' => [
+        'locales' => [
+            'en' => 'English',
+            'da' => 'Dansk',
+        ],
+
+        'fallback_locale' => env('CBOX_BILLING_MAIL_FALLBACK_LOCALE', 'en'),
+
+        'branding' => [
+            'product_name' => env('CBOX_BILLING_MAIL_PRODUCT_NAME', 'Cbox Billing'),
+            'brand_color' => env('CBOX_BILLING_MAIL_BRAND_COLOR', '#2743b3'),
+            'logo_url' => env('CBOX_BILLING_MAIL_LOGO_URL'),
+            'from_name' => env('MAIL_FROM_NAME', 'Cbox Billing'),
+            'from_email' => env('MAIL_FROM_ADDRESS', 'billing@example.com'),
+            'reply_to' => env('CBOX_BILLING_MAIL_REPLY_TO'),
+            'support_url' => env('CBOX_BILLING_MAIL_SUPPORT_URL'),
+            'support_email' => env('CBOX_BILLING_MAIL_SUPPORT_EMAIL'),
+        ],
+    ],
+
+    /*
      * Payment gateways the console surfaces in Settings. The `manual` gateway is always
      * present — it settles out of band via a signed settlement webhook (see `webhook`
      * below), and is "connected" once a webhook secret is configured. Provider adapters

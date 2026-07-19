@@ -4,24 +4,16 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
+use App\Billing\Notifications\MailEventType;
 
 /**
- * The smart-retry payment-failed notice, sent to the billing contact at each step of a
- * failed renewal charge's retry schedule: the initial failure (`attempt` 0), each
- * automated retry that fails, and — when `exhausted` — the final give-up notice. It states
- * the invoice, the amount, and when the next attempt will run (or that retries are
- * exhausted), so the customer can fix their payment method before the subscription lapses.
+ * The smart-retry payment-failed notice, sent at each step of a failed renewal charge's
+ * retry schedule: the initial failure (`attempt` 0), each failed retry, and — when
+ * `exhausted` — the final give-up notice. Rendered through the branded, localized template
+ * system (see {@see TransactionalMailable}).
  */
-class PaymentRetryMail extends Mailable implements ShouldQueue
+class PaymentRetryMail extends TransactionalMailable
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public string $organizationName,
         public string $invoiceNumber,
@@ -32,15 +24,21 @@ class PaymentRetryMail extends Mailable implements ShouldQueue
         public bool $exhausted = false,
     ) {}
 
-    public function envelope(): Envelope
+    public function eventType(): MailEventType
     {
-        return new Envelope(subject: $this->exhausted
-            ? 'We couldn\'t process your payment — action needed'
-            : 'Payment failed — we\'ll try again shortly');
+        return MailEventType::PaymentRetry;
     }
 
-    public function content(): Content
+    public function variables(): array
     {
-        return new Content(view: 'mail.payment-retry');
+        return [
+            'organization_name' => $this->organizationName,
+            'invoice_number' => $this->invoiceNumber,
+            'amount_formatted' => $this->amountFormatted,
+            'attempt' => $this->attempt,
+            'max_attempts' => $this->maxAttempts,
+            'next_attempt_label' => $this->nextAttemptLabel ?? '',
+            'exhausted' => $this->exhausted,
+        ];
     }
 }

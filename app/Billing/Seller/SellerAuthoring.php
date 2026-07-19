@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 readonly class SellerAuthoring
 {
     /**
-     * @param  array{id: string, legal_name: string, registration_number: string, establishment: string, currency: string, invoice_prefix: string, is_default: bool, registrations: list<array{country: string, number: string, subdivision: ?string, scheme: ?string}>}  $data
+     * @param  array{id: string, legal_name: string, registration_number: string, establishment: string, currency: string, invoice_prefix: string, is_default: bool, registrations: list<array{country: string, number: string, subdivision: ?string, scheme: ?string}>, branding?: array<string, string|null>}  $data
      */
     public function create(array $data): SellerEntity
     {
@@ -44,6 +44,7 @@ readonly class SellerAuthoring
                 'currency' => $data['currency'],
                 'invoice_prefix' => $data['invoice_prefix'],
                 'is_default' => $isDefault,
+                ...$this->brandingAttributes($data),
             ]);
 
             $this->syncRegistrations($seller, $data['registrations']);
@@ -53,7 +54,7 @@ readonly class SellerAuthoring
     }
 
     /**
-     * @param  array{legal_name: string, registration_number: string, establishment: string, currency: string, invoice_prefix: string, is_default: bool, registrations: list<array{country: string, number: string, subdivision: ?string, scheme: ?string}>}  $data
+     * @param  array{legal_name: string, registration_number: string, establishment: string, currency: string, invoice_prefix: string, is_default: bool, registrations: list<array{country: string, number: string, subdivision: ?string, scheme: ?string}>, branding?: array<string, string|null>}  $data
      */
     public function update(SellerEntity $seller, array $data): SellerEntity
     {
@@ -71,12 +72,52 @@ readonly class SellerAuthoring
                 // The default flag is never cleared by an edit — a deployment always keeps one
                 // default; demote by promoting another entity instead.
                 'is_default' => $seller->is_default || $data['is_default'],
+                ...$this->brandingAttributes($data),
             ]);
 
             $this->syncRegistrations($seller, $data['registrations']);
 
             return $seller;
         });
+    }
+
+    /**
+     * The per-seller email-branding columns (all nullable) — persisted as-is; a blank field is
+     * stored null so the entity falls back to the app-level defaults. Omitted entirely when the
+     * caller supplies no `branding` (e.g. a legacy call), leaving existing values untouched.
+     *
+     * @param  array{branding?: array<string, string|null>}  $data
+     * @return array{}|array{brand_color: ?string, logo_url: ?string, from_name: ?string, from_email: ?string, reply_to: ?string, footer_address: ?string, support_url: ?string, support_email: ?string, default_locale: ?string}
+     */
+    private function brandingAttributes(array $data): array
+    {
+        $branding = $data['branding'] ?? null;
+
+        if (! is_array($branding)) {
+            return [];
+        }
+
+        return [
+            'brand_color' => $this->cleanBranding($branding, 'brand_color'),
+            'logo_url' => $this->cleanBranding($branding, 'logo_url'),
+            'from_name' => $this->cleanBranding($branding, 'from_name'),
+            'from_email' => $this->cleanBranding($branding, 'from_email'),
+            'reply_to' => $this->cleanBranding($branding, 'reply_to'),
+            'footer_address' => $this->cleanBranding($branding, 'footer_address'),
+            'support_url' => $this->cleanBranding($branding, 'support_url'),
+            'support_email' => $this->cleanBranding($branding, 'support_email'),
+            'default_locale' => $this->cleanBranding($branding, 'default_locale'),
+        ];
+    }
+
+    /**
+     * @param  array<string, string|null>  $branding
+     */
+    private function cleanBranding(array $branding, string $key): ?string
+    {
+        $value = $branding[$key] ?? null;
+
+        return is_string($value) && trim($value) !== '' ? trim($value) : null;
     }
 
     public function archive(SellerEntity $seller): void

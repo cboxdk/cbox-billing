@@ -104,7 +104,7 @@ class SellerEntityController extends Controller
     }
 
     /**
-     * @return array{id: string, legal_name: string, registration_number: string, establishment: string, currency: string, invoice_prefix: string, is_default: bool, registrations: list<array{country: string, number: string, subdivision: ?string, scheme: ?string}>}
+     * @return array{id: string, legal_name: string, registration_number: string, establishment: string, currency: string, invoice_prefix: string, is_default: bool, registrations: list<array{country: string, number: string, subdivision: ?string, scheme: ?string}>, branding: array<string, string|null>}
      */
     private function validated(Request $request, ?SellerEntity $seller): array
     {
@@ -120,6 +120,16 @@ class SellerEntityController extends Controller
             'registrations.*.number' => ['nullable', 'string', 'max:64'],
             'registrations.*.subdivision' => ['nullable', 'string', 'max:16'],
             'registrations.*.scheme' => ['nullable', 'string', 'max:32'],
+            // Transactional-email branding (all optional; blank falls back to the app defaults).
+            'brand_color' => ['nullable', 'string', 'regex:/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/'],
+            'logo_url' => ['nullable', 'url', 'max:500'],
+            'from_name' => ['nullable', 'string', 'max:190'],
+            'from_email' => ['nullable', 'email', 'max:254'],
+            'reply_to' => ['nullable', 'email', 'max:254'],
+            'footer_address' => ['nullable', 'string', 'max:500'],
+            'support_url' => ['nullable', 'url', 'max:500'],
+            'support_email' => ['nullable', 'email', 'max:254'],
+            'default_locale' => ['nullable', 'string', 'max:12'],
         ];
 
         if ($seller === null) {
@@ -137,7 +147,27 @@ class SellerEntityController extends Controller
             'invoice_prefix' => $request->string('invoice_prefix')->toString(),
             'is_default' => $request->boolean('is_default'),
             'registrations' => $this->registrations($request),
+            'branding' => $this->branding($request),
         ];
+    }
+
+    /**
+     * The optional per-seller email-branding fields. Blank values are normalised to null by the
+     * authoring service, so an unset field falls back to the app-level default.
+     *
+     * @return array<string, string|null>
+     */
+    private function branding(Request $request): array
+    {
+        $fields = ['brand_color', 'logo_url', 'from_name', 'from_email', 'reply_to', 'footer_address', 'support_url', 'support_email', 'default_locale'];
+        $branding = [];
+
+        foreach ($fields as $field) {
+            $value = $request->string($field)->toString();
+            $branding[$field] = $value !== '' ? $value : null;
+        }
+
+        return $branding;
     }
 
     /**

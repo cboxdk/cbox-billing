@@ -14,6 +14,7 @@ use App\Http\Controllers\CustomerOpsController;
 use App\Http\Controllers\DunningController;
 use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
+use App\Http\Controllers\MailTemplateController;
 use App\Http\Controllers\MeterController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PlanCreditGrantController;
@@ -290,4 +291,17 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode'])->group(func
     Route::post('/settings/webhooks/{webhookEndpoint}/test', [WebhookEndpointController::class, 'test'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.test');
     Route::delete('/settings/webhooks/{webhookEndpoint}', [WebhookEndpointController::class, 'destroy'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.destroy');
     Route::post('/settings/webhooks/{webhookEndpoint}/deliveries/{delivery}/redeliver', [WebhookEndpointController::class, 'redeliver'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.redeliver');
+
+    // --- Transactional emails / notifications (Wave 5). The brandable + localized lifecycle
+    // email system: list every event type × locale × seller with its resolved source, edit a
+    // template with a live server-rendered preview of the ACTUAL branded email, reset an
+    // override to the shipped default, and send a test email through the real notifier
+    // (honouring test-mode capture). Reads carry `settings:read`; writes carry `settings:manage`.
+    // The preview renders through the sandboxed pipeline and persists nothing, so it is read.
+    Route::get('/settings/emails', [MailTemplateController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.settings.emails');
+    Route::match(['get', 'post'], '/settings/emails/{eventType}/preview', [MailTemplateController::class, 'preview'])->middleware('billing.permission:settings:read')->name('billing.settings.emails.preview');
+    Route::get('/settings/emails/{eventType}/edit', [MailTemplateController::class, 'edit'])->middleware('billing.permission:settings:manage')->name('billing.settings.emails.edit');
+    Route::put('/settings/emails/{eventType}', [MailTemplateController::class, 'update'])->middleware('billing.permission:settings:manage')->name('billing.settings.emails.update');
+    Route::post('/settings/emails/{eventType}/reset', [MailTemplateController::class, 'reset'])->middleware('billing.permission:settings:manage')->name('billing.settings.emails.reset');
+    Route::post('/settings/emails/{eventType}/test', [MailTemplateController::class, 'testSend'])->middleware('billing.permission:settings:manage')->name('billing.settings.emails.test');
 });

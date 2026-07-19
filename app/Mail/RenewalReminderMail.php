@@ -4,22 +4,15 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
+use App\Billing\Notifications\MailEventType;
 
 /**
- * The renewal reminder, sent ahead of a subscription's term renewal so the customer knows
- * the next period (and its charge) is coming before it lands. Carries the plan, the renewal
- * date, and the recurring amount. Queued from the renewal pass.
+ * The renewal reminder, sent ahead of a subscription's term renewal so the customer knows the
+ * next period (and its charge) is coming. Rendered through the branded, localized template
+ * system (see {@see TransactionalMailable}).
  */
-class RenewalReminderMail extends Mailable implements ShouldQueue
+class RenewalReminderMail extends TransactionalMailable
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public string $organizationName,
         public string $planName,
@@ -27,13 +20,18 @@ class RenewalReminderMail extends Mailable implements ShouldQueue
         public string $amountFormatted,
     ) {}
 
-    public function envelope(): Envelope
+    public function eventType(): MailEventType
     {
-        return new Envelope(subject: 'Your '.$this->planName.' subscription renews on '.$this->renewsAtLabel);
+        return MailEventType::RenewalReminder;
     }
 
-    public function content(): Content
+    public function variables(): array
     {
-        return new Content(view: 'mail.renewal-reminder');
+        return [
+            'organization_name' => $this->organizationName,
+            'plan_name' => $this->planName,
+            'renews_at_label' => $this->renewsAtLabel,
+            'amount_formatted' => $this->amountFormatted,
+        ];
     }
 }

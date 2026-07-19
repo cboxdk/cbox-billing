@@ -30,7 +30,14 @@ use App\Billing\Invoicing\PersistIssuedCreditNote;
 use App\Billing\Metering\EntitlementsView;
 use App\Billing\Metering\UsageSummaryView;
 use App\Billing\Notifications\BillingNotifier;
+use App\Billing\Notifications\Contracts\ComposesTransactionalMail;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
+use App\Billing\Notifications\Contracts\RendersTemplates;
+use App\Billing\Notifications\Contracts\ResolvesMailTemplates;
+use App\Billing\Notifications\Rendering\DefaultMailTemplates;
+use App\Billing\Notifications\Rendering\MailTemplateResolver;
+use App\Billing\Notifications\Rendering\SafeTemplateRenderer;
+use App\Billing\Notifications\Rendering\TransactionalMailComposer;
 use App\Billing\Payments\Contracts\PaysInvoices;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Payments\Contracts\RetriesPayments;
@@ -147,6 +154,27 @@ class BillingServiceProvider extends ServiceProvider
         // The customer-facing transactional mail surface: one place resolves the billing
         // contact and queues the branded Mailable for each lifecycle event.
         $this->app->singleton(NotifiesCustomers::class, BillingNotifier::class);
+
+        $this->registerTransactionalMail();
+    }
+
+    /**
+     * The brandable + localized transactional-email system: a sandboxed template renderer
+     * (never Blade/PHP over stored templates), the shipped defaults loaded from
+     * resources/mail-templates, the layered resolver, and the end-to-end composer. All behind
+     * contracts so the console and the notifier render identically and the pieces are fakeable.
+     */
+    private function registerTransactionalMail(): void
+    {
+        $this->app->singleton(RendersTemplates::class, SafeTemplateRenderer::class);
+
+        $this->app->singleton(
+            DefaultMailTemplates::class,
+            static fn (): DefaultMailTemplates => new DefaultMailTemplates(resource_path('mail-templates')),
+        );
+
+        $this->app->singleton(ResolvesMailTemplates::class, MailTemplateResolver::class);
+        $this->app->singleton(ComposesTransactionalMail::class, TransactionalMailComposer::class);
     }
 
     public function boot(): void

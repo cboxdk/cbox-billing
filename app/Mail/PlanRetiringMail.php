@@ -4,24 +4,16 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
+use App\Billing\Notifications\MailEventType;
 
 /**
- * The plan-retiring reminder (ADR-0016), sent ahead of a plan's sunset cutoff so an
- * affected subscriber knows their plan is being retired and can choose a new plan before
- * their next renewal. Carries the plan name, the cutoff date, the renewal-due deadline, and
- * — when configured — the default plan they fall to if they do nothing. Queued once per
- * subscription per retirement window from the migration pass.
+ * The plan-retiring reminder (ADR-0016), sent ahead of a plan's sunset cutoff so an affected
+ * subscriber can choose a new plan before their next renewal. Carries the plan name, the
+ * cutoff date, the renewal-due deadline, and — when configured — the default plan they fall
+ * to. Rendered through the branded, localized template system (see {@see TransactionalMailable}).
  */
-class PlanRetiringMail extends Mailable implements ShouldQueue
+class PlanRetiringMail extends TransactionalMailable
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public string $organizationName,
         public string $planName,
@@ -30,13 +22,19 @@ class PlanRetiringMail extends Mailable implements ShouldQueue
         public ?string $defaultSuccessorName,
     ) {}
 
-    public function envelope(): Envelope
+    public function eventType(): MailEventType
     {
-        return new Envelope(subject: $this->planName.' is being retired — choose your new plan');
+        return MailEventType::PlanRetiring;
     }
 
-    public function content(): Content
+    public function variables(): array
     {
-        return new Content(view: 'mail.plan-retiring');
+        return [
+            'organization_name' => $this->organizationName,
+            'plan_name' => $this->planName,
+            'retires_at_label' => $this->retiresAtLabel,
+            'renewal_due_label' => $this->renewalDueLabel,
+            'default_successor_name' => $this->defaultSuccessorName ?? '',
+        ];
     }
 }

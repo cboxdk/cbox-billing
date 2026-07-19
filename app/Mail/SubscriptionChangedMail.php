@@ -4,22 +4,16 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
+use App\Billing\Notifications\MailEventType;
 
 /**
  * Confirms a subscription change to the billing contact: a plan switch, or a cancellation
  * (immediate or scheduled for the period end). `changeType` is `plan_change`, `canceled` or
- * `cancel_scheduled`; the view keys its copy off it. Queued from the lifecycle service.
+ * `cancel_scheduled`; the template keys its copy off the derived booleans. Rendered through
+ * the branded, localized template system (see {@see TransactionalMailable}).
  */
-class SubscriptionChangedMail extends Mailable implements ShouldQueue
+class SubscriptionChangedMail extends TransactionalMailable
 {
-    use Queueable, SerializesModels;
-
     public function __construct(
         public string $organizationName,
         public string $changeType,
@@ -28,16 +22,22 @@ class SubscriptionChangedMail extends Mailable implements ShouldQueue
         public ?string $effectiveAtLabel = null,
     ) {}
 
-    public function envelope(): Envelope
+    public function eventType(): MailEventType
     {
-        return new Envelope(subject: match ($this->changeType) {
-            'canceled', 'cancel_scheduled' => 'Your Cbox subscription has been canceled',
-            default => 'Your Cbox subscription has been updated',
-        });
+        return MailEventType::SubscriptionChanged;
     }
 
-    public function content(): Content
+    public function variables(): array
     {
-        return new Content(view: 'mail.subscription-changed');
+        return [
+            'organization_name' => $this->organizationName,
+            'change_type' => $this->changeType,
+            'is_plan_change' => $this->changeType === 'plan_change',
+            'is_canceled' => $this->changeType === 'canceled',
+            'is_cancel_scheduled' => $this->changeType === 'cancel_scheduled',
+            'plan_name' => $this->planName,
+            'previous_plan_name' => $this->previousPlanName ?? '',
+            'effective_at_label' => $this->effectiveAtLabel ?? '',
+        ];
     }
 }

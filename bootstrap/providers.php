@@ -5,6 +5,7 @@ use App\Providers\BillingServiceProvider;
 use App\Providers\CboxIdWebhookServiceProvider;
 use App\Providers\ConsoleServiceProvider;
 use App\Providers\LicensingServiceProvider;
+use App\Providers\WebhookServiceProvider;
 
 return [
     AppServiceProvider::class,
@@ -12,4 +13,5 @@ return [
     BillingServiceProvider::class,
     LicensingServiceProvider::class,
     CboxIdWebhookServiceProvider::class,
+    WebhookServiceProvider::class,
 ];

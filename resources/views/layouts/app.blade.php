@@ -144,6 +144,7 @@
         <a class="cmd" href="{{ route('billing.coupons') }}">@include('partials.icon', ['name' => 'receipt', 'size' => 15, 'sw' => 1.7])Go to Coupons</a>
         <a class="cmd" href="{{ route('billing.meters') }}">@include('partials.icon', ['name' => 'gauge', 'size' => 15, 'sw' => 1.7])Go to Meters</a>
         <a class="cmd" href="{{ route('billing.settings') }}">@include('partials.icon', ['name' => 'settings', 'size' => 15, 'sw' => 1.7])Go to Settings</a>
+        <a class="cmd" href="{{ route('billing.settings.webhooks') }}">@include('partials.icon', ['name' => 'arrow-up-right', 'size' => 15, 'sw' => 1.7])Go to Webhooks</a>
     </div>
     {{-- Only real, existing actions — no no-op commands. --}}
     <div class="grp" id="palgroup-actions" style="border-top:1px solid var(--border)">
@@ -156,6 +157,7 @@
         <a class="cmd" href="{{ route('billing.catalog.prices.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New price</a>
         <a class="cmd" href="{{ route('billing.meters.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New meter</a>
         <a class="cmd" href="{{ route('billing.settings.tokens.create') }}">@include('partials.icon', ['name' => 'key', 'size' => 14, 'sw' => 1.7])New API token</a>
+        <a class="cmd" href="{{ route('billing.settings.webhooks.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])Register webhook endpoint</a>
         <a class="cmd" href="{{ route('billing.settings.sellers.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New seller</a>
         <a class="cmd" href="{{ route('billing.subscriptions.dunning') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Review dunning</a>
     </div>

@@ -14,6 +14,8 @@ use App\Billing\Wallet\WalletProvisioner;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Webhooks\Events\SubscriptionCanceled as SubscriptionCanceledEvent;
+use App\Webhooks\Events\SubscriptionCreated as SubscriptionCreatedEvent;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Subscription\Contracts\TransitionPolicy;
 use Cbox\Billing\Subscription\Enums\BillingInterval;
@@ -140,7 +142,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
     {
         [$periodStart, $periodEnd] = $this->currentPeriod($plan);
 
-        return $this->db->transaction(function () use ($organization, $plan, $seats, $currency, $periodStart, $periodEnd, $trialEndsAt): Subscription {
+        $subscription = $this->db->transaction(function () use ($organization, $plan, $seats, $currency, $periodStart, $periodEnd, $trialEndsAt): Subscription {
             $this->pinCurrency($organization, $currency);
 
             // The contributing MRR before this subscribe: a re-subscribe of an existing row
@@ -190,6 +192,13 @@ readonly class SubscriptionService implements SubscribesOrganizations
 
             return $subscription;
         });
+
+        // A subscription opened: fan out `subscription.created`. The delivery is idempotency-keyed
+        // on the subscription id, so an idempotent re-run / win-back onto the same row never
+        // double-delivers.
+        event(new SubscriptionCreatedEvent($subscription));
+
+        return $subscription;
     }
 
     public function previewChange(Subscription $subscription, Plan $newPlan): PlanChangePreview
@@ -271,6 +280,9 @@ readonly class SubscriptionService implements SubscribesOrganizations
         $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
 
         $this->notifier->subscriptionChanged($subscription->loadMissing('plan', 'organization'), 'canceled');
+
+        // Fan out `subscription.canceled` for the immediate (state-changing) cancel only.
+        event(new SubscriptionCanceledEvent($subscription));
 
         return $subscription;
     }

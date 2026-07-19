@@ -13,6 +13,7 @@ use App\Models\CouponRedemption;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\SubscriptionCoupon;
+use App\Webhooks\Events\CouponRedeemed as CouponRedeemedEvent;
 use Cbox\Billing\Money\Money;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
@@ -91,7 +92,7 @@ readonly class CouponRedeemer
     {
         $at ??= Carbon::now();
 
-        return $this->db->transaction(function () use ($coupon, $subscription, $at): SubscriptionCoupon {
+        $binding = $this->db->transaction(function () use ($coupon, $subscription, $at): SubscriptionCoupon {
             // Serialize every redemption of this coupon on the STABLE coupon row (M2): a
             // FOR UPDATE COUNT over the redemption rows locks nothing at zero, so two
             // concurrent first-redeems both read 0 and both insert past a limit of 1. Locking
@@ -120,6 +121,11 @@ readonly class CouponRedeemer
 
             return $this->bind($locked, $subscription);
         });
+
+        // Redemption committed: fan out `coupon.redeemed` (idempotency-keyed on coupon + subscription).
+        event(new CouponRedeemedEvent($coupon, $subscription));
+
+        return $binding;
     }
 
     /** Snapshot the coupon onto the subscription as a durable binding (replacing any prior). */

@@ -179,16 +179,20 @@ class SettingsCrudConsoleTest extends TestCase
         $this->assertSame(1, SellerEntity::query()->where('is_default', true)->count());
     }
 
-    public function test_the_gateways_and_webhooks_status_pages_render(): void
+    public function test_the_gateways_status_page_renders(): void
     {
         $this->withSession($this->session)->get('/settings/gateways')
             ->assertOk()
             ->assertSee('Environment keys')
             ->assertSee('CBOX_BILLING_WEBHOOK_SECRET');
+    }
 
+    public function test_the_outbound_webhooks_page_renders_the_endpoint_registry(): void
+    {
+        // The env-status-only page was replaced by DB-backed endpoint CRUD.
         $this->withSession($this->session)->get('/settings/webhooks')
             ->assertOk()
-            ->assertSee('Cbox ID provisioning')
-            ->assertSee('CBOX_ID_WEBHOOK_SECRET');
+            ->assertSee('Register endpoint')
+            ->assertSee('outbound billing events');
     }
 }

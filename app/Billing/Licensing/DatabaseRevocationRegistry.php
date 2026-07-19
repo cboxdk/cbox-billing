@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Licensing;
 
 use App\Billing\Licensing\Contracts\LicenseRevocationRegistry;
+use App\Webhooks\Events\LicenseRevoked as LicenseRevokedEvent;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
@@ -32,6 +33,10 @@ readonly class DatabaseRevocationRegistry implements LicenseRevocationRegistry
             'revoked_at' => Carbon::now(),
             'reason' => $reason,
         ]);
+
+        // First revoke only (the early return above makes this non-idempotent-safe): fan out
+        // `license.revoked`.
+        event(new LicenseRevokedEvent($licenseId, $reason));
     }
 
     public function isRevoked(string $licenseId): bool

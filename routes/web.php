@@ -25,6 +25,7 @@ use App\Http\Controllers\SellerEntityController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionOpsController;
 use App\Http\Controllers\WalletController;
+use App\Http\Controllers\WebhookEndpointController;
 use Illuminate\Support\Facades\Route;
 
 // --- Authentication (Cbox ID as OIDC provider) ---
@@ -258,5 +259,22 @@ Route::middleware(['auth.cbox', 'billing.operator'])->group(function (): void {
     Route::post('/settings/api-tokens/{apiToken}/revoke', [ApiTokenController::class, 'revoke'])->middleware('billing.permission:settings:manage')->name('billing.settings.tokens.revoke');
 
     Route::get('/settings/gateways', [SettingsController::class, 'gateways'])->middleware('billing.permission:settings:read')->name('billing.settings.gateways');
-    Route::get('/settings/webhooks', [SettingsController::class, 'webhooks'])->middleware('billing.permission:settings:read')->name('billing.settings.webhooks');
+
+    // --- Outbound webhooks / event bus. DB-backed endpoint CRUD replaces the old env-status page.
+    // Reads (`settings:read`) list endpoints + the per-endpoint delivery log; writes
+    // (`settings:manage`) register/edit/rotate/activate/delete, send a test ping, and redeliver a
+    // failed/dead delivery. `…/new` is declared before `{webhookEndpoint}` so the static segment is
+    // never captured by the binding.
+    Route::get('/settings/webhooks', [WebhookEndpointController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.settings.webhooks');
+    Route::get('/settings/webhooks/new', [WebhookEndpointController::class, 'create'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.create');
+    Route::post('/settings/webhooks', [WebhookEndpointController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.store');
+    Route::get('/settings/webhooks/{webhookEndpoint}', [WebhookEndpointController::class, 'show'])->middleware('billing.permission:settings:read')->name('billing.settings.webhooks.show');
+    Route::get('/settings/webhooks/{webhookEndpoint}/edit', [WebhookEndpointController::class, 'edit'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.edit');
+    Route::put('/settings/webhooks/{webhookEndpoint}', [WebhookEndpointController::class, 'update'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.update');
+    Route::post('/settings/webhooks/{webhookEndpoint}/rotate', [WebhookEndpointController::class, 'rotate'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.rotate');
+    Route::post('/settings/webhooks/{webhookEndpoint}/activate', [WebhookEndpointController::class, 'activate'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.activate');
+    Route::post('/settings/webhooks/{webhookEndpoint}/deactivate', [WebhookEndpointController::class, 'deactivate'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.deactivate');
+    Route::post('/settings/webhooks/{webhookEndpoint}/test', [WebhookEndpointController::class, 'test'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.test');
+    Route::delete('/settings/webhooks/{webhookEndpoint}', [WebhookEndpointController::class, 'destroy'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.destroy');
+    Route::post('/settings/webhooks/{webhookEndpoint}/deliveries/{delivery}/redeliver', [WebhookEndpointController::class, 'redeliver'])->middleware('billing.permission:settings:manage')->name('billing.settings.webhooks.redeliver');
 });

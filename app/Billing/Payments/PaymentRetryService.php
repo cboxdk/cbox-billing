@@ -12,6 +12,8 @@ use App\Jobs\RunOrgDunningJob;
 use App\Models\Invoice;
 use App\Models\PaymentRetry;
 use App\Models\Subscription;
+use App\Webhooks\Events\DunningExhausted as DunningExhaustedEvent;
+use App\Webhooks\Events\PaymentFailed as PaymentFailedEvent;
 use Cbox\Billing\Payment\Contracts\InvoicePaymentApplier;
 use Cbox\Billing\Payment\Enums\PaymentStatus;
 use Cbox\Billing\Payment\ValueObjects\PaymentResult;
@@ -163,6 +165,8 @@ readonly class PaymentRetryService implements RetriesPayments
 
             $this->notifier->paymentRetryFailed($subscription, $invoice, $attemptNumber, $retry->max_attempts, null, exhausted: true);
 
+            event(new DunningExhaustedEvent($subscription, $invoice, $attemptNumber));
+
             return;
         }
 
@@ -177,6 +181,8 @@ readonly class PaymentRetryService implements RetriesPayments
         ])->save();
 
         $this->notifier->paymentRetryFailed($subscription, $invoice, $attemptNumber, $retry->max_attempts, $nextAt, exhausted: false);
+
+        event(new PaymentFailedEvent($subscription, $invoice, $attemptNumber, $retry->max_attempts, $nextAt, $result->gatewayReference));
     }
 
     public function retryNow(PaymentRetry $retry): void

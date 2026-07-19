@@ -438,6 +438,14 @@ return [
          */
         'lease_ttl_seconds' => (int) env('CBOX_BILLING_LEASE_TTL', 300),
         'reservation_ttl_seconds' => (int) env('CBOX_BILLING_RESERVATION_TTL', 300),
+
+        /*
+         * `last_used_at` on an api_token is a coarse "recently seen" signal, not an audit log.
+         * On the SDK hot path a per-call UPDATE (and its row lock) is churn for no new
+         * information, so the stamp is throttled: it is only rewritten when the previous stamp
+         * is older than this many seconds (PERF-5).
+         */
+        'last_used_throttle_seconds' => (int) env('CBOX_BILLING_TOKEN_LAST_USED_THROTTLE', 300),
     ],
 
     /*

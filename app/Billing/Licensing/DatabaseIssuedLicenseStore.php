@@ -10,7 +10,9 @@ use Cbox\License\ValueObjects\LicenseLimits;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use RuntimeException;
 use stdClass;
 
 /**
@@ -98,6 +100,34 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
             ->get()
             ->map(fn (stdClass $row): IssuedLicense => $this->hydrate($row))
             ->all());
+    }
+
+    /**
+     * The issued-license list paginated AT THE DATABASE (PERF-4), newest first, optionally
+     * searched on customer id / deployment id / plan. Only the visible page is hydrated, so a
+     * large issued set never loads (and JWT-decodes) every row to render one page.
+     *
+     * @return LengthAwarePaginator<int, IssuedLicense>
+     */
+    public function paginate(int $perPage, ?string $search = null): LengthAwarePaginator
+    {
+        $query = $this->table()->orderByDesc('created_at');
+
+        $search = $search !== null ? trim($search) : null;
+
+        if ($search !== null && $search !== '') {
+            $like = '%'.$search.'%';
+            $query->where(static function (Builder $q) use ($like): void {
+                $q->where('customer_id', 'like', $like)
+                    ->orWhere('deployment_id', 'like', $like)
+                    ->orWhere('plan', 'like', $like);
+            });
+        }
+
+        return $query->paginate($perPage)
+            ->through(fn (mixed $row): IssuedLicense => $this->hydrate(
+                $row instanceof stdClass ? $row : throw new RuntimeException('Issued-license query returned an unexpected row.'),
+            ));
     }
 
     private function hydrate(stdClass $row): IssuedLicense

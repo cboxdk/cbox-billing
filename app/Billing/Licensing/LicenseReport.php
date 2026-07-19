@@ -10,9 +10,7 @@ use Cbox\Billing\Licensing\ValueObjects\IssuedLicense;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 
 /**
  * Read model for the Licenses console area. It assembles the issued-license list with a
@@ -38,15 +36,46 @@ readonly class LicenseReport
     ) {}
 
     /**
-     * Every issued license, newest first, shaped for the list screen.
+     * Every issued license, newest first, shaped for the list screen. The revocation set is
+     * loaded ONCE and membership checked in memory (PERF-4), never a per-license `exists()`.
      *
      * @return list<array<string, mixed>>
      */
     public function list(): array
     {
         $now = Carbon::now();
+        $revoked = $this->revokedSet();
 
-        return array_map(fn (IssuedLicense $license): array => [
+        return array_map(fn (IssuedLicense $license): array => $this->row($license, $now, $revoked), $this->store->all());
+    }
+
+    /**
+     * The paginated, optionally searched issued-license list. Search matches the customer id,
+     * deployment id, or plan. Pagination happens AT THE DATABASE (PERF-4) — only the visible
+     * page is hydrated and shaped — and the revocation set is loaded once for the page.
+     *
+     * @return LengthAwarePaginatorContract<int, array<string, mixed>>
+     */
+    public function paginate(?string $search = null, int $perPage = 20): LengthAwarePaginatorContract
+    {
+        $now = Carbon::now();
+        $revoked = $this->revokedSet();
+
+        return $this->store->paginate($perPage, $search)
+            ->through(fn (IssuedLicense $license): array => $this->row($license, $now, $revoked))
+            ->withQueryString();
+    }
+
+    /**
+     * One list-screen row for an issued license, with its derived status resolved against the
+     * pre-loaded revocation set.
+     *
+     * @param  array<string, true>  $revoked
+     * @return array<string, mixed>
+     */
+    private function row(IssuedLicense $license, Carbon $now, array $revoked): array
+    {
+        return [
             'id' => $license->id,
             'customer_id' => $license->customerId,
             'deployment_id' => $license->deploymentId,
@@ -56,46 +85,25 @@ readonly class LicenseReport
             'licensed_domain' => $license->licensedDomain,
             'issued_at' => Carbon::parse($license->issuedAt->format(DATE_ATOM)),
             'expires_at' => Carbon::parse($license->expiresAt->format(DATE_ATOM)),
-            'status' => $this->status($license, $now),
-        ], $this->store->all());
+            'status' => $this->statusFor($license->id, Carbon::parse($license->expiresAt->format(DATE_ATOM)), $now, $revoked),
+        ];
     }
 
     /**
-     * The paginated, optionally searched issued-license list. Search matches the customer id,
-     * deployment id, or plan.
+     * The revocation set as an O(1)-membership map (`id => true`), loaded once — the durable
+     * replacement for a per-license `isRevoked()` round trip.
      *
-     * @return LengthAwarePaginatorContract<int, array<string, mixed>>
+     * @return array<string, true>
      */
-    public function paginate(?string $search = null, int $perPage = 20): LengthAwarePaginatorContract
+    private function revokedSet(): array
     {
-        /** @var Collection<int, array<string, mixed>> $rows */
-        $rows = new Collection($this->list());
+        $set = [];
 
-        $search = $search !== null ? trim($search) : null;
-
-        if ($search !== null && $search !== '') {
-            $needle = mb_strtolower($search);
-            $rows = $rows->filter(static function (array $row) use ($needle): bool {
-                foreach (['customer_id', 'deployment_id', 'plan'] as $field) {
-                    $value = $row[$field] ?? '';
-                    if (is_string($value) && str_contains(mb_strtolower($value), $needle)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            })->values();
+        foreach ($this->revocations->revokedIds() as $id) {
+            $set[$id] = true;
         }
 
-        $page = LengthAwarePaginator::resolveCurrentPage();
-
-        return new LengthAwarePaginator(
-            $rows->forPage($page, $perPage)->values(),
-            $rows->count(),
-            $perPage,
-            $page,
-            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => request()->query()],
-        );
+        return $set;
     }
 
     /**
@@ -214,15 +222,27 @@ readonly class LicenseReport
     {
         $counts = ['all' => 0, 'active' => 0, 'expiring' => 0, 'expired' => 0, 'revoked' => 0];
 
-        foreach ($this->list() as $row) {
+        $now = Carbon::now();
+        $revoked = $this->revokedSet();
+
+        // One lightweight query for the id + expiry of every license (no JWT hydration, no
+        // second full list()), tallied against the once-loaded revocation set (PERF-4).
+        $rows = $this->container->make('db')->table('issued_licenses')->get(['id', 'expires_at']);
+
+        foreach ($rows as $row) {
             $counts['all']++;
-            $status = $row['status'];
-            if (is_string($status) && array_key_exists($status, $counts)) {
-                $counts[$status]++;
-            }
+            $id = is_scalar($row->id) ? (string) $row->id : '';
+            $expiresAt = is_string($row->expires_at) ? Carbon::parse($row->expires_at) : $now;
+            $counts[$this->statusFor($id, $expiresAt, $now, $revoked)]++;
         }
 
-        return $counts;
+        return [
+            'all' => $counts['all'],
+            'active' => $counts['active'],
+            'expiring' => $counts['expiring'],
+            'expired' => $counts['expired'],
+            'revoked' => $counts['revoked'],
+        ];
     }
 
     /**
@@ -257,11 +277,26 @@ readonly class LicenseReport
     /** active / expiring / expired / revoked, deny-by-default toward the worst standing. */
     private function status(IssuedLicense $license, Carbon $now): string
     {
-        if ($this->revocations->isRevoked($license->id)) {
+        return $this->statusFor(
+            $license->id,
+            Carbon::parse($license->expiresAt->format(DATE_ATOM)),
+            $now,
+            $this->revokedSet(),
+        );
+    }
+
+    /**
+     * The derived standing from a license id + expiry against the pre-loaded revocation set —
+     * the single source of the status vocabulary, shared by the list and the counts.
+     *
+     * @param  array<string, true>  $revoked
+     * @return 'active'|'expiring'|'expired'|'revoked'
+     */
+    private function statusFor(string $id, Carbon $expiresAt, Carbon $now, array $revoked): string
+    {
+        if (isset($revoked[$id])) {
             return 'revoked';
         }
-
-        $expiresAt = Carbon::parse($license->expiresAt->format(DATE_ATOM));
 
         if ($expiresAt->isBefore($now)) {
             return 'expired';

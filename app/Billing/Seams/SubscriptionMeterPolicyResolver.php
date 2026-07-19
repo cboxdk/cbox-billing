@@ -22,31 +22,39 @@ use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
  * **Deny-by-default:** an org with no serving subscription, a **paused** subscription,
  * or a plan with no entitlement row for the meter, resolves to `null` — and the enforcer
  * refuses it. A metered dimension is never silently trusted; pausing suspends metering.
+ *
+ * **Request-level memoization (PERF-2):** {@see EntitlementsView} resolves EVERY meter for an
+ * org in a loop, and the naive path re-queries the serving subscription and the meter row per
+ * meter — 3 queries × meters. Here the serving subscription, the plan's entitlement rows and
+ * the meter catalog are read ONCE per org and cached on the instance, so each meter resolves
+ * from memory. The resolver is a per-request container singleton, so the memo lives exactly
+ * one request; {@see flush()} clears it should a caller mutate the catalog and re-resolve
+ * within the same request.
  */
-readonly class SubscriptionMeterPolicyResolver implements MeterPolicyResolver
+class SubscriptionMeterPolicyResolver implements MeterPolicyResolver
 {
+    /**
+     * Per-org resolution context, memoized for the request.
+     *
+     * @var array<string, array{plan_id: int|null, meters: array<string, Meter>, entitlements: array<int, PlanEntitlement>}>
+     */
+    private array $memo = [];
+
     public function resolve(string $org, string $meter): ?MeterPolicy
     {
-        $subscription = Subscription::query()
-            ->where('organization_id', $org)
-            ->serving()
-            ->latest('current_period_start')
-            ->first();
+        $context = $this->contextFor($org);
 
-        if (! $subscription instanceof Subscription) {
+        if ($context['plan_id'] === null) {
             return null;
         }
 
-        $meterRow = Meter::query()->where('key', $meter)->first();
+        $meterRow = $context['meters'][$meter] ?? null;
 
         if (! $meterRow instanceof Meter) {
             return null;
         }
 
-        $entitlement = PlanEntitlement::query()
-            ->where('plan_id', $subscription->plan_id)
-            ->where('meter_id', $meterRow->id)
-            ->first();
+        $entitlement = $context['entitlements'][$meterRow->id] ?? null;
 
         if (! $entitlement instanceof PlanEntitlement) {
             return null;
@@ -57,5 +65,51 @@ readonly class SubscriptionMeterPolicyResolver implements MeterPolicyResolver
         $entitlement->setRelation('meter', $meterRow);
 
         return $entitlement->toMeterPolicy();
+    }
+
+    /** Drop the memoized per-org context (e.g. after a catalog/subscription change mid-request). */
+    public function flush(): void
+    {
+        $this->memo = [];
+    }
+
+    /**
+     * The org's resolution context, loaded once and memoized: its serving plan, the meter
+     * catalog keyed by key, and the plan's entitlement rows keyed by meter id. An org with no
+     * serving subscription memoizes an empty context (deny-by-default) without re-querying.
+     *
+     * @return array{plan_id: int|null, meters: array<string, Meter>, entitlements: array<int, PlanEntitlement>}
+     */
+    private function contextFor(string $org): array
+    {
+        if (isset($this->memo[$org])) {
+            return $this->memo[$org];
+        }
+
+        $subscription = Subscription::query()
+            ->where('organization_id', $org)
+            ->serving()
+            ->latest('current_period_start')
+            ->first();
+
+        if (! $subscription instanceof Subscription) {
+            return $this->memo[$org] = ['plan_id' => null, 'meters' => [], 'entitlements' => []];
+        }
+
+        /** @var array<string, Meter> $meters */
+        $meters = Meter::query()->get()->keyBy('key')->all();
+
+        /** @var array<int, PlanEntitlement> $entitlements */
+        $entitlements = PlanEntitlement::query()
+            ->where('plan_id', $subscription->plan_id)
+            ->get()
+            ->keyBy('meter_id')
+            ->all();
+
+        return $this->memo[$org] = [
+            'plan_id' => $subscription->plan_id,
+            'meters' => $meters,
+            'entitlements' => $entitlements,
+        ];
     }
 }

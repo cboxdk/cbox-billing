@@ -63,6 +63,9 @@ use App\Billing\Subscriptions\SubscriptionService;
 use App\Billing\Subscriptions\TrialService;
 use App\Billing\Wallet\Contracts\AdjustsWallet;
 use App\Billing\Wallet\WalletAdjustmentService;
+use App\Models\Meter;
+use App\Models\PlanEntitlement;
+use App\Models\Subscription;
 use Cbox\Billing\Account\Contracts\AccountStanding;
 use Cbox\Billing\Account\Contracts\BillingCurrencyLock;
 use Cbox\Billing\Account\CurrencyLock\DatabaseBillingCurrencyLock;
@@ -149,6 +152,21 @@ class BillingServiceProvider extends ServiceProvider
         // the refund flow fires CreditNoteIssued after drawing the number and posting the
         // reversal, and the listener writes the app's record surface from it.
         Event::listen(CreditNoteIssued::class, [PersistIssuedCreditNote::class, 'handle']);
+
+        // Keep the meter-policy resolver's per-request memoization (PERF-2) correct: any write
+        // to a subscription, a plan entitlement or the meter catalog can change what a meter
+        // resolves to, so flush the memo on those writes. These fire rarely (lifecycle/catalog
+        // changes), never on the enforcement hot path (which writes leases/events, not these),
+        // so the memo still survives a whole entitlements read. `app()` targets the current
+        // container, so the flush always hits the live singleton.
+        $flush = static function (): void {
+            app(SubscriptionMeterPolicyResolver::class)->flush();
+        };
+
+        foreach ([Subscription::class, PlanEntitlement::class, Meter::class] as $model) {
+            $model::saved($flush);
+            $model::deleted($flush);
+        }
     }
 
     /**
@@ -474,9 +492,14 @@ class BillingServiceProvider extends ServiceProvider
     private function registerApi(): void
     {
         $this->app->singleton(ApiTokenAuthenticator::class, static function (Application $app): DatabaseApiTokenAuthenticator {
-            $token = $app->make(Config::class)->get('billing.api.static_token');
+            $config = $app->make(Config::class);
+            $token = $config->get('billing.api.static_token');
+            $throttle = $config->get('billing.api.last_used_throttle_seconds', 300);
 
-            return new DatabaseApiTokenAuthenticator(is_string($token) ? $token : null);
+            return new DatabaseApiTokenAuthenticator(
+                is_string($token) ? $token : null,
+                is_numeric($throttle) ? (int) $throttle : 300,
+            );
         });
     }
 }

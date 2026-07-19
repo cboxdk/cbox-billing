@@ -9,6 +9,7 @@ use App\Billing\Metering\UsageSummaryView;
 use App\Billing\Support\Initials;
 use App\Models\Meter;
 use App\Models\Organization;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Illuminate\Support\Collection;
 
 /**
@@ -26,14 +27,43 @@ readonly class UsageReport
     ) {}
 
     /**
-     * @return Collection<int, array<string, mixed>>
+     * The paginated Usage screen: organizations are paginated at the DATABASE and usage is
+     * computed only for the visible page (PERF-1) — never the whole fleet up front. Each
+     * rendered card composes the (now memoized, PERF-2) entitlement map with the reconciled
+     * usage summary, so the cost is O(page × meters), not O(orgs × meters).
+     *
+     * @return LengthAwarePaginatorContract<int, array<string, mixed>>
      */
-    public function forAllOrganizations(): Collection
+    public function paginate(?string $search = null, int $perPage = 8): LengthAwarePaginatorContract
+    {
+        $query = Organization::query()->orderBy('name');
+
+        $search = $search !== null ? trim($search) : null;
+
+        if ($search !== null && $search !== '') {
+            $query->where('name', 'like', '%'.$search.'%');
+        }
+
+        return $query->paginate($perPage)
+            ->through(fn (Organization $organization): array => $this->forOrganization($organization))
+            ->withQueryString();
+    }
+
+    /**
+     * The lightweight org list for the screen's chip selector — id + name only, one cheap
+     * query, so the selector never drags the full per-org usage computation behind it.
+     *
+     * @return Collection<int, array{org_id: string, org: string}>
+     */
+    public function organizationChips(): Collection
     {
         return Organization::query()
             ->orderBy('name')
-            ->get()
-            ->map(fn (Organization $organization): array => $this->forOrganization($organization));
+            ->get(['id', 'name'])
+            ->map(static fn (Organization $organization): array => [
+                'org_id' => $organization->id,
+                'org' => $organization->name,
+            ]);
     }
 
     /**
@@ -43,8 +73,15 @@ readonly class UsageReport
     {
         $summary = $this->usage->forOrganization($organization->id);
         $policies = $this->entitlements->forOrganization($organization->id);
-        $names = Meter::query()->pluck('name', 'key')->all();
-        $units = Meter::query()->pluck('unit', 'key')->all();
+
+        // One pass over the meter catalog for both the display name and unit (PERF-5).
+        $names = [];
+        $units = [];
+
+        foreach (Meter::query()->get(['key', 'name', 'unit']) as $meter) {
+            $names[$meter->key] = $meter->name;
+            $units[$meter->key] = $meter->unit;
+        }
 
         $meters = [];
 

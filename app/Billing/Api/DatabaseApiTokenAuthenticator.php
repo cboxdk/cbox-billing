@@ -21,7 +21,15 @@ use Illuminate\Support\Carbon;
  */
 readonly class DatabaseApiTokenAuthenticator implements ApiTokenAuthenticator
 {
-    public function __construct(private ?string $staticToken) {}
+    /**
+     * @param  int  $lastUsedThrottleSeconds  don't rewrite `last_used_at` if it was stamped
+     *                                        within this many seconds — throttles a write (and
+     *                                        its row lock) on every authenticated hot-path call
+     */
+    public function __construct(
+        private ?string $staticToken,
+        private int $lastUsedThrottleSeconds = 300,
+    ) {}
 
     public function authenticate(string $bearer): ?ApiIdentity
     {
@@ -42,12 +50,30 @@ readonly class DatabaseApiTokenAuthenticator implements ApiTokenAuthenticator
             return null;
         }
 
-        $token->forceFill(['last_used_at' => Carbon::now()])->save();
+        $this->touchLastUsed($token);
 
         $productId = $token->product_id !== null ? (int) $token->product_id : null;
 
         return $token->organization_id === null
             ? ApiIdentity::operator($productId)
             : ApiIdentity::forOrganization($token->organization_id, $productId);
+    }
+
+    /**
+     * Stamp `last_used_at` — but skip the write when it was last stamped within the throttle
+     * window (PERF-5). `last_used_at` is a coarse "recently seen" signal, not an audit log, so
+     * on the SDK hot path a per-call UPDATE (and its row lock) is pure write/lock load for no
+     * information; throttling to once per window keeps the signal without the churn.
+     */
+    private function touchLastUsed(ApiToken $token): void
+    {
+        $now = Carbon::now();
+        $lastUsed = $token->last_used_at;
+
+        if ($lastUsed !== null && $lastUsed->gt($now->copy()->subSeconds($this->lastUsedThrottleSeconds))) {
+            return;
+        }
+
+        $token->forceFill(['last_used_at' => $now])->save();
     }
 }

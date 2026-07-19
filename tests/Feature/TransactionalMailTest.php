@@ -26,8 +26,10 @@ use Cbox\Billing\Payment\Dunning\DunningRunner;
 use Cbox\License\Support\Ed25519KeyPair;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\LicensingSeeder;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -129,6 +131,34 @@ class TransactionalMailTest extends TestCase
         Mail::assertQueued(PaymentFailedMail::class, function (PaymentFailedMail $mail): bool {
             return $mail->hasTo('billing@org_dun.test') && $mail->suspended === false;
         });
+    }
+
+    public function test_m7_org_dunning_is_unique_per_org_and_does_not_double_send_on_re_dispatch(): void
+    {
+        // M7 (closed by P1): dunning's ONLY load→save of the delinquency state runs inside
+        // RunOrgDunningJob, which P1 made ShouldBeUnique per org — so overlapping/re-dispatched
+        // passes cannot both send a notice or mis-count the cadence. There is no non-job caller.
+        $job = new RunOrgDunningJob('org_m7');
+        $this->assertInstanceOf(ShouldBeUnique::class, $job);
+        $this->assertSame('org-dunning:org_m7', $job->uniqueId());
+        $this->assertSame(600, $job->uniqueFor);
+
+        Mail::fake();
+        $subscription = $this->subscribeOrg('org_m7', 'starter');
+        $this->pastDueInvoice($subscription, daysAgo: 5);
+
+        $run = fn (): mixed => (new RunOrgDunningJob('org_m7'))->handle(app(DunningRunner::class), app(NotifiesCustomers::class));
+
+        // First pass sends one notice and advances the stored cadence by exactly one.
+        $run();
+        $this->assertSame(1, (int) DB::table('dunning_states')->where('account', 'org_m7')->value('notices_sent'));
+
+        // An immediate second pass (a re-dispatch that slipped the unique lock) re-reads the
+        // persisted state and the min-notice-interval gate holds it: no second notice, cadence
+        // still one — the store's load→save is correct, not double-applied.
+        $run();
+        $this->assertSame(1, (int) DB::table('dunning_states')->where('account', 'org_m7')->value('notices_sent'));
+        Mail::assertQueued(PaymentFailedMail::class, 1);
     }
 
     public function test_renewal_reminder_is_emailed_ahead_of_the_term(): void

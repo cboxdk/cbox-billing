@@ -116,7 +116,8 @@ readonly class SubscriptionReport
         // scheduled (change-at-period-end) plan change awaiting enactment.
         $currency = is_string($row['currency']) ? $row['currency'] : 'DKK';
         $row['available_plans'] = $this->availablePlans($currency, $plan?->key);
-        $row['add_ons'] = array_values($subscription->addOns()->get()
+        // Reuse the eager-loaded relation (loaded via `with('addOns')` above) — no re-query.
+        $row['add_ons'] = array_values($subscription->addOns
             ->map(static fn (SubscriptionAddOn $addOn): array => [
                 'key' => $addOn->key,
                 'price_minor' => $addOn->price_minor,

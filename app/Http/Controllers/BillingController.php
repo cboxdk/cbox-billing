@@ -154,39 +154,31 @@ class BillingController extends Controller
         $organization = is_string($selected) ? Organization::query()->find($selected) : null;
         $search = $this->search($request);
 
-        $all = $report->forAllOrganizations();
-
-        // The cards to render: a single selected org (chip), else the optionally-searched
-        // full set — paginated so a large fleet doesn't render every meter panel at once.
-        $cards = $organization !== null
-            ? $all->where('org_id', $organization->id)->values()
-            : $all;
-
-        if ($organization === null && $search !== null) {
-            $needle = mb_strtolower($search);
-            $cards = $cards->filter(static function (array $org) use ($needle): bool {
-                $name = $org['org'] ?? '';
-
-                return is_string($name) && str_contains(mb_strtolower($name), $needle);
-            })->values();
-        }
-
-        $page = LengthAwarePaginator::resolveCurrentPage();
         $perPage = 8;
+
+        // The cards to render: a single selected org (chip) computed on its own, else the
+        // optionally-searched fleet paginated AT THE DATABASE so only the visible page's usage
+        // is ever computed (PERF-1).
+        if ($organization !== null) {
+            $page = LengthAwarePaginator::resolveCurrentPage();
+            $cards = new LengthAwarePaginator(
+                [$report->forOrganization($organization)],
+                1,
+                $perPage,
+                $page,
+                ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => $request->query()],
+            );
+        } else {
+            $cards = $report->paginate($search, $perPage);
+        }
 
         return view('billing.usage', [
             'activeArea' => 'usage',
             'activeNav' => 'meters',
             'selectedOrg' => $organization?->id,
             'search' => $search,
-            'organizations' => $all,
-            'cards' => new LengthAwarePaginator(
-                $cards->forPage($page, $perPage)->values(),
-                $cards->count(),
-                $perPage,
-                $page,
-                ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => $request->query()],
-            ),
+            'organizations' => $report->organizationChips(),
+            'cards' => $cards,
         ]);
     }
 

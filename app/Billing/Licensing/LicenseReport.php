@@ -99,6 +99,113 @@ readonly class LicenseReport
     }
 
     /**
+     * The full detail of one license for its per-license page: its decoded contents + derived
+     * status, its customer, the revocation record (reason + when) if any, and the deployment's
+     * issue/renew/revoke history (a renewal is a fresh id under the same deployment).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function find(string $id): ?array
+    {
+        $license = $this->store->find($id);
+
+        if ($license === null) {
+            return null;
+        }
+
+        $now = Carbon::now();
+        $status = $this->status($license, $now);
+        $revocation = $this->revocationRecord($id);
+        $customer = $this->container->make('db')->table('organizations')->where('id', $license->customerId)->value('name');
+
+        return [
+            'id' => $license->id,
+            'customer_id' => $license->customerId,
+            'customer_name' => is_string($customer) ? $customer : null,
+            'deployment_id' => $license->deploymentId,
+            'plan' => $license->plan,
+            'entitlements' => $license->entitlements,
+            'limits' => $license->limits->toArray(),
+            'licensed_domain' => $license->licensedDomain,
+            'issued_at' => Carbon::parse($license->issuedAt->format(DATE_ATOM)),
+            'not_before' => Carbon::parse($license->notBefore->format(DATE_ATOM)),
+            'expires_at' => Carbon::parse($license->expiresAt->format(DATE_ATOM)),
+            'key' => $license->key,
+            'status' => $status,
+            'revoked' => $revocation !== null,
+            'revoked_at' => $revocation['revoked_at'] ?? null,
+            'revoked_reason' => $revocation['reason'] ?? null,
+            'history' => $this->history($license->deploymentId, $id, $revocation),
+        ];
+    }
+
+    /**
+     * The issue/renew/revoke timeline for a deployment: each issued_licenses row under the
+     * same deployment is an issue (the first) or a renewal (a later one), newest first, with
+     * the revocation appended when present.
+     *
+     * @param  array{revoked_at: string, reason: ?string}|null  $revocation
+     * @return list<array{event: string, at: ?string, detail: string, current: bool}>
+     */
+    private function history(string $deploymentId, string $currentId, ?array $revocation): array
+    {
+        $rows = $this->container->make('db')->table('issued_licenses')
+            ->where('deployment_id', $deploymentId)
+            ->orderBy('created_at')
+            ->orderBy('issued_at')
+            ->get();
+
+        $events = [];
+        $first = true;
+
+        foreach ($rows as $row) {
+            $rowId = is_scalar($row->id) ? (string) $row->id : '';
+            $events[] = [
+                'event' => $first ? 'issued' : 'renewed',
+                'at' => $this->stamp($row->created_at ?? $row->issued_at),
+                'detail' => sprintf('License %s · expires %s', $rowId, $this->stamp($row->expires_at) ?? '—'),
+                'current' => $rowId === $currentId,
+            ];
+            $first = false;
+        }
+
+        if ($revocation !== null) {
+            $events[] = [
+                'event' => 'revoked',
+                'at' => $revocation['revoked_at'],
+                'detail' => $revocation['reason'] ?? 'No reason recorded.',
+                'current' => false,
+            ];
+        }
+
+        return array_reverse($events);
+    }
+
+    /**
+     * The revocation row (reason + when) for a license id, or null when it is not revoked.
+     *
+     * @return array{revoked_at: string, reason: ?string}|null
+     */
+    private function revocationRecord(string $id): ?array
+    {
+        $row = $this->container->make('db')->table('license_revocations')->where('license_id', $id)->first();
+
+        if ($row === null) {
+            return null;
+        }
+
+        return [
+            'revoked_at' => $this->stamp($row->revoked_at) ?? '—',
+            'reason' => is_string($row->reason) && $row->reason !== '' ? $row->reason : null,
+        ];
+    }
+
+    private function stamp(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? Carbon::parse($value)->format('Y-m-d H:i') : null;
+    }
+
+    /**
      * Standing counts for the nav + header, keyed by the same status vocabulary.
      *
      * @return array{all: int, active: int, expiring: int, expired: int, revoked: int}

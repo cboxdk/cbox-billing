@@ -90,6 +90,7 @@ class ConsoleNav
             'label' => 'Customers', 'icon' => 'building', 'order' => 60, 'feature' => null,
             'pages' => [
                 ['route' => 'billing.customers', 'label' => 'Organizations', 'key' => 'organizations', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.access-grants', 'label' => 'Access grants', 'key' => 'access-grants', 'params' => [], 'feature' => null, 'order' => 20],
             ],
         ],
         'licenses' => [

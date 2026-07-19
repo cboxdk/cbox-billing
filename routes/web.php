@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AccessGrantController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\ApiTokenController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CreditNoteController;
+use App\Http\Controllers\CustomerOpsController;
 use App\Http\Controllers\DunningController;
 use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
@@ -178,7 +180,22 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::delete('/meters/{meter}', [MeterController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.meters.destroy');
 
     Route::get('/customers', [BillingController::class, 'customers'])->middleware('billing.permission:customers:read')->name('billing.customers');
+
+    // Access grants (Wave 4): a read-only viewer over the RBAC mirror the provisioning
+    // webhooks maintain (Cbox ID owns assignment). `/access-grants` before `{organization}`.
+    Route::get('/access-grants', [AccessGrantController::class, 'index'])->middleware('billing.permission:customers:read')->name('billing.access-grants');
+
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->middleware('billing.permission:customers:read')->name('billing.customers.show');
+
+    // --- Organization management (Wave 4). Suspend/reactivate and the profile edit flip the
+    // app + engine standing and persist the org fields (currency guarded by the one-way lock);
+    // gated `customers:manage`. Payment-method set-default/remove proxy the gateway; gated
+    // `payments:manage`. The manual gateway vaults nothing, so its methods stay read-only.
+    Route::post('/customers/{organization}/suspend', [CustomerOpsController::class, 'suspend'])->middleware('billing.permission:customers:manage')->name('billing.customers.suspend');
+    Route::post('/customers/{organization}/reactivate', [CustomerOpsController::class, 'reactivate'])->middleware('billing.permission:customers:manage')->name('billing.customers.reactivate');
+    Route::put('/customers/{organization}', [CustomerOpsController::class, 'updateProfile'])->middleware('billing.permission:customers:manage')->name('billing.customers.update');
+    Route::post('/customers/{organization}/payment-methods/default', [CustomerOpsController::class, 'setDefaultPaymentMethod'])->middleware('billing.permission:payments:manage')->name('billing.customers.payment-methods.default');
+    Route::post('/customers/{organization}/payment-methods/remove', [CustomerOpsController::class, 'removePaymentMethod'])->middleware('billing.permission:payments:manage')->name('billing.customers.payment-methods.remove');
 
     // Wallet / credits (Wave 3): an operator credit adjustment (promotional/goodwill grant
     // or correcting debit) through the engine wallet with an audit row. Gated on the dedicated
@@ -194,6 +211,9 @@ Route::middleware('auth.cbox')->group(function (): void {
         Route::post('/licenses', [LicenseController::class, 'issue'])->middleware('billing.permission:licenses:issue')->name('billing.licenses.issue');
         Route::post('/licenses/{id}/renew', [LicenseController::class, 'renew'])->middleware('billing.permission:licenses:issue')->name('billing.licenses.renew');
         Route::post('/licenses/{id}/revoke', [LicenseController::class, 'revoke'])->middleware('billing.permission:licenses:revoke')->name('billing.licenses.revoke');
+        // Per-license detail — declared AFTER `/licenses/distribution` so the static segment
+        // is never captured by the `{id}` binding.
+        Route::get('/licenses/{id}', [LicenseController::class, 'show'])->middleware('billing.permission:licenses:read')->name('billing.licenses.show');
     });
 
     Route::get('/settings', [BillingController::class, 'settings'])->middleware('billing.permission:settings:read')->name('billing.settings');

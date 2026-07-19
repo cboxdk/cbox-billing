@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Billing\Invoicing\InvoicePdfRenderer;
+use App\Billing\Reporting\AccessGrantReport;
 use App\Billing\Reporting\CatalogReport;
+use App\Billing\Reporting\CustomerAuditLog;
+use App\Billing\Reporting\CustomerPaymentMethods;
 use App\Billing\Reporting\CustomerReport;
 use App\Billing\Reporting\InvoiceReport;
 use App\Billing\Reporting\PricingReport;
@@ -224,14 +227,23 @@ class BillingController extends Controller
         ]);
     }
 
-    public function customer(Organization $organization, CustomerReport $report, WalletReport $wallet): View
-    {
+    public function customer(
+        Organization $organization,
+        CustomerReport $report,
+        WalletReport $wallet,
+        CustomerAuditLog $audit,
+        CustomerPaymentMethods $paymentMethods,
+        AccessGrantReport $accessGrants,
+    ): View {
         return view('billing.customer-detail', [
             'activeArea' => 'customers',
             'activeNav' => 'organizations',
             'customer' => $report->find($organization->id),
             'organization' => $organization,
             'wallet' => $wallet->forOrganization($organization->id),
+            'events' => $audit->forOrganization($organization->id),
+            'payment' => $paymentMethods->forOrganization($organization),
+            'accessGrants' => $accessGrants->forOrganization($organization->id),
         ]);
     }
 

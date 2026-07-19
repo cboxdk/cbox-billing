@@ -86,7 +86,7 @@
             <thead><tr><th>Customer</th><th>Deployment</th><th>Plan</th><th>Entitlements</th><th>Expires</th><th>Status</th><th style="width:150px"></th></tr></thead>
             <tbody>
                 @forelse ($licenses as $license)
-                    <tr>
+                    <tr data-href="{{ route('billing.licenses.show', ['id' => $license['id']]) }}" tabindex="0" role="link" aria-label="Open license {{ $license['id'] }}">
                         <td style="font-weight:500">{{ $license['customer_id'] }}</td>
                         <td class="num mut">{{ $license['deployment_id'] }}</td>
                         <td class="num">{{ $license['plan'] }}</td>

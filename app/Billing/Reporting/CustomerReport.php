@@ -12,6 +12,7 @@ use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Subscription;
 use Cbox\Billing\Account\Contracts\AccountStanding;
+use Cbox\Billing\Account\Contracts\BillingCurrencyLock;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -24,7 +25,10 @@ use Illuminate\Support\Collection;
  */
 readonly class CustomerReport
 {
-    public function __construct(private AccountStanding $standing) {}
+    public function __construct(
+        private AccountStanding $standing,
+        private BillingCurrencyLock $currencyLock,
+    ) {}
 
     /**
      * @return Collection<int, array<string, mixed>>
@@ -83,6 +87,12 @@ readonly class CustomerReport
         $row['billing_email'] = $organization->billing_email;
         $row['billing_country'] = $organization->billing_country;
         $row['tax_id'] = $organization->tax_id;
+        $row['suspended'] = $organization->isSuspended();
+        $row['suspended_at'] = $organization->suspended_at?->format('Y-m-d H:i');
+        // The billing currency is one-way locked once the account transacts — a finalized
+        // invoice stamps the engine lock. Either signal freezes the console's currency field.
+        $row['currency_locked'] = $this->currencyLock->lockedCurrency($organization->id) !== null
+            || $organization->invoices->isNotEmpty();
         $row['invoices'] = $organization->invoices
             ->sortByDesc('issued_at')
             ->map(static fn (Invoice $invoice): array => [

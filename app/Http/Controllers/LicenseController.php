@@ -50,6 +50,19 @@ class LicenseController extends Controller
         ]);
     }
 
+    public function show(string $id, LicenseReport $report): View
+    {
+        $license = $report->find($id);
+
+        abort_if($license === null, 404);
+
+        return view('billing.license-detail', [
+            'activeArea' => 'licenses',
+            'activeNav' => 'issued',
+            'license' => $license,
+        ]);
+    }
+
     public function issue(Request $request, IssuesLicenses $licenses): RedirectResponse
     {
         $request->validate([

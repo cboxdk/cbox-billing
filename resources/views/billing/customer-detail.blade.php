@@ -32,7 +32,21 @@
             </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
+            @if (!empty($c['suspended']))<span class="cbx-pill cbx-pill--destructive"><span class="dot"></span>suspended</span>@endif
             <span class="cbx-pill cbx-pill--{{ $standingPill[$c['standing']] ?? 'muted' }}">standing: {{ $c['standing'] }}</span>
+            @if (!empty($c['suspended']))
+                <form method="POST" action="{{ route('billing.customers.reactivate', $organization->id) }}" style="margin:0"
+                      data-confirm="Reactivate {{ $c['org'] }}? Access is restored and the account returns to good standing."
+                      data-confirm-title="Reactivate organization?" data-confirm-label="Reactivate" data-confirm-variant="primary">
+                    @csrf<button type="submit" class="cbx-btn cbx-btn--sm">Reactivate</button>
+                </form>
+            @else
+                <form method="POST" action="{{ route('billing.customers.suspend', $organization->id) }}" style="margin:0"
+                      data-confirm="Suspend {{ $c['org'] }}? Access is held (billing and credits are untouched) until you reactivate."
+                      data-confirm-title="Suspend organization?" data-confirm-label="Suspend" data-confirm-variant="destructive">
+                    @csrf<button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Suspend</button>
+                </form>
+            @endif
         </div>
     </header>
 
@@ -56,6 +70,66 @@
             </dl>
         </section>
     </div>
+
+    {{-- Edit the org profile. Currency is one-way locked once the account transacts. --}}
+    <section class="cbx-panel">
+        <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Edit profile</h2></header>
+        <form method="POST" action="{{ route('billing.customers.update', $organization->id) }}" class="cbx-grid-2" style="gap:12px;padding:8px 20px 18px;align-items:end">
+            @csrf @method('PUT')
+            <label style="{{ $labelStyle }}">Organization name
+                <input name="name" value="{{ old('name', $c['org']) }}" required maxlength="190" style="{{ $inputStyle }}"></label>
+            <label style="{{ $labelStyle }}">Billing email
+                <input type="email" name="billing_email" value="{{ old('billing_email', $c['billing_email']) }}" maxlength="190" style="{{ $inputStyle }}"></label>
+            <label style="{{ $labelStyle }}">Tax ID / VAT number
+                <input name="tax_id" value="{{ old('tax_id', $c['tax_id']) }}" maxlength="64" style="{{ $inputStyle }}"></label>
+            <label style="{{ $labelStyle }}">Billing currency
+                <input name="billing_currency" value="{{ old('billing_currency', $c['currency']) }}" maxlength="3" pattern="[A-Za-z]{3}" style="{{ $inputStyle }};text-transform:uppercase{{ !empty($c['currency_locked']) ? ';opacity:.55' : '' }}" {{ !empty($c['currency_locked']) ? 'readonly' : '' }}>
+                @if (!empty($c['currency_locked']))<span class="mut" style="font-size:11px">Locked — the account has transacted in {{ $c['currency'] }}.</span>@else<span class="mut" style="font-size:11px">Fixed once the first invoice finalizes.</span>@endif
+            </label>
+            <div style="grid-column:1 / -1"><button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">@include('partials.icon', ['name' => 'check', 'size' => 13, 'sw' => 1.8])Save profile</button></div>
+        </form>
+    </section>
+
+    {{-- Vaulted payment methods (gateway-owned; only display fields ever surface). --}}
+    <section class="cbx-panel">
+        <header class="cbx-panel-header" style="padding:12px 20px;display:flex;align-items:center;justify-content:space-between">
+            <h2 class="cbx-panel-title" style="font-size:14px">Payment methods</h2>
+            <span class="num mut" style="font-size:11px">{{ $payment['gateway'] }}@if($payment['gateway_customer_id']) · {{ $payment['gateway_customer_id'] }}@endif</span>
+        </header>
+        @if ($payment['manual'])
+            <div style="padding:14px 20px" class="mut">The <strong>{{ $payment['gateway'] }}</strong> gateway settles out of band and vaults no cards — there are no stored methods to manage.</div>
+        @elseif (empty($payment['methods']))
+            <div style="padding:14px 20px" class="mut">No vaulted payment methods@if(!$payment['gateway_customer_id']) — this org has no gateway customer yet@endif.</div>
+        @else
+            <table class="tbl">
+                <thead><tr><th>Brand</th><th>Number</th><th>Expiry</th><th style="width:90px">Default</th><th style="width:180px"></th></tr></thead>
+                <tbody>
+                    @foreach ($payment['methods'] as $method)
+                        <tr style="cursor:default">
+                            <td style="font-weight:500">{{ ucfirst($method['brand']) }}</td>
+                            <td class="num mut">···· {{ $method['last4'] }}</td>
+                            <td class="num mut">{{ $method['exp'] ?? '—' }}</td>
+                            <td>@if($method['default'])<span class="cbx-pill cbx-pill--info">default</span>@endif</td>
+                            <td>
+                                <div style="display:flex;gap:6px;justify-content:flex-end">
+                                    @unless ($method['default'])
+                                        <form method="POST" action="{{ route('billing.customers.payment-methods.default', $organization->id) }}" style="margin:0">
+                                            @csrf<input type="hidden" name="id" value="{{ $method['id'] }}"><button type="submit" class="cbx-btn" style="font-size:11px;padding:3px 9px">Make default</button>
+                                        </form>
+                                    @endunless
+                                    <form method="POST" action="{{ route('billing.customers.payment-methods.remove', $organization->id) }}" style="margin:0"
+                                          data-confirm="Remove the {{ ucfirst($method['brand']) }} ···· {{ $method['last4'] }} card? It is detached from the gateway vault."
+                                          data-confirm-title="Remove payment method?" data-confirm-label="Remove" data-confirm-variant="destructive">
+                                        @csrf<input type="hidden" name="id" value="{{ $method['id'] }}"><button type="submit" class="cbx-btn" style="font-size:11px;padding:3px 9px;color:var(--destructive)">Remove</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    </section>
 
     <section class="cbx-panel">
         <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Invoices</h2></header>
@@ -164,6 +238,54 @@
                 </tbody>
             </table>
         @endif
+    </section>
+
+    {{-- Access & roles — the RBAC mirror the provisioning webhooks maintain (read-only). --}}
+    <section class="cbx-panel">
+        <header class="cbx-panel-header" style="padding:12px 20px;display:flex;align-items:center;justify-content:space-between">
+            <div>
+                <h2 class="cbx-panel-title" style="font-size:14px">Access &amp; roles</h2>
+                <p class="cbx-panel-desc" style="font-size:12px">A projection of the Cbox ID access mirror — Cbox ID owns assignment.</p>
+            </div>
+            <a href="{{ route('billing.access-grants', ['q' => $organization->id]) }}" class="cbx-btn cbx-btn--sm">All grants</a>
+        </header>
+        <table class="tbl">
+            <thead><tr><th>Subject</th><th>Role</th><th style="width:120px">Kind</th><th style="width:120px">Environment</th><th style="width:150px">Updated</th></tr></thead>
+            <tbody>
+                @forelse ($accessGrants as $grant)
+                    <tr style="cursor:default">
+                        <td class="num">{{ $grant['subject'] }}</td>
+                        <td>{{ $grant['role'] ?? '—' }}</td>
+                        <td><span class="cbx-pill cbx-pill--{{ $grant['kind'] === 'role' ? 'info' : 'muted' }}">{{ $grant['kind'] }}</span></td>
+                        <td class="num mut">{{ $grant['environment'] ?? '—' }}</td>
+                        <td class="num mut">{{ $grant['updated'] }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" class="mut" style="padding:20px;text-align:center">No access grants mirrored for this organization yet.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </section>
+
+    {{-- Activity log — the account's real records aggregated + cross-linked. --}}
+    <section class="cbx-panel">
+        <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Activity log</h2></header>
+        <table class="tbl">
+            <thead><tr><th style="width:150px">When</th><th style="width:120px">Type</th><th>Event</th><th style="width:40px"></th></tr></thead>
+            <tbody>
+                @forelse ($events as $event)
+                    @php $href = $event['href']; @endphp
+                    <tr @if($href) data-href="{{ $href }}" tabindex="0" role="link" aria-label="Open {{ $event['label'] }}" @else style="cursor:default" @endif>
+                        <td class="num mut">{{ $event['at'] }}</td>
+                        <td><span class="cbx-pill cbx-pill--muted">{{ $event['type'] }}</span></td>
+                        <td>{{ $event['label'] }}@if($event['detail'])<span class="mut" style="font-size:11px;margin-left:6px">{{ $event['detail'] }}</span>@endif</td>
+                        <td class="rowchev">@if($href)@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])@endif</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="4" class="mut" style="padding:20px;text-align:center">No recorded activity yet.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
     </section>
 </div>
 @endsection

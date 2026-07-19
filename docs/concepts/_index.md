@@ -21,6 +21,7 @@ own internals.**
 | Page | What the app provides |
 | --- | --- |
 | [Catalog & pricing](catalog-and-pricing.md) | Products, plans, prices per currency, and the six pricing models (flat, per-unit, graduated, volume, package, stairstep). |
+| [Coupons & discounts](coupons-and-discounts.md) | Authored promo codes — percentage/fixed, once/repeating/forever, limits, expiry, plan scope — engine-taxed at checkout, subscribe, and renewal. |
 | [Subscriptions & lifecycle](subscriptions-and-lifecycle.md) | Trials, the state machine, ramps, minimum commitments, pause/resume, quantity, add-ons. |
 | [Seats](seats.md) | Purchased Full seats (the billing driver) vs assignment; Full/Light; the auto-assign toggle; Light is free. |
 | [Metering & enforcement](metering-and-enforcement.md) | The reserve/commit hot path, leases, aggregations, hard limits, the upgrade bridge. |

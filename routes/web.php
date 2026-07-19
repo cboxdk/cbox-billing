@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\ApiTokenController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CatalogController;
@@ -17,6 +18,8 @@ use App\Http\Controllers\PlanEntitlementController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RetentionController;
 use App\Http\Controllers\SeatController;
+use App\Http\Controllers\SellerEntityController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionOpsController;
 use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
@@ -82,12 +85,12 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/invoices', [BillingController::class, 'invoices'])->middleware('billing.permission:invoices:read')->name('billing.invoices');
 
     // --- Invoice lifecycle actions (Wave 3): manual create + void/refund/mark-paid/resend.
-    // Reads carry `invoices:read`; every money-moving write carries `invoices:refund` (the
-    // manifest's invoice-mutation authority) and is guarded server-side in InvoiceOperations.
-    // `/invoices/new` is declared before `/invoices/{invoice}` so the static segment is never
-    // captured by the model binding.
-    Route::get('/invoices/new', [InvoiceOpsController::class, 'create'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.create');
-    Route::post('/invoices', [InvoiceOpsController::class, 'store'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.store');
+    // Reads carry `invoices:read`; lifecycle writes (create/void/mark-paid/resend) carry
+    // `invoices:manage`, while a money-returning refund carries the narrower `invoices:refund`
+    // (Wave 4 slug split). Every action is guarded server-side in InvoiceOperations. `/invoices/new`
+    // is declared before `/invoices/{invoice}` so the static segment is never captured by the binding.
+    Route::get('/invoices/new', [InvoiceOpsController::class, 'create'])->middleware('billing.permission:invoices:manage')->name('billing.invoices.create');
+    Route::post('/invoices', [InvoiceOpsController::class, 'store'])->middleware('billing.permission:invoices:manage')->name('billing.invoices.store');
 
     // Credit notes (Wave 3): the legal record surface for refunds/adjustments, read-only
     // (issued only by the engine). `/credit-notes/{creditNote}` binds by id.
@@ -97,10 +100,10 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/invoices/{invoice}', [BillingController::class, 'invoice'])->middleware('billing.permission:invoices:read')->name('billing.invoices.show');
     Route::get('/invoices/{invoice}/pdf', [BillingController::class, 'invoicePdf'])->middleware('billing.permission:invoices:read')->name('billing.invoices.pdf');
 
-    Route::post('/invoices/{invoice}/void', [InvoiceOpsController::class, 'void'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.void');
+    Route::post('/invoices/{invoice}/void', [InvoiceOpsController::class, 'void'])->middleware('billing.permission:invoices:manage')->name('billing.invoices.void');
     Route::post('/invoices/{invoice}/refund', [InvoiceOpsController::class, 'refund'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.refund');
-    Route::post('/invoices/{invoice}/mark-paid', [InvoiceOpsController::class, 'markPaid'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.mark-paid');
-    Route::post('/invoices/{invoice}/resend', [InvoiceOpsController::class, 'resend'])->middleware('billing.permission:invoices:refund')->name('billing.invoices.resend');
+    Route::post('/invoices/{invoice}/mark-paid', [InvoiceOpsController::class, 'markPaid'])->middleware('billing.permission:invoices:manage')->name('billing.invoices.mark-paid');
+    Route::post('/invoices/{invoice}/resend', [InvoiceOpsController::class, 'resend'])->middleware('billing.permission:invoices:manage')->name('billing.invoices.resend');
 
     Route::get('/usage', [BillingController::class, 'usage'])->middleware('billing.permission:usage:read')->name('billing.usage');
     Route::get('/catalog', [BillingController::class, 'catalog'])->middleware('billing.permission:catalog:read')->name('billing.catalog');
@@ -178,8 +181,9 @@ Route::middleware('auth.cbox')->group(function (): void {
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->middleware('billing.permission:customers:read')->name('billing.customers.show');
 
     // Wallet / credits (Wave 3): an operator credit adjustment (promotional/goodwill grant
-    // or correcting debit) through the engine wallet with an audit row. Mutating → manage.
-    Route::post('/customers/{organization}/wallet/adjust', [WalletController::class, 'adjust'])->middleware('billing.permission:customers:manage')->name('billing.customers.wallet.adjust');
+    // or correcting debit) through the engine wallet with an audit row. Gated on the dedicated
+    // `wallet:manage` slug (Wave 4 split from `customers:manage`).
+    Route::post('/customers/{organization}/wallet/adjust', [WalletController::class, 'adjust'])->middleware('billing.permission:wallet:manage')->name('billing.customers.wallet.adjust');
 
     // --- On-prem licensing (issuer console) ---
     // Gated on the `licenses` console-kit feature (presence gate): the routes 404 when
@@ -193,4 +197,27 @@ Route::middleware('auth.cbox')->group(function (): void {
     });
 
     Route::get('/settings', [BillingController::class, 'settings'])->middleware('billing.permission:settings:read')->name('billing.settings');
+
+    // --- Platform settings CRUD (Wave 4). Reads carry `settings:read`, writes `settings:manage`.
+    //
+    // Two DB-backed resources get real authoring: selling entities (+ per-jurisdiction tax
+    // registrations) and API tokens (mint shows the plaintext once — only the hash is stored —
+    // and revoke is a confirmed soft-revoke). Gateways and webhook receivers are env-driven, so
+    // they get honest status + guided-config pages, not a fabricated DB config. `…/new` is
+    // declared before `{sellerEntity}` so the static segment is never captured by the binding.
+    Route::get('/settings/sellers/new', [SellerEntityController::class, 'create'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.create');
+    Route::post('/settings/sellers', [SellerEntityController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.store');
+    Route::get('/settings/sellers/{sellerEntity}/edit', [SellerEntityController::class, 'edit'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.edit');
+    Route::put('/settings/sellers/{sellerEntity}', [SellerEntityController::class, 'update'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.update');
+    Route::post('/settings/sellers/{sellerEntity}/default', [SellerEntityController::class, 'setDefault'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.default');
+    Route::post('/settings/sellers/{sellerEntity}/archive', [SellerEntityController::class, 'archive'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.archive');
+    Route::post('/settings/sellers/{sellerEntity}/unarchive', [SellerEntityController::class, 'unarchive'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.unarchive');
+    Route::delete('/settings/sellers/{sellerEntity}', [SellerEntityController::class, 'destroy'])->middleware('billing.permission:settings:manage')->name('billing.settings.sellers.destroy');
+
+    Route::get('/settings/api-tokens/new', [ApiTokenController::class, 'create'])->middleware('billing.permission:settings:manage')->name('billing.settings.tokens.create');
+    Route::post('/settings/api-tokens', [ApiTokenController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.settings.tokens.store');
+    Route::post('/settings/api-tokens/{apiToken}/revoke', [ApiTokenController::class, 'revoke'])->middleware('billing.permission:settings:manage')->name('billing.settings.tokens.revoke');
+
+    Route::get('/settings/gateways', [SettingsController::class, 'gateways'])->middleware('billing.permission:settings:read')->name('billing.settings.gateways');
+    Route::get('/settings/webhooks', [SettingsController::class, 'webhooks'])->middleware('billing.permission:settings:read')->name('billing.settings.webhooks');
 });

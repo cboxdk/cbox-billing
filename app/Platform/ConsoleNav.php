@@ -106,11 +106,11 @@ class ConsoleNav
         'settings' => [
             'label' => 'Settings', 'icon' => 'settings', 'order' => 80, 'feature' => null,
             'pages' => [
-                ['route' => 'billing.settings', 'label' => 'Sellers', 'key' => 'sellers', 'params' => [], 'feature' => null, 'order' => 10],
-                ['route' => 'billing.settings', 'label' => 'Tax', 'key' => 'tax', 'params' => [], 'feature' => null, 'order' => 20],
-                ['route' => 'billing.settings', 'label' => 'Payment gateways', 'key' => 'gateways', 'params' => [], 'feature' => null, 'order' => 30],
-                ['route' => 'billing.settings', 'label' => 'API tokens', 'key' => 'tokens', 'params' => [], 'feature' => null, 'order' => 40],
-                ['route' => 'billing.settings', 'label' => 'Webhooks', 'key' => 'webhooks', 'params' => [], 'feature' => null, 'order' => 50],
+                ['route' => 'billing.settings', 'label' => 'Sellers', 'key' => 'sellers', 'params' => ['tab' => 'sellers'], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.settings', 'label' => 'Tax', 'key' => 'tax', 'params' => ['tab' => 'tax'], 'feature' => null, 'order' => 20],
+                ['route' => 'billing.settings.gateways', 'label' => 'Payment gateways', 'key' => 'gateways', 'params' => [], 'feature' => null, 'order' => 30],
+                ['route' => 'billing.settings', 'label' => 'API tokens', 'key' => 'tokens', 'params' => ['tab' => 'tokens'], 'feature' => null, 'order' => 40],
+                ['route' => 'billing.settings.webhooks', 'label' => 'Webhooks', 'key' => 'webhooks', 'params' => [], 'feature' => null, 'order' => 50],
             ],
         ],
     ];

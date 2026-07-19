@@ -135,6 +135,7 @@
         <a class="cmd" href="{{ route('billing.catalog') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Catalog</a>
         <a class="cmd" href="{{ route('billing.products') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Products</a>
         <a class="cmd" href="{{ route('billing.meters') }}">@include('partials.icon', ['name' => 'gauge', 'size' => 15, 'sw' => 1.7])Go to Meters</a>
+        <a class="cmd" href="{{ route('billing.settings') }}">@include('partials.icon', ['name' => 'settings', 'size' => 15, 'sw' => 1.7])Go to Settings</a>
     </div>
     {{-- Only real, existing actions — no no-op commands. --}}
     <div class="grp" id="palgroup-actions" style="border-top:1px solid var(--border)">
@@ -145,6 +146,8 @@
         <a class="cmd" href="{{ route('billing.plans.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New plan</a>
         <a class="cmd" href="{{ route('billing.catalog.prices.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New price</a>
         <a class="cmd" href="{{ route('billing.meters.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New meter</a>
+        <a class="cmd" href="{{ route('billing.settings.tokens.create') }}">@include('partials.icon', ['name' => 'key', 'size' => 14, 'sw' => 1.7])New API token</a>
+        <a class="cmd" href="{{ route('billing.settings.sellers.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New seller</a>
         <a class="cmd" href="{{ route('billing.subscriptions.dunning') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Review dunning</a>
     </div>
     <div class="grp" id="palgroup-empty" style="display:none;padding:14px 16px">

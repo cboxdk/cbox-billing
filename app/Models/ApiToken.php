@@ -18,19 +18,36 @@ use Illuminate\Support\Str;
  * @property int $id
  * @property string $name
  * @property string|null $organization_id
+ * @property int|null $product_id
  * @property string $hash
  * @property Carbon|null $last_used_at
+ * @property Carbon|null $revoked_at
  */
 class ApiToken extends Model
 {
-    protected $fillable = ['name', 'organization_id', 'product_id', 'hash', 'last_used_at'];
+    protected $fillable = ['name', 'organization_id', 'product_id', 'hash', 'last_used_at', 'revoked_at'];
 
     /** @return array<string, string> */
     protected function casts(): array
     {
         return [
             'last_used_at' => 'datetime',
+            'revoked_at' => 'datetime',
         ];
+    }
+
+    /** A token is live until it is revoked; a revoked token no longer authenticates. */
+    public function isRevoked(): bool
+    {
+        return $this->revoked_at !== null;
+    }
+
+    /** Soft-revoke the token — it stops authenticating immediately, its audit row survives. */
+    public function revoke(): void
+    {
+        if ($this->revoked_at === null) {
+            $this->forceFill(['revoked_at' => Carbon::now()])->save();
+        }
     }
 
     /**

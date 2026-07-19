@@ -13,8 +13,9 @@ use Illuminate\Support\Carbon;
  *
  *  1. A configured operator token (`billing.api.static_token`) — resolves to an operator
  *     identity that may act for any org. Compared in constant time.
- *  2. A per-org `api_tokens` row, matched on the SHA-256 of the presented token — resolves
- *     to that org's identity (or an operator identity when the row is unscoped).
+ *  2. A per-org `api_tokens` row, matched on the SHA-256 of the presented token and not
+ *     revoked — resolves to that org's identity (or an operator identity when the row is
+ *     unscoped). A revoked row (`revoked_at` set) authenticates nothing.
  *
  * Anything else authenticates nothing and returns `null` (deny-by-default).
  */
@@ -32,7 +33,10 @@ readonly class DatabaseApiTokenAuthenticator implements ApiTokenAuthenticator
             return ApiIdentity::operator();
         }
 
-        $token = ApiToken::query()->where('hash', hash('sha256', $bearer))->first();
+        $token = ApiToken::query()
+            ->where('hash', hash('sha256', $bearer))
+            ->whereNull('revoked_at')
+            ->first();
 
         if (! $token instanceof ApiToken) {
             return null;

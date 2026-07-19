@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Http\Middleware\EnforcePermission;
+use App\Models\Invoice;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\OrganizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -73,6 +74,10 @@ class RbacEnforcementTest extends TestCase
             'billing.catalog.prices.store' => 'billing.permission:catalog:manage',
             'billing.catalog.plans.retire' => 'billing.permission:catalog:manage',
             'billing.subscriptions.cancel' => 'billing.permission:subscriptions:manage',
+            'billing.invoices.void' => 'billing.permission:invoices:manage',
+            'billing.invoices.mark-paid' => 'billing.permission:invoices:manage',
+            'billing.invoices.refund' => 'billing.permission:invoices:refund',
+            'billing.customers.wallet.adjust' => 'billing.permission:wallet:manage',
             'billing.licenses.issue' => 'billing.permission:licenses:issue',
             'billing.licenses.revoke' => 'billing.permission:licenses:revoke',
             'analytics.revenue' => 'billing.permission:analytics:read',
@@ -84,6 +89,33 @@ class RbacEnforcementTest extends TestCase
             $this->assertNotNull($route, "Route {$name} is missing.");
             $this->assertContains($middleware, $route->gatherMiddleware(), "Route {$name} should be gated by {$middleware}.");
         }
+    }
+
+    public function test_the_invoice_manage_and_refund_slugs_are_distinct_under_enforcement(): void
+    {
+        config()->set('billing.rbac.enforce', true);
+
+        $invoice = Invoice::query()->firstOrFail();
+
+        // A refund-only holder may NOT void (a lifecycle action carrying `invoices:manage`).
+        $this->signedInWith(['invoices:refund'])
+            ->post(route('billing.invoices.void', $invoice->id))
+            ->assertStatus(403);
+
+        // The manage holder clears the gate (the action itself may still 302/redirect).
+        $this->signedInWith(['invoices:manage'])
+            ->post(route('billing.invoices.void', $invoice->id))
+            ->assertStatus(302);
+    }
+
+    public function test_wallet_manage_gates_the_adjustment_route(): void
+    {
+        config()->set('billing.rbac.enforce', true);
+
+        // `customers:manage` no longer authorizes a wallet adjustment (Wave 4 split).
+        $this->signedInWith(['customers:manage'])
+            ->post(route('billing.customers.wallet.adjust', 'org_hverdag'))
+            ->assertStatus(403);
     }
 
     /**

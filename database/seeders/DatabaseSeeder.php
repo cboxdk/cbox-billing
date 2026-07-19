@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             CatalogSeeder::class,
             LicensingSeeder::class,
             OrganizationSeeder::class,
+            SellerEntitySeeder::class,
         ]);
     }
 }

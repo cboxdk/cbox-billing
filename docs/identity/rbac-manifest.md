@@ -22,6 +22,7 @@ The manifest lives in `config/cbox-id-client.php` → `authz`. Every permission 
 | Permission | Grants |
 | --- | --- |
 | `invoices:read` | View invoices and credit notes |
+| `invoices:manage` | Create, void, mark-paid, resend invoices |
 | `invoices:refund` | Issue refunds and credit notes |
 | `subscriptions:read` | View subscriptions |
 | `subscriptions:manage` | Create, change, pause, cancel, reactivate |
@@ -30,7 +31,8 @@ The manifest lives in `config/cbox-id-client.php` → `authz`. Every permission 
 | `catalog:read` | View products, plans, prices, meters |
 | `catalog:manage` | Create and edit catalog |
 | `customers:read` | View organizations and entitlements |
-| `customers:manage` | Provision and edit organizations |
+| `customers:manage` | Provision, edit, suspend, reactivate organizations |
+| `wallet:manage` | Grant and debit organization wallet credit |
 | `payments:read` | View payment methods and gateway state |
 | `payments:manage` | Manage methods, checkout, portal, intents |
 | `licenses:read` | View issued on-prem licenses |
@@ -82,10 +84,13 @@ what Cbox ID assigns.
 The console carries a permission gate, the `billing.permission:<feature:action>`
 route middleware ([`EnforcePermission`](https://github.com/cboxdk/cbox-billing/blob/main/app/Http/Middleware/EnforcePermission.php)).
 Each management/console route declares the slug it needs — `catalog:manage` before
-price authoring, `subscriptions:manage` before cancel/reactivate, `licenses:issue` /
+price authoring, `subscriptions:manage` before cancel/reactivate, `invoices:manage`
+before create/void/mark-paid/resend (and the narrower `invoices:refund` before a
+money-returning refund), `wallet:manage` before a wallet grant/debit, `licenses:issue` /
 `licenses:revoke` before issuing/revoking, `analytics:read` before the analytics
-screens, `settings:read` before the settings page, and the `:read` slug on every
-read surface — using the exact slugs from the catalog above.
+screens, `settings:read` before the settings page (and `settings:manage` before
+authoring a seller entity or minting/revoking an API token), and the `:read` slug on
+every read surface — using the exact slugs from the catalog above.
 
 ### The current signal gap
 

@@ -235,16 +235,21 @@ class BillingController extends Controller
         ]);
     }
 
-    public function settings(SettingsReport $report): View
+    public function settings(Request $request, SettingsReport $report): View
     {
+        $tab = $request->query('tab');
+        $tabs = ['sellers', 'tax', 'gateways', 'tokens', 'webhooks'];
+
         return view('billing.settings', [
             'activeArea' => 'settings',
-            'activeNav' => 'sellers',
+            'activeNav' => is_string($tab) && in_array($tab, $tabs, true) ? $tab : 'sellers',
+            'tab' => is_string($tab) && in_array($tab, $tabs, true) ? $tab : 'sellers',
             'sellers' => $report->sellers(),
             'taxRegistrations' => $report->taxRegistrations(),
             'gateways' => $report->gateways(),
             'apiTokens' => $report->apiTokens(),
             'webhook' => $report->webhook(),
+            'webhookReceivers' => $report->webhookReceivers(),
         ]);
     }
 

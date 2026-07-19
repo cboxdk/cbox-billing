@@ -103,6 +103,7 @@ return [
         // users; this app enforces the permissions they carry.
         'permissions' => [
             ['key' => 'invoices:read', 'description' => 'View invoices and credit notes'],
+            ['key' => 'invoices:manage', 'description' => 'Create, void, mark-paid and resend invoices'],
             ['key' => 'invoices:refund', 'description' => 'Issue refunds and credit notes'],
 
             ['key' => 'subscriptions:read', 'description' => 'View subscriptions'],
@@ -115,7 +116,9 @@ return [
             ['key' => 'catalog:manage', 'description' => 'Create and edit products, plans, prices and meters'],
 
             ['key' => 'customers:read', 'description' => 'View billing organizations and their entitlements'],
-            ['key' => 'customers:manage', 'description' => 'Provision and edit billing organizations'],
+            ['key' => 'customers:manage', 'description' => 'Provision, edit, suspend and reactivate billing organizations'],
+
+            ['key' => 'wallet:manage', 'description' => 'Grant and debit organization wallet credit'],
 
             ['key' => 'payments:read', 'description' => 'View payment methods and gateway state'],
             ['key' => 'payments:manage', 'description' => 'Manage payment methods, checkout, portal and intents'],
@@ -135,11 +138,12 @@ return [
                 'name' => 'Billing Admin',
                 'description' => 'Full access to every billing capability, including catalog and settings configuration.',
                 'permissions' => [
-                    'invoices:read', 'invoices:refund',
+                    'invoices:read', 'invoices:manage', 'invoices:refund',
                     'subscriptions:read', 'subscriptions:manage',
                     'usage:read', 'usage:ingest',
                     'catalog:read', 'catalog:manage',
                     'customers:read', 'customers:manage',
+                    'wallet:manage',
                     'payments:read', 'payments:manage',
                     'licenses:read', 'licenses:issue', 'licenses:revoke',
                     'analytics:read',
@@ -151,11 +155,12 @@ return [
                 'name' => 'Billing Operator',
                 'description' => 'Day-to-day billing operations — manage subscriptions, refunds, customers, payments and licenses — without catalog or platform-settings changes.',
                 'permissions' => [
-                    'invoices:read', 'invoices:refund',
+                    'invoices:read', 'invoices:manage', 'invoices:refund',
                     'subscriptions:read', 'subscriptions:manage',
                     'usage:read', 'usage:ingest',
                     'catalog:read',
                     'customers:read', 'customers:manage',
+                    'wallet:manage',
                     'payments:read', 'payments:manage',
                     'licenses:read', 'licenses:issue', 'licenses:revoke',
                     'analytics:read',

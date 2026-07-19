@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Coupons\CouponRedeemer;
+use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Retention\Contracts\ManagesRetention;
 use App\Billing\Retention\Enums\CancellationMode;
 use App\Billing\Retention\Exceptions\RetentionException;
@@ -13,6 +16,7 @@ use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
 use App\Billing\Subscriptions\ValueObjects\QuantityPreview;
 use App\Http\Controllers\Api\ApiController;
+use App\Models\Coupon;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -57,7 +61,7 @@ class SubscriptionController extends ApiController
      * plan. With `trial: true` (or a positive `trial_days`) the subscription opens in a free
      * trial (`Trialing`, charging nothing) that converts on the scheduled trial pass.
      */
-    public function store(Request $request, SubscribesOrganizations $subscriptions): JsonResponse
+    public function store(Request $request, SubscribesOrganizations $subscriptions, CouponRedeemer $coupons, ResolvesAccountCurrency $currencies): JsonResponse
     {
         $request->validate([
             'org' => ['required', 'string'],
@@ -66,6 +70,7 @@ class SubscriptionController extends ApiController
             'currency' => ['sometimes', 'string', 'size:3'],
             'trial' => ['sometimes', 'boolean'],
             'trial_days' => ['sometimes', 'integer', 'min:1'],
+            'coupon' => ['sometimes', 'nullable', 'string', 'max:60'],
         ]);
 
         $org = $request->string('org')->toString();
@@ -88,6 +93,21 @@ class SubscriptionController extends ApiController
 
         $currency = $request->has('currency') ? strtoupper($request->string('currency')->toString()) : null;
         $seats = $request->integer('seats', 1);
+        $effectiveCurrency = $currency ?? $currencies->for($organization);
+
+        // Validate the promo code BEFORE opening the subscription (deny-by-default → 422), so
+        // an invalid code never leaves a half-applied subscribe behind. The atomic redeem +
+        // bind runs after the subscription exists.
+        $couponCode = $request->filled('coupon') ? $request->string('coupon')->toString() : null;
+        $coupon = null;
+
+        if ($couponCode !== null) {
+            try {
+                $coupon = $coupons->validate($couponCode, $plan, $effectiveCurrency, $org);
+            } catch (CouponRedemptionDenied $e) {
+                return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        }
 
         $wantsTrial = $request->boolean('trial') || $request->has('trial_days');
 
@@ -101,8 +121,16 @@ class SubscriptionController extends ApiController
             )
             : $subscriptions->subscribe($organization, $plan, $seats, $currency);
 
+        $couponInfo = null;
+
+        if ($coupon instanceof Coupon) {
+            $coupons->redeem($coupon, $subscription);
+            $couponInfo = $this->presentCoupon($coupon, $plan, $effectiveCurrency, $seats, $coupons);
+        }
+
         return new JsonResponse([
             'subscription' => $this->present($subscription),
+            'coupon' => $couponInfo,
             // The manual gateway settles out of band, so there is no client-confirmable
             // intent yet; the field is reserved for the payment-intents task.
             'payment_intent' => null,
@@ -445,6 +473,28 @@ class SubscriptionController extends ApiController
                 ]
                 : null,
             'add_ons' => $subscription->addOns->map(fn (SubscriptionAddOn $addOn): array => $this->presentAddOn($addOn))->all(),
+        ];
+    }
+
+    /**
+     * The applied-coupon block: the code, its duration, and the discount it applies to the
+     * recurring net — computed through the engine applier ({@see CouponRedeemer::discountFor()}),
+     * so the previewed discount is exactly what the invoice collects.
+     *
+     * @return array<string, mixed>
+     */
+    private function presentCoupon(Coupon $coupon, Plan $plan, string $currency, int $seats, CouponRedeemer $coupons): array
+    {
+        $net = $plan->amountFor($currency, $seats);
+        $discount = $coupons->discountFor($coupon, $net);
+
+        return [
+            'code' => $coupon->code,
+            'duration' => $coupon->duration,
+            'currency' => $currency,
+            'recurring_minor' => $net->minor(),
+            'discount_minor' => $discount?->amount->minor() ?? 0,
+            'discounted_minor' => $discount?->discounted->minor() ?? $net->minor(),
         ];
     }
 

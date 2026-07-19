@@ -28,11 +28,16 @@ class CheckoutController extends HostedController
         $session = $this->require($token, SessionType::Checkout);
         $plan = $flow->plan($session);
         $currency = $flow->currency($session);
+        $listPrice = $plan->priceFor($currency);
+        $price = $flow->price($session);
 
         return view('hosted.checkout', [
             'session' => $session,
             'plan' => $plan,
-            'price' => MoneyFormatter::money($plan->priceFor($currency)),
+            'price' => MoneyFormatter::money($price),
+            // The undiscounted list price, shown struck-through when a promo code reduced it.
+            'listPrice' => $price->equals($listPrice) ? null : MoneyFormatter::money($listPrice),
+            'couponCode' => $session->coupon_code,
             'currency' => $currency,
         ]);
     }

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Coupons\CouponRedeemer;
+use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
 use App\Billing\Support\MoneyFormatter;
+use App\Models\Coupon;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -41,7 +44,7 @@ class SubscriptionOpsController extends Controller
         ]);
     }
 
-    public function store(Request $request, SubscribesOrganizations $subscriptions): RedirectResponse
+    public function store(Request $request, SubscribesOrganizations $subscriptions, CouponRedeemer $coupons): RedirectResponse
     {
         $request->validate([
             'organization_id' => ['required', 'string', 'exists:organizations,id'],
@@ -50,6 +53,7 @@ class SubscriptionOpsController extends Controller
             'seats' => ['required', 'integer', 'min:1'],
             'trial' => ['sometimes', 'boolean'],
             'trial_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'coupon' => ['nullable', 'string', 'max:60'],
         ]);
 
         $organization = Organization::query()->findOrFail($request->string('organization_id')->toString());
@@ -60,6 +64,19 @@ class SubscriptionOpsController extends Controller
             return back()->withInput()->with('error', sprintf('%s is not priced in %s.', $plan->name, $currency));
         }
 
+        // Validate the promo code before subscribing (deny-by-default), so a bad code flashes
+        // back rather than leaving a coupon-less subscription.
+        $couponCode = $request->filled('coupon') ? $request->string('coupon')->toString() : null;
+        $coupon = null;
+
+        if ($couponCode !== null) {
+            try {
+                $coupon = $coupons->validate($couponCode, $plan, $currency, $organization->id);
+            } catch (CouponRedemptionDenied $e) {
+                return back()->withInput()->with('error', $e->getMessage());
+            }
+        }
+
         $seats = $request->integer('seats');
         $wantsTrial = $request->boolean('trial');
 
@@ -67,9 +84,16 @@ class SubscriptionOpsController extends Controller
             ? $subscriptions->subscribeWithTrial($organization, $plan, $request->filled('trial_days') ? $request->integer('trial_days') : null, $seats, $currency)
             : $subscriptions->subscribe($organization, $plan, $seats, $currency);
 
+        $note = '';
+
+        if ($coupon instanceof Coupon) {
+            $coupons->redeem($coupon, $subscription);
+            $note = sprintf(' Coupon %s applied.', $coupon->code);
+        }
+
         return redirect()
             ->route('billing.subscriptions.show', $subscription->id)
-            ->with('status', sprintf('Subscribed %s to %s.', $organization->name, $plan->name));
+            ->with('status', sprintf('Subscribed %s to %s.%s', $organization->name, $plan->name, $note));
     }
 
     public function planChangePreview(Request $request, Subscription $subscription, SubscribesOrganizations $subscriptions): View

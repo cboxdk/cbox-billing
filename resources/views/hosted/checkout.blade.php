@@ -10,8 +10,14 @@
     <div class="hosted-body">
         <div class="line">
             <span class="k">{{ $plan->name }} · {{ ucfirst($plan->interval) }}</span>
-            <span class="v num">{{ $price }}</span>
+            <span class="v num">{{ $listPrice ?? $price }}</span>
         </div>
+        @if ($couponCode)
+            <div class="line">
+                <span class="k">Promo code <strong class="num">{{ $couponCode }}</strong></span>
+                <span class="v num">@if($listPrice)− {{ $listPrice }} → {{ $price }}@else applied @endif</span>
+            </div>
+        @endif
         <div class="line total">
             <span class="k">Due today</span>
             <span class="v num" id="amount">{{ $price }}</span>

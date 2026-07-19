@@ -66,6 +66,10 @@
                     <input type="number" name="trial_days" min="1" max="365" value="{{ old('trial_days') }}" placeholder="14" class="num" style="{{ $inputStyle }}"></label>
             </div>
 
+            <label style="{{ $labelStyle }}">Promo code (optional)
+                <input type="text" name="coupon" value="{{ old('coupon') }}" maxlength="60" placeholder="SAVE20" class="num" style="{{ $inputStyle }}">
+                <span class="mut" style="font-size:11px">A coupon reduces the recurring net; unknown/expired/inapplicable codes are refused.</span></label>
+
             <div style="display:flex;gap:8px">
                 <button type="submit" class="cbx-btn cbx-btn--primary">Create subscription</button>
                 <a href="{{ route('billing.subscriptions') }}" class="cbx-btn cbx-btn--sm">Cancel</a>

@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace App\Billing\Hosted;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Coupons\CouponDiscounter;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Models\BillingSession;
+use App\Models\Coupon;
 use App\Models\Organization;
 use App\Models\Plan;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Cbox\Billing\Payment\ValueObjects\PaymentIntentRequest;
 use Cbox\Billing\Payment\ValueObjects\PaymentIntentResult;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -36,6 +39,7 @@ readonly class CheckoutPaymentFlow
         private PaymentGateway $gateway,
         private ResolvesAccountCurrency $currencies,
         private ResolvesGatewayCustomer $customers,
+        private CouponDiscounter $coupons,
     ) {}
 
     public function intent(BillingSession $session): PaymentIntentResult
@@ -43,7 +47,7 @@ readonly class CheckoutPaymentFlow
         $organization = $this->organization($session);
         $plan = $this->plan($session);
         $currency = $session->currency ?? $this->currencies->for($organization);
-        $amount = $plan->priceFor($currency);
+        $amount = $this->amount($session, $plan, $currency);
 
         $reference = $this->stampReference($session);
 
@@ -71,6 +75,45 @@ readonly class CheckoutPaymentFlow
     public function currency(BillingSession $session): string
     {
         return $session->currency ?? $this->currencies->for($this->organization($session));
+    }
+
+    /** The amount actually charged, net of the session's promo code — what the page displays. */
+    public function price(BillingSession $session): Money
+    {
+        $plan = $this->plan($session);
+        $currency = $this->currency($session);
+
+        return $this->amount($session, $plan, $currency);
+    }
+
+    /**
+     * The plan price for this session's charge, discounted by its promo code through the
+     * engine applier ({@see CouponDiscounter}) when one is set and still valid — so the
+     * gateway charges exactly the discounted amount the page shows. An invalid/expired code
+     * is a no-op (full price), deny-by-default.
+     */
+    private function amount(BillingSession $session, Plan $plan, string $currency): Money
+    {
+        $full = $plan->priceFor($currency);
+        $coupon = $this->coupon($session);
+
+        if (! $coupon instanceof Coupon) {
+            return $full;
+        }
+
+        $discount = $this->coupons->forCoupon($coupon, $full, Carbon::now()->toDateTimeImmutable());
+
+        return $discount === null ? $full : $discount->discounted;
+    }
+
+    /** The session's promo coupon, or null when it carries none / an unknown code. */
+    private function coupon(BillingSession $session): ?Coupon
+    {
+        if ($session->coupon_code === null) {
+            return null;
+        }
+
+        return Coupon::query()->where('code', $session->coupon_code)->first();
     }
 
     private function organization(BillingSession $session): Organization

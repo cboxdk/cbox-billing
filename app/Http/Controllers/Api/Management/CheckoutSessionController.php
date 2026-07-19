@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Management;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Coupons\CouponRedeemer;
+use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization;
@@ -22,13 +24,14 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class CheckoutSessionController extends ApiController
 {
-    public function __invoke(Request $request, ManagesBillingSessions $sessions, ResolvesAccountCurrency $currencies): JsonResponse
+    public function __invoke(Request $request, ManagesBillingSessions $sessions, ResolvesAccountCurrency $currencies, CouponRedeemer $coupons): JsonResponse
     {
         $request->validate([
             'org' => ['required', 'string'],
             'plan' => ['required', 'string'],
             'currency' => ['sometimes', 'string', 'size:3'],
             'return_url' => ['required', 'url'],
+            'coupon' => ['sometimes', 'nullable', 'string', 'max:60'],
         ]);
 
         $org = $request->string('org')->toString();
@@ -61,11 +64,26 @@ class CheckoutSessionController extends ApiController
             );
         }
 
+        // A promo code is validated up front (deny-by-default → 422) so the checkout URL is
+        // only minted for a code that will actually discount; it is redeemed + bound when the
+        // settled webhook activates the subscription.
+        $couponCode = $request->filled('coupon') ? $request->string('coupon')->toString() : null;
+
+        if ($couponCode !== null) {
+            try {
+                $coupon = $coupons->validate($couponCode, $plan, $currency, $org);
+                $couponCode = $coupon->code;
+            } catch (CouponRedemptionDenied $e) {
+                return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        }
+
         $session = $sessions->openCheckout(
             $organization,
             $plan,
             $request->has('currency') ? $currency : null,
             $request->string('return_url')->toString(),
+            $couponCode,
         );
 
         return new JsonResponse([

@@ -10,6 +10,7 @@ use App\Billing\Api\Contracts\ApiTokenAuthenticator;
 use App\Billing\Api\DatabaseApiTokenAuthenticator;
 use App\Billing\Catalog\Contracts\AuthorsPlanPrices;
 use App\Billing\Catalog\PlanPriceAuthoring;
+use App\Billing\Coupons\CouponRedeemer;
 use App\Billing\Enforcement\CacheReservationStore;
 use App\Billing\Enforcement\CentralAllowanceLeaseSource;
 use App\Billing\Enforcement\Contracts\ReservationStore;
@@ -308,6 +309,7 @@ class BillingServiceProvider extends ServiceProvider
             $app->make(EloquentInvoicePaymentApplier::class),
             $app->make(SubscribesOrganizations::class),
             $app->make(ManagesBillingSessions::class),
+            $app->make(CouponRedeemer::class),
         ));
 
         $this->registerTransitionPolicy();

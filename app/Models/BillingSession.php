@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property SessionType $type
  * @property string|null $plan_key
  * @property string|null $currency
+ * @property string|null $coupon_code
  * @property string $return_url
  * @property string|null $payment_reference
  * @property SessionStatus $status
@@ -35,7 +36,7 @@ class BillingSession extends Model
     use HasUuids;
 
     protected $fillable = [
-        'token', 'organization_id', 'type', 'plan_key', 'currency',
+        'token', 'organization_id', 'type', 'plan_key', 'currency', 'coupon_code',
         'return_url', 'payment_reference', 'status', 'expires_at', 'completed_at',
     ];
 

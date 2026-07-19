@@ -22,7 +22,7 @@ interface ManagesBillingSessions
      * `$currency` (or the account's chosen/default currency), returning to `$returnUrl`
      * once the settled webhook activates it.
      */
-    public function openCheckout(Organization $organization, Plan $plan, ?string $currency, string $returnUrl): BillingSession;
+    public function openCheckout(Organization $organization, Plan $plan, ?string $currency, string $returnUrl, ?string $couponCode = null): BillingSession;
 
     /**
      * Open a checkout for `$plan`, reusing an existing still-usable (pending, un-expired)

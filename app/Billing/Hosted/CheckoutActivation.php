@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Billing\Hosted;
 
+use App\Billing\Coupons\CouponRedeemer;
+use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionStatus;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\BillingSession;
+use App\Models\Coupon;
 use App\Models\Organization;
 use App\Models\Plan;
+use App\Models\Subscription;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Payment\Contracts\InvoicePaymentApplier;
 use Cbox\Billing\Payment\Contracts\WebhookIngest;
@@ -35,6 +39,7 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
         private InvoicePaymentApplier $inner,
         private SubscribesOrganizations $subscriptions,
         private ManagesBillingSessions $sessions,
+        private CouponRedeemer $coupons,
     ) {}
 
     public function markPaid(string $reference, Money $amount, PaymentResult $result): void
@@ -64,7 +69,34 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
             return;
         }
 
-        $this->subscriptions->subscribe($organization, $plan, 1, $session->currency);
+        $subscription = $this->subscriptions->subscribe($organization, $plan, 1, $session->currency);
+        $this->redeemCoupon($session, $subscription);
         $this->sessions->complete($session);
+    }
+
+    /**
+     * Redeem the session's promo code against the freshly-created subscription and bind it,
+     * so a repeating/forever coupon also discounts renewals (the up-front charge was already
+     * discounted at intent time). Best-effort: a code that became invalid between checkout
+     * and settlement (expired, exhausted by a concurrent redeemer) is skipped — the settled
+     * charge stands, and this webhook must not throw.
+     */
+    private function redeemCoupon(BillingSession $session, Subscription $subscription): void
+    {
+        if ($session->coupon_code === null) {
+            return;
+        }
+
+        $coupon = Coupon::query()->where('code', $session->coupon_code)->first();
+
+        if (! $coupon instanceof Coupon) {
+            return;
+        }
+
+        try {
+            $this->coupons->redeem($coupon, $subscription);
+        } catch (CouponRedemptionDenied) {
+            // The code lapsed after checkout opened — leave the settled subscription as-is.
+        }
     }
 }

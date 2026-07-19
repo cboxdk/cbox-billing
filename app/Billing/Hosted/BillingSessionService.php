@@ -28,9 +28,9 @@ readonly class BillingSessionService implements ManagesBillingSessions
 {
     public function __construct(private int $ttlMinutes) {}
 
-    public function openCheckout(Organization $organization, Plan $plan, ?string $currency, string $returnUrl): BillingSession
+    public function openCheckout(Organization $organization, Plan $plan, ?string $currency, string $returnUrl, ?string $couponCode = null): BillingSession
     {
-        return $this->open($organization, SessionType::Checkout, $returnUrl, $plan->key, $currency);
+        return $this->open($organization, SessionType::Checkout, $returnUrl, $plan->key, $currency, $couponCode);
     }
 
     public function openOrReuseCheckout(Organization $organization, Plan $plan, ?string $currency, string $returnUrl): BillingSession
@@ -87,7 +87,7 @@ readonly class BillingSessionService implements ManagesBillingSessions
         ])->save();
     }
 
-    private function open(Organization $organization, SessionType $type, string $returnUrl, ?string $planKey = null, ?string $currency = null): BillingSession
+    private function open(Organization $organization, SessionType $type, string $returnUrl, ?string $planKey = null, ?string $currency = null, ?string $couponCode = null): BillingSession
     {
         return BillingSession::query()->create([
             'token' => Str::random(48),
@@ -95,6 +95,7 @@ readonly class BillingSessionService implements ManagesBillingSessions
             'type' => $type->value,
             'plan_key' => $planKey,
             'currency' => $currency,
+            'coupon_code' => $couponCode,
             'return_url' => $returnUrl,
             'status' => SessionStatus::Pending->value,
             'expires_at' => Carbon::now()->addMinutes($this->ttlMinutes),

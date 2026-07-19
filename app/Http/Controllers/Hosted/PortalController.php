@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Hosted;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Coupons\CouponDiscounter;
+use App\Billing\Coupons\CouponRedeemer;
+use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
 use App\Billing\Invoicing\InvoicePdfRenderer;
@@ -15,6 +18,7 @@ use App\Billing\Retirement\PlanRetirementService;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\BillingSession;
+use App\Models\Coupon;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -29,6 +33,7 @@ use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
@@ -56,6 +61,8 @@ class PortalController extends HostedController
         private readonly PlanRetirementService $retirements,
         private readonly CancellationSurvey $survey,
         private readonly RetentionOffers $offers,
+        private readonly CouponRedeemer $coupons,
+        private readonly CouponDiscounter $discounter,
     ) {
         parent::__construct($sessions);
     }
@@ -111,7 +118,13 @@ class PortalController extends HostedController
             return $error;
         }
 
-        return new JsonResponse($this->presentPreview($this->subscriptions->previewChange($subscription, $plan)));
+        [$coupon, $couponError] = $this->resolveCoupon($request, $session, $plan);
+
+        if ($couponError instanceof JsonResponse) {
+            return $couponError;
+        }
+
+        return new JsonResponse($this->presentPreview($this->subscriptions->previewChange($subscription, $plan), $coupon));
     }
 
     /** `POST` — apply the plan change (the same consequence {@see preview()} reported). */
@@ -123,7 +136,49 @@ class PortalController extends HostedController
             return $error;
         }
 
-        return new JsonResponse($this->presentPreview($this->subscriptions->changePlan($subscription, $plan)));
+        [$coupon, $couponError] = $this->resolveCoupon($request, $session, $plan);
+
+        if ($couponError instanceof JsonResponse) {
+            return $couponError;
+        }
+
+        $preview = $this->subscriptions->changePlan($subscription, $plan);
+
+        // Bind the promo code to the (now-changed) subscription so its renewals are
+        // discounted (repeating/forever); the immediate proration is charged in full.
+        if ($coupon instanceof Coupon) {
+            $this->coupons->redeem($coupon, $subscription);
+        }
+
+        return new JsonResponse($this->presentPreview($preview, $coupon));
+    }
+
+    /**
+     * Validate the optional promo code on a plan change against the TARGET plan, in the
+     * account's currency (deny-by-default → 422). Returns `[coupon|null, errorResponse|null]`.
+     *
+     * @return array{0: Coupon|null, 1: JsonResponse|null}
+     */
+    private function resolveCoupon(Request $request, BillingSession $session, Plan $plan): array
+    {
+        if (! $request->filled('coupon')) {
+            return [null, null];
+        }
+
+        $currency = $this->currencies->for($this->organization($session));
+
+        try {
+            $coupon = $this->coupons->validate(
+                $request->string('coupon')->toString(),
+                $plan,
+                $currency,
+                $session->organization_id,
+            );
+        } catch (CouponRedemptionDenied $e) {
+            return [null, new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY)];
+        }
+
+        return [$coupon, null];
     }
 
     /**
@@ -273,7 +328,10 @@ class PortalController extends HostedController
      */
     private function resolveChange(Request $request, string $token): array
     {
-        $request->validate(['plan' => ['required', 'string']]);
+        $request->validate([
+            'plan' => ['required', 'string'],
+            'coupon' => ['sometimes', 'nullable', 'string', 'max:60'],
+        ]);
 
         $session = $this->require($token, SessionType::Portal);
         $subscription = $this->activeSubscription($session->organization_id);
@@ -392,7 +450,7 @@ class PortalController extends HostedController
     }
 
     /** @return array<string, mixed> */
-    private function presentPreview(PlanChangePreview $preview): array
+    private function presentPreview(PlanChangePreview $preview, ?Coupon $coupon = null): array
     {
         $currency = $preview->newRecurring->currency();
         $dueNowMinor = $preview->dueNowQuote?->totals->gross->minor() ?? 0;
@@ -406,6 +464,31 @@ class PortalController extends HostedController
             'new_recurring' => MoneyFormatter::money($preview->newRecurring),
             'currency' => $currency,
             'effective_at' => $preview->effectiveAt->format(DateTimeImmutable::ATOM),
+            'coupon' => $this->presentPreviewCoupon($preview, $coupon),
+        ];
+    }
+
+    /**
+     * The promo block on a plan-change preview: the recurring net after the coupon (through
+     * the engine applier) — what renewals of the new plan will bill. Null when no code.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function presentPreviewCoupon(PlanChangePreview $preview, ?Coupon $coupon): ?array
+    {
+        if (! $coupon instanceof Coupon) {
+            return null;
+        }
+
+        $discount = $this->discounter->forCoupon($coupon, $preview->newRecurring, Carbon::now()->toDateTimeImmutable());
+        $discounted = $discount === null ? $preview->newRecurring : $discount->discounted;
+
+        return [
+            'code' => $coupon->code,
+            'duration' => $coupon->duration,
+            'new_recurring_minor' => $discounted->minor(),
+            'new_recurring' => MoneyFormatter::money($discounted),
+            'discount_minor' => $discount === null ? 0 : $discount->amount->minor(),
         ];
     }
 

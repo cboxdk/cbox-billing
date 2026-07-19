@@ -20,6 +20,11 @@ class CreditNotesDataset extends AbstractDataset
         return 'credit_notes';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'organization_id';
+    }
+
     public function label(): string
     {
         return 'Credit notes';

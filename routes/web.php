@@ -5,12 +5,14 @@ declare(strict_types=1);
 use App\Http\Controllers\AccessGrantController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\ApiTokenController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\CustomerOpsController;
+use App\Http\Controllers\DsarController;
 use App\Http\Controllers\DunningController;
 use App\Http\Controllers\DunningStrategyController;
 use App\Http\Controllers\ExemptionCertificateController;
@@ -55,7 +57,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // console route below — a valid Cbox ID session is not enough, the principal must belong to an
 // allowlisted operator organization (config/billing.php → console.operator_orgs). It is
 // fail-closed (deny-all when unconfigured) and independent of the flag-gated RBAC above.
-Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode'])->group(function (): void {
+Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.audit'])->group(function (): void {
     Route::get('/', [BillingController::class, 'dashboard'])->name('billing.dashboard');
 
     // --- Sandbox / test mode. The persistent toggle flips the whole console between the live
@@ -124,6 +126,18 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode'])->group(func
     Route::post('/exports/warehouse/{warehouseSink}/run', [WarehouseSinkController::class, 'run'])->middleware('billing.permission:settings:manage')->name('billing.exports.warehouse.run');
     Route::delete('/exports/warehouse/{warehouseSink}', [WarehouseSinkController::class, 'destroy'])->middleware('billing.permission:settings:manage')->name('billing.exports.warehouse.destroy');
     Route::get('/exports/warehouse/{warehouseSink}/manifest/{dataset}', [WarehouseSinkController::class, 'manifest'])->middleware('billing.permission:settings:read')->name('billing.exports.warehouse.manifest');
+
+    // --- Tamper-evident operator audit log + GDPR/DSAR tooling. The trail is read (searchable,
+    // paginated, filterable) and exported under `settings:read`; the DSAR access export reads a
+    // subject's data under `customers:read`; the right-to-be-forgotten erasure — which
+    // pseudonymizes PII while retaining de-identified financial records — is the most sensitive
+    // write and carries `customers:manage`. Every write here is itself audit-logged.
+    Route::get('/audit', [AuditLogController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.audit');
+    Route::get('/audit/export', [AuditLogController::class, 'export'])->middleware('billing.permission:settings:read')->name('billing.audit.export');
+    Route::get('/audit/gdpr', [DsarController::class, 'index'])->middleware('billing.permission:customers:read')->name('billing.audit.gdpr');
+    Route::get('/audit/gdpr/{organization}/export', [DsarController::class, 'export'])->middleware('billing.permission:customers:read')->name('billing.audit.gdpr.export');
+    Route::post('/audit/gdpr/{organization}/erase', [DsarController::class, 'erase'])->middleware('billing.permission:customers:manage')->name('billing.audit.gdpr.erase');
+    Route::get('/audit/{event}', [AuditLogController::class, 'show'])->middleware('billing.permission:settings:read')->name('billing.audit.show');
 
     Route::get('/invoices', [BillingController::class, 'invoices'])->middleware('billing.permission:invoices:read')->name('billing.invoices');
 

@@ -53,6 +53,11 @@ class LicensesDataset extends AbstractDataset
         return 'issued_licenses';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'customer_id';
+    }
+
     public function schema(): array
     {
         return [

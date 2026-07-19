@@ -19,6 +19,11 @@ class SeatAssignmentsDataset extends AbstractDataset
         return 'seat_assignments';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'organization_id';
+    }
+
     public function label(): string
     {
         return 'Seat assignments';

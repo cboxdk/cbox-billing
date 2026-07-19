@@ -125,6 +125,13 @@ class ConsoleNav
                 ['route' => 'billing.test-mode.clocks', 'label' => 'Test clocks', 'key' => 'test-clocks', 'params' => [], 'feature' => null, 'order' => 60],
             ],
         ],
+        'audit' => [
+            'label' => 'Audit', 'icon' => 'shield', 'order' => 90, 'feature' => null,
+            'pages' => [
+                ['route' => 'billing.audit', 'label' => 'Audit log', 'key' => 'log', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.audit.gdpr', 'label' => 'GDPR / DSAR', 'key' => 'gdpr', 'params' => [], 'feature' => null, 'order' => 20],
+            ],
+        ],
     ];
 
     /** Seed the base app's areas/pages into the shared registry. */

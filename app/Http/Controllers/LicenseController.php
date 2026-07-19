@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Audit\Contracts\RecordsAudit;
+use App\Billing\Audit\Enums\AuditAction;
+use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Licensing\Contracts\IssuesLicenses;
 use App\Billing\Licensing\Exceptions\LicensingException;
 use App\Billing\Licensing\LicenseReport;
@@ -118,11 +121,20 @@ class LicenseController extends Controller
         return $this->licensesView($report, $config, $this->artifact($license), null);
     }
 
-    public function revoke(Request $request, string $id, IssuesLicenses $licenses): RedirectResponse
+    public function revoke(Request $request, string $id, IssuesLicenses $licenses, RecordsAudit $audit): RedirectResponse
     {
         $request->validate(['reason' => ['nullable', 'string']]);
 
-        $licenses->revoke($id, $this->nullableInput($request, 'reason'));
+        $reason = $this->nullableInput($request, 'reason');
+        $licenses->revoke($id, $reason);
+
+        // Record the FACT and the license id reference — never the signed license key itself.
+        $audit->record(
+            AuditAction::LicenseRevoked,
+            AuditTarget::of('license', $id),
+            sprintf('Revoked license %s.', $id),
+            ['reason' => $reason],
+        );
 
         return redirect()
             ->route('billing.licenses')

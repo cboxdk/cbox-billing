@@ -47,6 +47,11 @@ class MrrMovementsDataset extends AbstractDataset
         return 'subscription_mrr_movements';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'organization_id';
+    }
+
     public function schema(): array
     {
         return [

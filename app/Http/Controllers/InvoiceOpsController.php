@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Audit\Contracts\RecordsAudit;
+use App\Billing\Audit\Enums\AuditAction;
+use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Invoicing\Contracts\RunsInvoiceOperations;
 use App\Billing\Invoicing\Exceptions\InvoiceActionDenied;
 use App\Billing\Invoicing\ValueObjects\ManualLine;
@@ -37,7 +40,7 @@ class InvoiceOpsController extends Controller
             ->with('status', sprintf('Invoice %s voided.', $invoice->number));
     }
 
-    public function refund(Request $request, Invoice $invoice, RunsInvoiceOperations $operations): RedirectResponse
+    public function refund(Request $request, Invoice $invoice, RunsInvoiceOperations $operations, RecordsAudit $audit): RedirectResponse
     {
         $request->validate([
             'mode' => ['required', 'in:full,partial'],
@@ -48,6 +51,7 @@ class InvoiceOpsController extends Controller
 
         $mode = $request->string('mode')->toString();
         $netMinor = $mode === 'partial' ? $request->integer('amount_minor') : null;
+        $before = ['status' => $invoice->status, 'total_minor' => $invoice->total_minor];
 
         try {
             $refund = $operations->refund(
@@ -59,6 +63,18 @@ class InvoiceOpsController extends Controller
         } catch (InvoiceActionDenied $e) {
             return back()->with('error', $e->getMessage());
         }
+
+        $audit->record(
+            AuditAction::InvoiceRefunded,
+            AuditTarget::model($invoice),
+            sprintf('Refunded invoice %s as credit note %s (%s).', $invoice->number, $refund->creditNote->number, MoneyFormatter::money($refund->gross)),
+            [
+                'before' => $before,
+                'after' => ['status' => $invoice->fresh()?->status, 'credit_note' => $refund->creditNote->number, 'refund_gross_minor' => $refund->gross->minor()],
+                'mode' => $mode,
+                'reason' => $request->string('reason')->toString(),
+            ],
+        );
 
         return redirect()
             ->route('billing.invoices.show', $invoice->id)

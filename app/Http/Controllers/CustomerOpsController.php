@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Audit\Contracts\RecordsAudit;
+use App\Billing\Audit\Enums\AuditAction;
+use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Models\Organization;
 use Cbox\Billing\Account\Contracts\AccountStanding;
@@ -24,20 +27,42 @@ use Throwable;
  */
 class CustomerOpsController extends Controller
 {
-    public function suspend(Organization $organization, AccountStanding $standing): RedirectResponse
+    public function suspend(Organization $organization, AccountStanding $standing, RecordsAudit $audit): RedirectResponse
     {
+        $wasSuspended = $organization->suspended_at !== null;
         $organization->forceFill(['suspended_at' => now()])->save();
         $standing->flag($organization->id, AccountStandingState::Suspended, 'Suspended by operator from the console.');
+
+        $audit->record(
+            AuditAction::CustomerSuspended,
+            AuditTarget::of('organization', $organization->id, $organization->id),
+            sprintf('Suspended organization %s — access held, billing untouched.', $organization->id),
+            [
+                'before' => ['suspended' => $wasSuspended, 'standing' => AccountStandingState::Good->value],
+                'after' => ['suspended' => true, 'standing' => AccountStandingState::Suspended->value],
+            ],
+        );
 
         return redirect()
             ->route('billing.customers.show', $organization->id)
             ->with('status', sprintf('%s suspended — access is held; billing is untouched.', $organization->name));
     }
 
-    public function reactivate(Organization $organization, AccountStanding $standing): RedirectResponse
+    public function reactivate(Organization $organization, AccountStanding $standing, RecordsAudit $audit): RedirectResponse
     {
+        $wasSuspended = $organization->suspended_at !== null;
         $organization->forceFill(['suspended_at' => null])->save();
         $standing->flag($organization->id, AccountStandingState::Good, 'Reactivated by operator from the console.');
+
+        $audit->record(
+            AuditAction::CustomerReactivated,
+            AuditTarget::of('organization', $organization->id, $organization->id),
+            sprintf('Reactivated organization %s.', $organization->id),
+            [
+                'before' => ['suspended' => $wasSuspended, 'standing' => AccountStandingState::Suspended->value],
+                'after' => ['suspended' => false, 'standing' => AccountStandingState::Good->value],
+            ],
+        );
 
         return redirect()
             ->route('billing.customers.show', $organization->id)

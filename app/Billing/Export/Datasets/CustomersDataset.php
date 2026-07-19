@@ -51,6 +51,11 @@ class CustomersDataset extends AbstractDataset
         return 'organizations';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'id';
+    }
+
     public function schema(): array
     {
         return [

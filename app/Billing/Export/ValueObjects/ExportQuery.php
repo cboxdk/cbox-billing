@@ -13,6 +13,8 @@ use Carbon\CarbonImmutable;
  * sync passes so only rows strictly past the last delivery are streamed.
  *
  * It starts fully-open on a plane: no range and no watermark selects that plane's whole dataset.
+ * An optional `organizationId` narrows the export to a single subject's rows — the seam the
+ * DSAR (data-subject access) bundle reuses to assemble one organization's records.
  */
 readonly class ExportQuery
 {
@@ -21,6 +23,7 @@ readonly class ExportQuery
         public ?CarbonImmutable $from = null,
         public ?CarbonImmutable $to = null,
         public ?string $afterCursor = null,
+        public ?string $organizationId = null,
     ) {}
 
     /** The whole of a plane's dataset (no range, no watermark). */
@@ -35,10 +38,16 @@ readonly class ExportQuery
         return new self($livemode, $from, $to);
     }
 
+    /** A plane narrowed to a single organization's rows (the DSAR access-export scope). */
+    public static function forOrganization(bool $livemode, string $organizationId): self
+    {
+        return new self($livemode, null, null, null, $organizationId);
+    }
+
     /** The same query advanced past a stored watermark (incremental sync). */
     public function after(?string $cursor): self
     {
-        return new self($this->livemode, $this->from, $this->to, $cursor);
+        return new self($this->livemode, $this->from, $this->to, $cursor, $this->organizationId);
     }
 
     public function hasRange(): bool

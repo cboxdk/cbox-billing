@@ -45,6 +45,11 @@ class DunningDataset extends AbstractDataset
         return 'payment_retries';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'organization_id';
+    }
+
     public function schema(): array
     {
         return [

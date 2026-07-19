@@ -48,6 +48,11 @@ class UsageEventsDataset extends AbstractDataset
         return 'billing_usage_events';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'org';
+    }
+
     public function schema(): array
     {
         return [

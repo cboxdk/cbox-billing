@@ -43,6 +43,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $tax_id
  * @property bool $tax_id_validated
  * @property Carbon|null $suspended_at
+ * @property Carbon|null $erased_at
+ * @property string|null $erased_by_sub
  */
 class Organization extends Model
 {
@@ -63,6 +65,7 @@ class Organization extends Model
         return [
             'tax_id_validated' => 'boolean',
             'suspended_at' => 'datetime',
+            'erased_at' => 'datetime',
         ];
     }
 
@@ -70,6 +73,15 @@ class Organization extends Model
     public function isSuspended(): bool
     {
         return $this->suspended_at !== null;
+    }
+
+    /**
+     * Whether this org's PII has been erased under a right-to-be-forgotten request. Its
+     * financial records are still retained (de-identified) — erasure never hard-deletes them.
+     */
+    public function isErased(): bool
+    {
+        return $this->erased_at !== null;
     }
 
     /** Whether this org has enough of an address to resolve tax. */

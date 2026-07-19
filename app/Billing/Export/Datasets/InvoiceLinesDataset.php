@@ -62,6 +62,17 @@ class InvoiceLinesDataset extends AbstractDataset
         $builder->whereIn('invoice_lines.invoice_id', $this->planeIds('invoices', $livemode));
     }
 
+    /**
+     * Lines carry no org column, so a per-subject (DSAR) export scopes them through their parent
+     * invoice — the lines of the subject's invoices, and no others.
+     */
+    protected function scopeSubject(Builder $builder, string $organizationId): void
+    {
+        $builder->whereIn('invoice_lines.invoice_id', static function (Builder $sub) use ($organizationId): void {
+            $sub->select('id')->from('invoices')->where('organization_id', $organizationId);
+        });
+    }
+
     protected function projectRow(array $record): array
     {
         return [

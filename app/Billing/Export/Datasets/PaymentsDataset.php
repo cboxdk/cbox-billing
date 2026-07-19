@@ -47,6 +47,11 @@ class PaymentsDataset extends AbstractDataset
         return 'invoices';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'organization_id';
+    }
+
     public function schema(): array
     {
         return [

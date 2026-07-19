@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Auth\CurrentUser;
+use App\Billing\Audit\Contracts\RecordsAudit;
+use App\Billing\Audit\Enums\AuditAction;
+use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Mode\BillingMode;
 use App\Billing\Reporting\SettingsReport;
 use App\Http\Middleware\EnsureOperator;
@@ -41,7 +44,7 @@ class ApiTokenController extends Controller
         ]);
     }
 
-    public function store(Request $request, SettingsReport $report): View
+    public function store(Request $request, SettingsReport $report, RecordsAudit $audit): View
     {
         $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -60,6 +63,15 @@ class ApiTokenController extends Controller
             $productId,
             $this->current->user()?->sub,
             $mode,
+        );
+
+        // Record the mint's FACT and reference (id/name/scope/mode) — NEVER the plaintext token.
+        $audit->record(
+            AuditAction::TokenMinted,
+            AuditTarget::model($token, $organizationId),
+            sprintf('Minted API token "%s" (%s scope, %s mode).', $token->name, $organizationId ?? 'operator', $mode->value),
+            ['token_id' => $token->id, 'scope' => $organizationId ?? 'operator', 'mode' => $mode->value],
+            livemode: $mode === BillingMode::Live,
         );
 
         // Show the plaintext ONCE by RENDERING it directly into this POST response (SEC-3) —

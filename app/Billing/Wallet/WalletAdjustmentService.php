@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Wallet;
 
+use App\Billing\Audit\Contracts\RecordsAudit;
+use App\Billing\Audit\Enums\AuditAction;
+use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Wallet\Contracts\AdjustsWallet;
 use App\Billing\Wallet\Exceptions\WalletActionDenied;
 use App\Models\WalletAdjustment;
@@ -36,6 +39,7 @@ readonly class WalletAdjustmentService implements AdjustsWallet
     public function __construct(
         private ConnectionInterface $db,
         private Wallet $wallet,
+        private RecordsAudit $audit,
     ) {}
 
     public function grant(string $org, string $pool, string $denomination, int $amount, string $reason, ?string $actor, ?int $expiresInDays = null): WalletAdjustment
@@ -79,6 +83,8 @@ readonly class WalletAdjustmentService implements AdjustsWallet
     private function write(string $org, Pool $pool, Denomination $denomination, int $signedAmount, string $direction, string $reason, ?string $actor, string $grantId, ?int $expiresAt): WalletAdjustment
     {
         return $this->db->transaction(function () use ($org, $pool, $denomination, $signedAmount, $direction, $reason, $actor, $grantId, $expiresAt): WalletAdjustment {
+            $balanceBefore = $this->wallet->balance($org, $pool, $denomination, $this->nowMillis());
+
             $this->wallet->grant(new CreditGrant(
                 id: $grantId,
                 org: $org,
@@ -91,7 +97,7 @@ readonly class WalletAdjustmentService implements AdjustsWallet
                 cadence: GrantCadence::Once,
             ));
 
-            return WalletAdjustment::query()->create([
+            $adjustment = WalletAdjustment::query()->create([
                 'organization_id' => $org,
                 'pool_key' => $pool->key,
                 'denomination_code' => $denomination->code,
@@ -102,6 +108,28 @@ readonly class WalletAdjustmentService implements AdjustsWallet
                 'actor' => $actor,
                 'grant_id' => $grantId,
             ]);
+
+            // The money movement and its audit event commit together (the same in-transaction
+            // pattern the WalletAdjustment row uses): a durable, tamper-evident record of who
+            // moved credit, in which pool, and the resulting balance.
+            $balanceAfter = $this->wallet->balance($org, $pool, $denomination, $this->nowMillis());
+
+            $this->audit->record(
+                AuditAction::WalletAdjusted,
+                AuditTarget::of('organization', $org, $org),
+                sprintf('%s %d %s in the %s pool for organization %s.', ucfirst($direction), abs($signedAmount), $denomination->code, $pool->key, $org),
+                [
+                    'before' => ['balance' => $balanceBefore],
+                    'after' => ['balance' => $balanceAfter, 'adjustment_id' => $adjustment->id],
+                    'pool' => $pool->key,
+                    'denomination' => $denomination->code,
+                    'direction' => $direction,
+                    'amount' => $signedAmount,
+                    'reason' => $reason,
+                ],
+            );
+
+            return $adjustment;
         });
     }
 

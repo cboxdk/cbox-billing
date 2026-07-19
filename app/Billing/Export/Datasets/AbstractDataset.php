@@ -100,9 +100,38 @@ abstract class AbstractDataset implements ExportDataset
             $builder->where($this->table().'.'.$this->cursor()->column, '>', $query->afterCursor);
         }
 
+        if ($query->organizationId !== null) {
+            $this->scopeSubject($builder, $query->organizationId);
+        }
+
         $this->constrain($builder);
 
         return $builder;
+    }
+
+    /**
+     * The column a per-subject (DSAR) export filters on — the dataset's organization handle, or
+     * null when the dataset is not subject-scopable (a computed/aggregate view). A subject-scoped
+     * export of a non-scopable dataset yields NOTHING rather than the whole plane (deny-by-default:
+     * one subject's export must never leak another's rows).
+     */
+    protected function subjectColumn(): ?string
+    {
+        return null;
+    }
+
+    /** Narrow the query to one organization's rows for a DSAR export. */
+    protected function scopeSubject(Builder $builder, string $organizationId): void
+    {
+        $column = $this->subjectColumn();
+
+        if ($column === null) {
+            $builder->whereRaw('1 = 0'); // not subject-scopable — emit nothing, never the whole plane.
+
+            return;
+        }
+
+        $builder->where($this->table().'.'.$column, $organizationId);
     }
 
     /**

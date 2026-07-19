@@ -19,6 +19,11 @@ class CouponRedemptionsDataset extends AbstractDataset
         return 'coupon_redemptions';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'organization_id';
+    }
+
     public function label(): string
     {
         return 'Coupon redemptions';

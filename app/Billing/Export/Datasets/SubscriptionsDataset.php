@@ -19,6 +19,11 @@ class SubscriptionsDataset extends AbstractDataset
         return 'subscriptions';
     }
 
+    protected function subjectColumn(): ?string
+    {
+        return 'organization_id';
+    }
+
     public function label(): string
     {
         return 'Subscriptions';

@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Billing\Export\Contracts\WarehousePush;
 use App\Billing\Export\Contracts\WarehouseSink;
 use App\Billing\Export\DatasetRegistry;
+use App\Billing\Export\Datasets\AuditEventsDataset;
 use App\Billing\Export\Datasets\CouponRedemptionsDataset;
 use App\Billing\Export\Datasets\CouponsDataset;
 use App\Billing\Export\Datasets\CreditNotesDataset;
@@ -55,6 +56,7 @@ class ExportServiceProvider extends ServiceProvider
             $app->make(SeatAssignmentsDataset::class),
             $app->make(LicensesDataset::class),
             $app->make(UsageEventsDataset::class),
+            $app->make(AuditEventsDataset::class),
         ]));
 
         $this->app->singleton(ManifestRegistry::class, static fn (Container $app): ManifestRegistry => new ManifestRegistry([

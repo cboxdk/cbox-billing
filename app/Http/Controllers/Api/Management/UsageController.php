@@ -24,6 +24,10 @@ class UsageController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         return new JsonResponse($view->forOrganization($org));
     }
 }

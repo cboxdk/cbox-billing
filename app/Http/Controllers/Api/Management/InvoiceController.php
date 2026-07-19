@@ -25,6 +25,10 @@ class InvoiceController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         // Keyset on the monotonic primary key (descending = newest-first) for a stable cursor.
         $page = CursorPaginator::fromQuery(
             Invoice::query()->where('organization_id', $org),

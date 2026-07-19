@@ -8,6 +8,7 @@ use App\Billing\Licensing\Contracts\IssuesLicenses;
 use App\Billing\Licensing\Exceptions\LicensingException;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization;
+use App\Models\Plan;
 use Cbox\Billing\Licensing\ValueObjects\IssuedLicense;
 use DateTimeImmutable;
 use Illuminate\Contracts\Config\Repository as Config;
@@ -43,6 +44,17 @@ class LicenseController extends ApiController
 
         if (! $organization instanceof Organization) {
             return $this->notFound('Unknown organization.');
+        }
+
+        // A product-bound operator token may only mint licenses for its own product's
+        // plans — never another product's on the shared instance. Only reject a plan
+        // that EXISTS and belongs to another product; a missing/non-licensable plan is
+        // left to the issuer below (which returns the correct 422), so this guard adds
+        // isolation without changing the existing error semantics.
+        $plan = Plan::query()->where('key', $request->string('plan')->toString())->first();
+
+        if ($plan !== null && ! $this->identity($request)->mayUseProduct((int) $plan->product_id)) {
+            return $this->notFound('Unknown plan.');
         }
 
         try {

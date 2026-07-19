@@ -30,6 +30,10 @@ class SeatController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         $subscription = $this->servingSubscription($org);
 
         if (! $subscription instanceof Subscription) {
@@ -49,6 +53,10 @@ class SeatController extends ApiController
         $request->validate(['seats' => ['required', 'integer', 'min:1']]);
 
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
             return $denied;
         }
 
@@ -79,6 +87,10 @@ class SeatController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         $subscription = $this->servingSubscription($org);
 
         if (! $subscription instanceof Subscription) {
@@ -103,6 +115,10 @@ class SeatController extends ApiController
         $request->validate(['subject' => ['required', 'string']]);
 
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
             return $denied;
         }
 

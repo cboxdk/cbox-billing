@@ -32,6 +32,10 @@ class PortalSessionController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         $organization = Organization::query()->find($org);
 
         if (! $organization instanceof Organization) {

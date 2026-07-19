@@ -27,6 +27,10 @@ class OrganizationController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'billing_email' => ['sometimes', 'nullable', 'email', 'max:255'],

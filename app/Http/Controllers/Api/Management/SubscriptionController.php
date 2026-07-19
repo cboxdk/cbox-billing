@@ -47,6 +47,10 @@ class SubscriptionController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         $subscription = $this->activeSubscription($org);
 
         if (! $subscription instanceof Subscription) {
@@ -76,6 +80,10 @@ class SubscriptionController extends ApiController
         $org = $request->string('org')->toString();
 
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
             return $denied;
         }
 
@@ -144,6 +152,10 @@ class SubscriptionController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         $subscription = $this->activeSubscription($org);
         $newPlan = $this->requestedPlan($request);
 
@@ -168,6 +180,10 @@ class SubscriptionController extends ApiController
         $request->validate(['when' => ['sometimes', 'in:now,period_end']]);
 
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
             return $denied;
         }
 
@@ -215,6 +231,10 @@ class SubscriptionController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         $subscription = $this->activeSubscription($org);
 
         if (! $subscription instanceof Subscription) {
@@ -242,6 +262,10 @@ class SubscriptionController extends ApiController
     public function reactivate(Request $request, string $org, ManagesRetention $retention): JsonResponse
     {
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
             return $denied;
         }
 
@@ -288,6 +312,10 @@ class SubscriptionController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         $subscription = $this->activeSubscription($org);
 
         if (! $subscription instanceof Subscription) {
@@ -323,6 +351,10 @@ class SubscriptionController extends ApiController
         ]);
 
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
             return $denied;
         }
 
@@ -363,6 +395,10 @@ class SubscriptionController extends ApiController
             return $denied;
         }
 
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
         $subscription = $this->activeSubscription($org);
 
         if (! $subscription instanceof Subscription) {
@@ -385,6 +421,10 @@ class SubscriptionController extends ApiController
     private function onActive(Request $request, string $org, callable $mutate): JsonResponse
     {
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
             return $denied;
         }
 

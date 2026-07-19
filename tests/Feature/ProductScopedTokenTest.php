@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\ApiToken;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -43,6 +44,30 @@ class ProductScopedTokenTest extends TestCase
             ->pluck('key')->all();
 
         $this->assertSame(['assistant-starter', 'assistant-growth'], $keys);
+    }
+
+    public function test_a_product_bound_token_cannot_read_or_touch_another_products_org_data(): void
+    {
+        $auth = $this->assistantAuth();
+
+        // An org whose subscription belongs to the OTHER product (cbox-billing's own).
+        $org = Organization::query()->create(['id' => 'org_other', 'name' => 'Other', 'billing_country' => 'DK']);
+        app(SubscribesOrganizations::class)
+            ->subscribe($org, Plan::query()->where('key', 'starter')->firstOrFail());
+
+        // Every org-data surface is hidden from the assistant's product-bound token — a
+        // 404 keeps another product's org unenumerable.
+        $this->getJson('/api/v1/subscriptions/org_other', $auth)->assertNotFound();
+        $this->getJson('/api/v1/invoices/org_other', $auth)->assertNotFound();
+        $this->getJson('/api/v1/usage/org_other', $auth)->assertNotFound();
+        $this->postJson('/api/v1/subscriptions/org_other/cancel', ['at_period_end' => true], $auth)->assertNotFound();
+        $this->postJson('/api/v1/subscriptions/org_other/pause', [], $auth)->assertNotFound();
+        $this->postJson('/api/v1/portal-sessions', ['org' => 'org_other', 'return_url' => 'https://a.test/x'], $auth)->assertNotFound();
+        $this->getJson('/api/v1/payment-methods/org_other', $auth)->assertNotFound();
+
+        // And it cannot rename/upsert the other product's org.
+        $this->putJson('/api/v1/organizations/org_other', ['name' => 'Hijacked'], $auth)->assertNotFound();
+        $this->assertSame('Other', $org->refresh()->name);
     }
 
     public function test_a_product_bound_token_cannot_sell_another_products_plan(): void

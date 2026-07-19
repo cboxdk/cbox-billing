@@ -46,6 +46,7 @@
     @if ($subscription && count($plans) > 0)<a href="#plan">Plan</a>@endif
     @if ($subscription)<a href="#payment">Payment</a>@endif
     <a href="#history">Billing history</a>
+    <a href="#tax-exemption">Tax exemption</a>
     <a href="#notifications">Notifications</a>
     @if ($subscription && ! $subscription->cancel_at_period_end)<a href="#cancel">Cancel</a>@endif
 </nav>
@@ -302,6 +303,66 @@
                 @endforelse
             </tbody>
         </table>
+    </div>
+</div>
+
+{{-- Tax exemption: the customer uploads a certificate (resale / nonprofit / government); it
+     lands pending until our team verifies it, then future invoices are exempted where it applies. --}}
+<div class="hosted-card" id="tax-exemption">
+    <header><h1>Tax exemption</h1><p>Upload a resale, nonprofit or government certificate. We review it before it takes effect.</p></header>
+    <div class="hosted-body">
+        @if (session('status'))
+            <div class="alert show" style="margin-top:0"><span>{{ session('status') }}</span></div>
+        @endif
+        @if ($errors->any())
+            <div class="alert show" style="margin-top:0"><span>{{ $errors->first() }}</span></div>
+        @endif
+
+        @if ($exemptions->isNotEmpty())
+            <table class="tbl" style="margin-bottom:14px">
+                <thead><tr><th>Jurisdiction</th><th>Type</th><th>Certificate #</th><th class="right">Status</th></tr></thead>
+                <tbody>
+                    @foreach ($exemptions as $cert)
+                        <tr>
+                            <td class="num">{{ $cert->jurisdiction }}</td>
+                            <td>{{ $cert->exemption_type->label() }}</td>
+                            <td class="num">{{ $cert->certificate_number }}</td>
+                            <td class="right"><span class="cbx-pill cbx-pill--{{ $cert->status->pill() }}">{{ $cert->status->value }}</span></td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+
+        <form method="POST" action="{{ route('hosted.portal.exemptions', ['token' => $session->token]) }}" enctype="multipart/form-data" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            @csrf
+            <label class="k" style="display:flex;flex-direction:column;gap:4px">Jurisdiction
+                <select name="jurisdiction" required class="seat-input" style="width:100%;height:36px">
+                    <optgroup label="US states">
+                        @foreach ($jurisdictionOptions['states'] as $value => $label)
+                            <option value="{{ $value }}" @selected(old('jurisdiction') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </optgroup>
+                    <optgroup label="Country / federal">
+                        @foreach ($jurisdictionOptions['countries'] as $value => $label)
+                            <option value="{{ $value }}" @selected(old('jurisdiction') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </optgroup>
+                </select></label>
+            <label class="k" style="display:flex;flex-direction:column;gap:4px">Exemption type
+                <select name="exemption_type" required class="seat-input" style="width:100%;height:36px">
+                    @foreach ($exemptionTypes as $type)
+                        <option value="{{ $type->value }}" @selected(old('exemption_type') === $type->value)>{{ ucfirst($type->value) }}</option>
+                    @endforeach
+                </select></label>
+            <label class="k" style="display:flex;flex-direction:column;gap:4px">Certificate number
+                <input name="certificate_number" value="{{ old('certificate_number') }}" required maxlength="64" class="seat-input" style="width:100%;height:36px"></label>
+            <label class="k" style="display:flex;flex-direction:column;gap:4px">Expires (blank = no expiry)
+                <input type="date" name="expires_at" value="{{ old('expires_at') }}" class="seat-input" style="width:100%;height:36px"></label>
+            <label class="k" style="display:flex;flex-direction:column;gap:4px;grid-column:1 / -1">Certificate document (PDF / image)
+                <input type="file" name="document" required accept=".pdf,.jpg,.jpeg,.png" class="seat-input" style="width:100%;height:auto;padding:6px 10px"></label>
+            <div style="grid-column:1 / -1"><button type="submit" class="cbx-btn cbx-btn--primary">Upload certificate</button></div>
+        </form>
     </div>
 </div>
 

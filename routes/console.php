@@ -95,3 +95,11 @@ Schedule::command('warehouse:sync')->hourly()->withoutOverlapping();
  * holiday, transient outage) never fabricates a rate. Idempotent — a re-run upserts.
  */
 Schedule::command('fx:refresh')->weekdays()->at('16:30')->withoutOverlapping();
+
+/*
+ * Lapse past-expiry tax exemption certificates: flip `pending`/`verified` certificates whose
+ * expiry has passed to `expired` so the console shows them as lapsed. The tax seam already
+ * refuses a past-expiry certificate at calculation time, so this only keeps the stored status
+ * honest. Daily, idempotent (an already-expired certificate is not re-selected).
+ */
+Schedule::command('tax:expire-certificates')->dailyAt('02:30')->withoutOverlapping();

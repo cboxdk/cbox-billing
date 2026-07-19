@@ -18,10 +18,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $unit_minor
  * @property int|null $net_minor
  * @property int $amount_minor
+ * @property string|null $tax_treatment
+ * @property string|null $tax_note
+ * @property string|null $tax_rate
  */
 class InvoiceLine extends Model
 {
-    protected $fillable = ['invoice_id', 'description', 'quantity', 'unit_minor', 'net_minor', 'amount_minor'];
+    protected $fillable = [
+        'invoice_id', 'description', 'quantity', 'unit_minor', 'net_minor', 'amount_minor',
+        'tax_treatment', 'tax_note', 'tax_rate',
+    ];
 
     /** @return array<string, string> */
     protected function casts(): array

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Tax;
 
 use App\Billing\Seller\SellerCatalog;
+use App\Billing\Tax\Exemptions\ExemptionContext;
 use App\Models\Organization;
 use Cbox\Billing\Quote\ValueObjects\QuoteContext;
 use Cbox\Geo\Contracts\JurisdictionRepository;
@@ -29,10 +30,17 @@ readonly class TaxContextFactory
     public function __construct(
         private JurisdictionRepository $jurisdictions,
         private SellerCatalog $sellers,
+        private ExemptionContext $exemptions,
     ) {}
 
     public function forOrganization(Organization $organization): QuoteContext
     {
+        // Load this org's verified, non-expired exemption certificates as the active set the
+        // tax-calculator decorator consults while it prices the quote that follows. Both the
+        // preview and the charge path build through here, so an exemption applies identically
+        // to what a customer is shown and what they are billed (H6: preview == charge).
+        $this->exemptions->activate($organization);
+
         return new QuoteContext(
             place: $this->placeOfSupply($organization),
             customer: CustomerType::Business,

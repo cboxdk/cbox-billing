@@ -9,6 +9,7 @@
 
 @php
     use App\Billing\Support\MoneyFormatter;
+    use App\Billing\Tax\Exemptions\ExemptionJurisdictions;
     $statusPill = ['active' => 'success', 'trialing' => 'info', 'past_due' => 'warning', 'canceled' => 'muted', 'none' => 'muted'];
     $standingPill = ['good' => 'success', 'disputed' => 'warning', 'suspended' => 'destructive'];
     $invStatusPill = ['paid' => 'success', 'open' => 'warning', 'draft' => 'muted', 'void' => 'muted'];
@@ -93,6 +94,96 @@
             </label>
             <div style="grid-column:1 / -1"><button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">@include('partials.icon', ['name' => 'check', 'size' => 13, 'sw' => 1.8])Save profile</button></div>
         </form>
+    </section>
+
+    {{-- Tax exemption certificates: a verified, non-expired certificate zero-rates tax for its
+         jurisdiction (deny-by-default — everything else is still taxed). --}}
+    <section class="cbx-panel">
+        <header class="cbx-panel-header" style="padding:12px 20px;display:flex;align-items:center;justify-content:space-between">
+            <div>
+                <h2 class="cbx-panel-title" style="font-size:14px">Tax exemption certificates</h2>
+                <p class="cbx-panel-desc" style="font-size:12px">A verified, non-expired certificate exempts tax for its jurisdiction only.</p>
+            </div>
+            <a href="{{ route('billing.tax-exemptions') }}" class="cbx-btn cbx-btn--sm">All exemptions</a>
+        </header>
+        <table class="tbl">
+            <thead><tr><th>Jurisdiction</th><th style="width:110px">Type</th><th style="width:170px">Certificate #</th><th style="width:100px">Status</th><th style="width:110px">Expires</th><th style="width:220px"></th></tr></thead>
+            <tbody>
+                @forelse ($exemptions as $cert)
+                    <tr style="cursor:default">
+                        <td>{{ ExemptionJurisdictions::label($cert->jurisdiction) }} <span class="mut num" style="font-size:11px">{{ $cert->jurisdiction }}</span></td>
+                        <td>{{ $cert->exemption_type->label() }}</td>
+                        <td class="num">{{ $cert->certificate_number }}</td>
+                        <td><span class="cbx-pill cbx-pill--{{ $cert->status->pill() }}">{{ $cert->status->value }}</span></td>
+                        <td class="num mut">{{ $cert->expires_at?->format('Y-m-d') ?? 'no expiry' }}</td>
+                        <td>
+                            <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center">
+                                @if ($cert->document_path)
+                                    <a class="cbx-btn cbx-btn--sm" href="{{ route('billing.customers.exemptions.download', [$organization->id, $cert->id]) }}">Document</a>
+                                @endif
+                                @if ($cert->status->isReviewable())
+                                    <form method="POST" action="{{ route('billing.customers.exemptions.verify', [$organization->id, $cert->id]) }}" style="margin:0"
+                                          data-confirm="Verify certificate {{ $cert->certificate_number }} for {{ $cert->jurisdiction }}? It will exempt tax there from now on."
+                                          data-confirm-title="Verify certificate?" data-confirm-label="Verify" data-confirm-variant="primary">
+                                        @csrf<button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--success)">Verify</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('billing.customers.exemptions.reject', [$organization->id, $cert->id]) }}" style="margin:0"
+                                          data-confirm="Reject certificate {{ $cert->certificate_number }}? It will not exempt any tax."
+                                          data-confirm-title="Reject certificate?" data-confirm-label="Reject" data-confirm-variant="destructive">
+                                        @csrf<button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Reject</button>
+                                    </form>
+                                @elseif ($cert->verified_by_sub)
+                                    <span class="mut" style="font-size:11px">by {{ $cert->verified_by_sub }}</span>
+                                @endif
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="6" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div><h3>No exemption certificates.</h3><p>Upload a resale / nonprofit / government certificate to exempt this customer where it applies.</p></div></td></tr>
+                @endforelse
+            </tbody>
+        </table>
+
+        {{-- Operator upload (lands pending for review). Document is stored on the private disk. --}}
+        <div style="padding:16px 20px;border-top:1px solid var(--border)">
+            <form method="POST" action="{{ route('billing.customers.exemptions.store', $organization->id) }}" enctype="multipart/form-data" class="cbx-grid-3" style="gap:10px;align-items:end">
+                @csrf
+                <label style="{{ $labelStyle }}">Jurisdiction
+                    <select name="jurisdiction" required style="{{ $inputStyle }}">
+                        <optgroup label="US states">
+                            @foreach ($jurisdictionOptions['states'] as $value => $label)
+                                <option value="{{ $value }}" @selected(old('jurisdiction') === $value)>{{ $label }}</option>
+                            @endforeach
+                        </optgroup>
+                        <optgroup label="Country / federal">
+                            @foreach ($jurisdictionOptions['countries'] as $value => $label)
+                                <option value="{{ $value }}" @selected(old('jurisdiction') === $value)>{{ $label }}</option>
+                            @endforeach
+                        </optgroup>
+                    </select></label>
+                <label style="{{ $labelStyle }}">Exemption type
+                    <select name="exemption_type" required style="{{ $inputStyle }}">
+                        @foreach ($exemptionTypes as $type)
+                            <option value="{{ $type->value }}" @selected(old('exemption_type') === $type->value)>{{ ucfirst($type->value) }}</option>
+                        @endforeach
+                    </select></label>
+                <label style="{{ $labelStyle }}">Certificate number
+                    <input name="certificate_number" value="{{ old('certificate_number') }}" required maxlength="64" class="num" style="{{ $inputStyle }}"></label>
+                <label style="{{ $labelStyle }}">Issued (optional)
+                    <input type="date" name="issued_at" value="{{ old('issued_at') }}" class="num" style="{{ $inputStyle }}"></label>
+                <label style="{{ $labelStyle }}">Expires (blank = no expiry)
+                    <input type="date" name="expires_at" value="{{ old('expires_at') }}" class="num" style="{{ $inputStyle }}"></label>
+                <label style="{{ $labelStyle }}">Document (PDF / image)
+                    <input type="file" name="document" required accept=".pdf,.jpg,.jpeg,.png" style="{{ $inputStyle }};padding:5px 8px;height:auto"></label>
+                <label style="{{ $labelStyle }};grid-column:1 / -1">Notes (optional)
+                    <input name="notes" value="{{ old('notes') }}" maxlength="500" style="{{ $inputStyle }}"></label>
+                <div style="grid-column:1 / -1"><button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Upload certificate</button></div>
+            </form>
+            @error('certificate_number')<p style="color:var(--destructive);font-size:12px;margin:8px 0 0">{{ $message }}</p>@enderror
+            @error('jurisdiction')<p style="color:var(--destructive);font-size:12px;margin:8px 0 0">{{ $message }}</p>@enderror
+            @error('document')<p style="color:var(--destructive);font-size:12px;margin:8px 0 0">{{ $message }}</p>@enderror
+            @error('expires_at')<p style="color:var(--destructive);font-size:12px;margin:8px 0 0">{{ $message }}</p>@enderror
+        </div>
     </section>
 
     {{-- Vaulted payment methods (gateway-owned; only display fields ever surface). --}}

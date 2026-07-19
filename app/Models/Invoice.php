@@ -33,6 +33,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $due_at
  * @property Carbon|null $paid_at
  * @property string|null $gateway_reference
+ * @property int|null $exemption_certificate_id
+ * @property string|null $exemption_reason
  */
 class Invoice extends Model
 {
@@ -43,6 +45,7 @@ class Invoice extends Model
         'seller', 'number', 'currency',
         'subtotal_minor', 'tax_minor', 'total_minor',
         'status', 'issued_at', 'due_at', 'paid_at', 'gateway_reference',
+        'exemption_certificate_id', 'exemption_reason',
     ];
 
     /** @return array<string, string> */
@@ -90,10 +93,22 @@ class Invoice extends Model
         ])->save();
     }
 
+    /** Whether this invoice was zero-rated by a customer exemption certificate. */
+    public function isTaxExempt(): bool
+    {
+        return $this->exemption_certificate_id !== null;
+    }
+
     /** @return BelongsTo<Organization, $this> */
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    /** @return BelongsTo<TaxExemptionCertificate, $this> */
+    public function exemptionCertificate(): BelongsTo
+    {
+        return $this->belongsTo(TaxExemptionCertificate::class, 'exemption_certificate_id');
     }
 
     /** @return HasMany<InvoiceLine, $this> */

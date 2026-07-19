@@ -40,6 +40,18 @@
         </div>
     </header>
 
+    @if ($invoice->isTaxExempt())
+        <section class="cbx-panel" style="border-color:var(--success)">
+            <div style="padding:14px 20px;display:flex;gap:10px;align-items:center">
+                @include('partials.icon', ['name' => 'shield', 'size' => 16, 'sw' => 1.8])
+                <div>
+                    <div style="font-weight:600;font-size:13px">Tax exempted</div>
+                    <div class="mut" style="font-size:12px">{{ $invoice->exemption_reason }}</div>
+                </div>
+            </div>
+        </section>
+    @endif
+
     <div class="cbx-grid-2">
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Bill to</h2></header>

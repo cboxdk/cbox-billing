@@ -25,12 +25,16 @@ use App\Billing\Seats\ValueObjects\SeatBreakdown;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\ValueObjects\QuantityPreview;
 use App\Billing\Support\MoneyFormatter;
+use App\Billing\Tax\Exemptions\ExemptionCertificateService;
+use App\Billing\Tax\Exemptions\ExemptionJurisdictions;
+use App\Billing\Tax\Exemptions\ExemptionType;
 use App\Models\BillingSession;
 use App\Models\Coupon;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\TaxExemptionCertificate;
 use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Cbox\Billing\Payment\ValueObjects\PaymentMethod;
 use Cbox\Billing\Payment\ValueObjects\SetupIntentRequest;
@@ -40,6 +44,7 @@ use Cbox\Billing\Subscription\PlanChange\PlanChangePreview;
 use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -75,6 +80,7 @@ class PortalController extends HostedController
         private readonly ManagesSeats $seats,
         private readonly PortalBillingHistory $history,
         private readonly ManagesNotificationPreferences $notifications,
+        private readonly ExemptionCertificateService $exemptionCertificates,
     ) {
         parent::__construct($sessions);
     }
@@ -108,7 +114,57 @@ class PortalController extends HostedController
             'history' => $this->history->forOrganization($session->organization_id),
             // Optional-vs-mandatory notification preferences.
             'notifications' => $this->notificationSettings($session->organization_id),
+            // Tax exemption certificates the customer has on file (self-serve upload + status).
+            'exemptions' => TaxExemptionCertificate::query()
+                ->where('organization_id', $session->organization_id)
+                ->orderByDesc('created_at')
+                ->get(),
+            'exemptionTypes' => ExemptionType::cases(),
+            'jurisdictionOptions' => ExemptionJurisdictions::options(),
         ]);
+    }
+
+    /**
+     * `POST` — the customer uploads an exemption certificate for their own account. It lands
+     * `pending` for operator review (the customer cannot self-verify) and the document is
+     * stored on the private disk. Scoped strictly to the token's organization.
+     */
+    public function uploadExemption(Request $request, string $token): RedirectResponse
+    {
+        $session = $this->require($token, SessionType::Portal);
+        $organization = $this->organization($session);
+
+        $request->validate([
+            'jurisdiction' => ['required', 'string', function (string $attribute, mixed $value, callable $fail): void {
+                if (! is_string($value) || ! ExemptionJurisdictions::isValid($value)) {
+                    $fail('Choose a supported jurisdiction.');
+                }
+            }],
+            'exemption_type' => ['required', 'string', 'in:'.implode(',', ExemptionType::values())],
+            'certificate_number' => ['required', 'string', 'max:64'],
+            'expires_at' => ['nullable', 'date', 'after:today'],
+            'document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        ]);
+
+        $type = ExemptionType::from($request->string('exemption_type')->toString());
+        $number = $request->string('certificate_number')->toString();
+
+        if (! $type->acceptsCertificateNumber($number)) {
+            return back()->withInput()->withErrors([
+                'certificate_number' => sprintf('That does not look like a valid %s certificate number.', $type->label()),
+            ]);
+        }
+
+        $this->exemptionCertificates->capture($organization, [
+            'jurisdiction' => $request->string('jurisdiction')->toString(),
+            'exemption_type' => $type->value,
+            'certificate_number' => $number,
+            'expires_at' => $request->filled('expires_at') ? $request->string('expires_at')->toString() : null,
+        ], $request->file('document'));
+
+        return redirect()
+            ->route('hosted.portal.show', $token)
+            ->with('status', 'Exemption certificate uploaded — our team will review it shortly.');
     }
 
     /**

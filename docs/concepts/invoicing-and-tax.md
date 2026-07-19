@@ -64,6 +64,11 @@ entities and their tax registrations (see [Tax & seller entities](../configurati
 the **tax engine** owns the calculation. `TaxContextFactory` assembles the context
 the engine needs from the resolved seller and customer.
 
+Customer **tax exemptions** (US resale / nonprofit / government certificates) are
+captured, verified and applied so an exempt customer is not charged tax for the
+jurisdiction the certificate covers — see
+[Tax exemption certificates](tax-exemption-certificates.md).
+
 Advanced statutory **filing** (HMRC MTD VAT, EU OSS payloads) is the
 `cbox-billing-tax-plus` commercial plugin, not the open app — see
 [Open core → Commercial plugins](../open-core/commercial-plugins.md).

@@ -27,6 +27,7 @@ own internals.**
 | [Metering & enforcement](metering-and-enforcement.md) | The reserve/commit hot path, leases, aggregations, hard limits, the upgrade bridge. |
 | [Wallets & credits](wallets-and-credits.md) | The unified credit pool, cadence grants, and how included allowances are sourced. |
 | [Invoicing & tax](invoicing-and-tax.md) | Per-seller invoice numbering, PDF rendering, credit notes, and tax composition. |
+| [Tax exemption certificates](tax-exemption-certificates.md) | Capturing, verifying and applying US B2B exemption certificates (resale/nonprofit/government) so an exempt customer isn't charged tax where it applies. |
 | [Payments & dunning](payments-and-dunning.md) | Charging, access-gating dunning, and smart-retry dunning + retention. |
 | [Licensing](licensing.md) | Issuing signed, offline-verifiable on-prem licenses; renew and revoke. |
 | [Analytics](analytics.md) | MRR movement, ARR waterfall, NRR, customer churn, cohorts. |

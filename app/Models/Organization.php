@@ -99,6 +99,12 @@ class Organization extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    /** @return HasMany<TaxExemptionCertificate, $this> */
+    public function taxExemptionCertificates(): HasMany
+    {
+        return $this->hasMany(TaxExemptionCertificate::class);
+    }
+
     /** The organization's single active subscription, if any. */
     public function activeSubscription(): ?Subscription
     {

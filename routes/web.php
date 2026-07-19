@@ -13,6 +13,7 @@ use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\CustomerOpsController;
 use App\Http\Controllers\DunningController;
 use App\Http\Controllers\DunningStrategyController;
+use App\Http\Controllers\ExemptionCertificateController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FxRateController;
 use App\Http\Controllers\InvoiceOpsController;
@@ -238,6 +239,10 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode'])->group(func
     // webhooks maintain (Cbox ID owns assignment). `/access-grants` before `{organization}`.
     Route::get('/access-grants', [AccessGrantController::class, 'index'])->middleware('billing.permission:customers:read')->name('billing.access-grants');
 
+    // Tax-exemption overview (who is exempt where) — a static segment declared BEFORE the
+    // `{organization}` binding so it is never captured as an org id.
+    Route::get('/tax-exemptions', [ExemptionCertificateController::class, 'overview'])->middleware('billing.permission:customers:read')->name('billing.tax-exemptions');
+
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->middleware('billing.permission:customers:read')->name('billing.customers.show');
 
     // --- Organization management (Wave 4). Suspend/reactivate and the profile edit flip the
@@ -249,6 +254,14 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode'])->group(func
     Route::put('/customers/{organization}', [CustomerOpsController::class, 'updateProfile'])->middleware('billing.permission:customers:manage')->name('billing.customers.update');
     Route::post('/customers/{organization}/payment-methods/default', [CustomerOpsController::class, 'setDefaultPaymentMethod'])->middleware('billing.permission:payments:manage')->name('billing.customers.payment-methods.default');
     Route::post('/customers/{organization}/payment-methods/remove', [CustomerOpsController::class, 'removePaymentMethod'])->middleware('billing.permission:payments:manage')->name('billing.customers.payment-methods.remove');
+
+    // Tax exemption certificates: upload/verify/reject are gated `customers:manage`; the
+    // document download is gated `customers:read` and streams from the PRIVATE disk after an
+    // ownership check (a cross-org certificate id is 404).
+    Route::post('/customers/{organization}/exemptions', [ExemptionCertificateController::class, 'store'])->middleware('billing.permission:customers:manage')->name('billing.customers.exemptions.store');
+    Route::get('/customers/{organization}/exemptions/{certificate}/download', [ExemptionCertificateController::class, 'download'])->middleware('billing.permission:customers:read')->name('billing.customers.exemptions.download');
+    Route::post('/customers/{organization}/exemptions/{certificate}/verify', [ExemptionCertificateController::class, 'verify'])->middleware('billing.permission:customers:manage')->name('billing.customers.exemptions.verify');
+    Route::post('/customers/{organization}/exemptions/{certificate}/reject', [ExemptionCertificateController::class, 'reject'])->middleware('billing.permission:customers:manage')->name('billing.customers.exemptions.reject');
 
     // Wallet / credits (Wave 3): an operator credit adjustment (promotional/goodwill grant
     // or correcting debit) through the engine wallet with an audit row. Gated on the dedicated

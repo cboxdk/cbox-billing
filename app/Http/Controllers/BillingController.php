@@ -21,6 +21,8 @@ use App\Billing\Reporting\WalletReport;
 use App\Billing\Retirement\PlanRetirementService;
 use App\Billing\Seats\Contracts\ManagesSeats;
 use App\Billing\Support\SubscriptionStanding;
+use App\Billing\Tax\Exemptions\ExemptionJurisdictions;
+use App\Billing\Tax\Exemptions\ExemptionType;
 use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\Organization;
@@ -243,6 +245,10 @@ class BillingController extends Controller
             'payment' => $paymentMethods->forOrganization($organization),
             'accessGrants' => $accessGrants->forOrganization($organization->id),
             'redemptions' => $report->redemptions($organization->id),
+            // Tax exemption certificates (newest first) and the options the upload form needs.
+            'exemptions' => $organization->taxExemptionCertificates()->orderByDesc('created_at')->get(),
+            'exemptionTypes' => ExemptionType::cases(),
+            'jurisdictionOptions' => ExemptionJurisdictions::options(),
         ]);
     }
 

@@ -9,12 +9,14 @@ use App\Billing\Coupons\CouponDiscounter;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Seller\SellerCatalog;
+use App\Billing\Tax\Exemptions\ExemptionContext;
 use App\Billing\Tax\TaxContextFactory;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\Organization;
 use App\Models\Subscription;
 use App\Models\SubscriptionCoupon;
+use App\Models\TaxExemptionCertificate;
 use Cbox\Billing\Invoice\Contracts\Invoicer;
 use Cbox\Billing\Invoice\ValueObjects\Invoice as IssuedInvoice;
 use Cbox\Billing\Money\Money;
@@ -54,6 +56,7 @@ readonly class InvoiceService implements GeneratesInvoices
         private ResolvesAccountCurrency $currencies,
         private NotifiesCustomers $notifier,
         private CouponDiscounter $coupons,
+        private ExemptionContext $exemptions,
     ) {}
 
     public function quoteFor(Subscription $subscription): Quote
@@ -91,10 +94,14 @@ readonly class InvoiceService implements GeneratesInvoices
             ));
         }
 
+        // The certificate (if any) that exempted this quote — captured now, before the issue
+        // step (which never re-taxes), so it can be stamped on the invoice as the audit trail.
+        $exemption = $this->exemptions->appliedCertificate();
+
         try {
-            $invoice = $this->db->transaction(function () use ($subscription, $organization, $seller, $quote, $periodStart, $periodEnd): Invoice {
+            $invoice = $this->db->transaction(function () use ($subscription, $organization, $seller, $quote, $periodStart, $periodEnd, $exemption): Invoice {
                 $issued = $this->invoicer->issue($quote, $seller, $organization->id, $this->issuedAt());
-                $invoice = $this->persist($subscription, $seller->id, $issued, $periodStart, $periodEnd);
+                $invoice = $this->persist($subscription, $seller->id, $issued, $periodStart, $periodEnd, $exemption);
 
                 // Honor the coupon's duration: this period consumed one discounted invoice.
                 // Inside the same transaction as the issue, so a unique-guard rollback (a lost
@@ -147,10 +154,12 @@ readonly class InvoiceService implements GeneratesInvoices
             ));
         }
 
-        $invoice = $this->db->transaction(function () use ($subscription, $organization, $seller, $quote): Invoice {
+        $exemption = $this->exemptions->appliedCertificate();
+
+        $invoice = $this->db->transaction(function () use ($subscription, $organization, $seller, $quote, $exemption): Invoice {
             $issued = $this->invoicer->issue($quote, $seller, $organization->id, $this->issuedAt());
 
-            return $this->persist($subscription, $seller->id, $issued, null, null);
+            return $this->persist($subscription, $seller->id, $issued, null, null, $exemption);
         });
 
         $this->notifier->invoiceIssued($invoice, $subscription);
@@ -269,7 +278,7 @@ readonly class InvoiceService implements GeneratesInvoices
         $binding->forceFill(['remaining_periods' => max(0, $binding->remaining_periods - 1)])->save();
     }
 
-    private function persist(Subscription $subscription, string $sellerId, IssuedInvoice $issued, ?Carbon $periodStart, ?Carbon $periodEnd): Invoice
+    private function persist(Subscription $subscription, string $sellerId, IssuedInvoice $issued, ?Carbon $periodStart, ?Carbon $periodEnd, ?TaxExemptionCertificate $exemption): Invoice
     {
         $totals = $issued->totals;
 
@@ -287,6 +296,9 @@ readonly class InvoiceService implements GeneratesInvoices
             'status' => 'open',
             'issued_at' => Carbon::instance($issued->issuedAt),
             'due_at' => Carbon::instance($issued->issuedAt)->addDays(14),
+            // The exemption audit trail: which certificate zero-rated this invoice, if any.
+            'exemption_certificate_id' => $exemption?->id,
+            'exemption_reason' => $exemption?->exemptionReason(),
         ]);
 
         foreach ($issued->lines as $line) {
@@ -297,6 +309,11 @@ readonly class InvoiceService implements GeneratesInvoices
                 'unit_minor' => $line->quantity > 0 ? intdiv($line->net->minor(), $line->quantity) : $line->net->minor(),
                 'net_minor' => $line->net->minor(),
                 'amount_minor' => $line->gross->minor(),
+                // The engine's per-line verdict, persisted so an exempt line is legible on the
+                // invoice (treatment `exempt`, note = the certificate reason).
+                'tax_treatment' => $line->treatment?->value,
+                'tax_note' => $line->taxNote,
+                'tax_rate' => $line->taxRatePercentage,
             ]);
         }
 

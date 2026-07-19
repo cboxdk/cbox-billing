@@ -39,4 +39,8 @@ Route::prefix('billing')->name('hosted.')->group(function (): void {
 
     // Optional-notification opt-in/out (mandatory/legal mails are never togglable here).
     Route::post('portal/{token}/notifications', [PortalController::class, 'updateNotifications'])->name('portal.notifications');
+
+    // Customer self-serve tax exemption: upload a certificate (lands pending for operator
+    // review; the customer can never self-verify). Scoped to the token's organization.
+    Route::post('portal/{token}/exemptions', [PortalController::class, 'uploadExemption'])->name('portal.exemptions');
 });

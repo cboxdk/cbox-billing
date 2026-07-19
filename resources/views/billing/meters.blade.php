@@ -9,7 +9,7 @@
             <h1 class="cbx-page-title" style="font-size:20px">Meters</h1>
             <p class="cbx-page-desc" style="font-size:13px">{{ $meters->total() }} metered dimensions · the aggregation the engine bills each meter with</p>
         </div>
-        <a href="{{ route('billing.meters.create') }}" class="cbx-btn cbx-btn--primary">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New meter</a>
+        <a href="{{ route('billing.meters.create') }}" class="cbx-btn cbx-btn--primary cbx-btn--sm">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New meter</a>
     </header>
 
     @include('partials.flash')

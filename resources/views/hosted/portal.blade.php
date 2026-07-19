@@ -36,7 +36,7 @@
 </div>
 
 @if ($subscription && $sunset)
-<div class="hosted-card" style="border-left:3px solid {{ $sunset->unresolved ? 'var(--destructive)' : '#b3651f' }}">
+<div class="hosted-card" style="border-left:3px solid {{ $sunset->unresolved ? 'var(--destructive)' : 'var(--warning)' }}">
     <header>
         <h1>{{ $sunset->planName }} is being retired</h1>
         <p>{{ $sunset->planName }} retires on {{ $sunset->retiresAt }}. Your next renewal is {{ $sunset->renewalDue }} — choose your new plan by then.</p>
@@ -200,7 +200,6 @@
         }).then(r => r.json().then(body => ({ ok: r.ok, body })));
     }
     function showErr(el, msg) { const a = document.getElementById(el); a.querySelector('span').textContent = msg || 'Something went wrong.'; a.classList.add('show'); }
-    function money(minor, cur) { return cur + ' ' + (minor / 100).toLocaleString('da-DK', { minimumFractionDigits: 2 }); }
     function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load failed')); document.head.appendChild(s); }); }
 
     // --- Change plan: preview then confirm ---
@@ -211,8 +210,8 @@
         const { ok, body } = await post('/preview', { plan: selectedPlan });
         if (!ok) { showErr('change-error', body.error); return; }
         document.getElementById('preview-text').innerHTML =
-            'Due now: <strong>' + money(body.due_now_minor, body.currency) + '</strong><br>' +
-            'New recurring: <strong>' + money(body.new_recurring_minor, body.currency) + '</strong><br>' +
+            'Due now: <strong>' + body.due_now + '</strong><br>' +
+            'New recurring: <strong>' + body.new_recurring + '</strong><br>' +
             'Effective: <strong>' + new Date(body.effective_at).toLocaleDateString() + '</strong>';
         document.getElementById('preview-box').style.display = 'block';
     }));

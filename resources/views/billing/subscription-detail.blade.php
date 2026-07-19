@@ -22,12 +22,14 @@
         $reasonOptions[$reason['key']] = $reason['label'];
     }
     $labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500';
-    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px';
+    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px';
+    // Render the real per-interval suffix ("/mo" vs "/yr"), never a hardcoded "/mo".
+    $intervalUnit = static fn (string $interval): string => $interval === 'year' ? '/yr' : '/mo';
 @endphp
 
 @section('screen')
 <div class="page">
-    <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.subscriptions') }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to subscriptions</a>
+    <x-back-button :href="route('billing.subscriptions')" label="Back to subscriptions" />
 
     @include('partials.flash')
 
@@ -36,7 +38,7 @@
             <span class="avatar-sm" style="width:36px;height:36px;font-size:13px">{{ $s['ini'] }}</span>
             <div>
                 <h1 class="cbx-page-title" style="font-size:20px">{{ $s['org'] }}</h1>
-                <p class="cbx-page-desc" style="font-size:13px">{{ $s['plan'] }} · {{ MoneyFormatter::minor($s['minor'], $s['currency']) }} / mo
+                <p class="cbx-page-desc" style="font-size:13px">{{ $s['plan'] }} · {{ MoneyFormatter::minor($s['minor'], $s['currency']) }} {{ $intervalUnit($s['interval']) }}
                     @if ($s['status'] === 'trialing' && !empty($s['trial_ends'])) · trial ends {{ $s['trial_ends'] }}
                     @elseif ($s['status'] === 'paused' && !empty($s['paused_at'])) · paused since {{ $s['paused_at'] }}
                     @elseif ($s['status'] === 'non_renewing') · cancels {{ $s['period_end'] }}
@@ -53,7 +55,7 @@
 
     {{-- Plan-sunset notice (ADR-0016): the subscription is on a retiring plan --}}
     @if (!empty($sunset))
-        <section class="cbx-panel" style="border-left:3px solid {{ $sunset->unresolved ? 'var(--destructive)' : 'var(--warning, #b3651f)' }}">
+        <section class="cbx-panel" style="border-left:3px solid {{ $sunset->unresolved ? 'var(--destructive)' : 'var(--warning)' }}">
             <header class="cbx-panel-header" style="padding:12px 20px">
                 <div>
                     <h2 class="cbx-panel-title" style="font-size:14px">Plan retiring</h2>
@@ -322,7 +324,7 @@
 
     {{-- Scheduled (change-at-period-end) plan change awaiting enactment --}}
     @if (!empty($s['pending_change']))
-        <section class="cbx-panel" style="border-left:3px solid var(--warning, #b3651f)">
+        <section class="cbx-panel" style="border-left:3px solid var(--warning)">
             <header class="cbx-panel-header" style="padding:12px 20px">
                 <div>
                     <h2 class="cbx-panel-title" style="font-size:14px">Scheduled change</h2>
@@ -349,7 +351,7 @@
                         <label style="{{ $labelStyle }}">New plan
                             <select name="plan" required style="{{ $inputStyle }}">
                                 @foreach ($s['available_plans'] as $p)
-                                    <option value="{{ $p['key'] }}">{{ $p['name'] }} · {{ MoneyFormatter::minor($p['minor'], $s['currency']) }}/mo</option>
+                                    <option value="{{ $p['key'] }}">{{ $p['name'] }} · {{ MoneyFormatter::minor($p['minor'], $s['currency']) }}{{ $intervalUnit($p['interval'] ?? $s['interval']) }}</option>
                                 @endforeach
                             </select></label>
                         <label style="{{ $labelStyle }}">When

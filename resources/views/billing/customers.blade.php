@@ -13,7 +13,7 @@
     <header class="cbx-page-header">
         <div>
             <h1 class="cbx-page-title" style="font-size:20px">Customers</h1>
-            <p class="cbx-page-desc" style="font-size:13px">{{ $customers->total() }} organizations · plan, standing and outstanding balance</p>
+            <p class="cbx-page-desc" style="font-size:13px">{{ $customers->total() }} customers · plan, standing and outstanding balance</p>
         </div>
     </header>
 
@@ -27,7 +27,7 @@
 
     <section class="cbx-panel">
         <table class="tbl">
-            <thead><tr><th>Organization</th><th style="width:110px">Plan</th><th style="width:110px">Status</th><th style="width:100px">Standing</th><th class="right" style="width:140px">Outstanding</th><th style="width:36px"></th></tr></thead>
+            <thead><tr><th>Customer</th><th style="width:110px">Plan</th><th style="width:110px">Status</th><th style="width:100px">Standing</th><th class="right" style="width:140px">Outstanding</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($customers as $cust)
                     <tr data-href="{{ route('billing.customers.show', $cust['id']) }}" tabindex="0" role="link" aria-label="Open customer {{ $cust['org'] }}">
@@ -41,9 +41,9 @@
                 @empty
                     <tr><td colspan="6" style="padding:0">
                         @if ($search)
-                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No organizations match “{{ $search }}”. Try a different term or clear the filter.</p></div>
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No customers match “{{ $search }}”. Try a different term or clear the filter.</p></div>
                         @else
-                            <div class="cbx-empty"><h3>No customers yet.</h3><p>Organizations you bill will appear here.</p></div>
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'building', 'size' => 18, 'sw' => 1.7])</div><h3>No customers yet.</h3><p>Customers you bill will appear here.</p></div>
                         @endif
                     </td></tr>
                 @endforelse

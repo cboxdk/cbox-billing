@@ -9,7 +9,7 @@
             <h1 class="cbx-page-title" style="font-size:20px">Products</h1>
             <p class="cbx-page-desc" style="font-size:13px">{{ $products->total() }} products · the sellable groupings your plans hang off</p>
         </div>
-        <a href="{{ route('billing.products.create') }}" class="cbx-btn cbx-btn--primary">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New product</a>
+        <a href="{{ route('billing.products.create') }}" class="cbx-btn cbx-btn--primary cbx-btn--sm">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New product</a>
     </header>
 
     @include('partials.flash')

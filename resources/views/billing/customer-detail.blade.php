@@ -14,12 +14,12 @@
     $invStatusPill = ['paid' => 'success', 'open' => 'warning', 'draft' => 'muted', 'void' => 'muted'];
     $c = $customer;
     $labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500';
-    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px';
+    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px';
 @endphp
 
 @section('screen')
 <div class="page">
-    <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.customers') }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to customers</a>
+    <x-back-button :href="route('billing.customers')" label="Back to customers" />
 
     @include('partials.flash')
 
@@ -37,13 +37,13 @@
             @if (!empty($c['suspended']))
                 <form method="POST" action="{{ route('billing.customers.reactivate', $organization->id) }}" style="margin:0"
                       data-confirm="Reactivate {{ $c['org'] }}? Access is restored and the account returns to good standing."
-                      data-confirm-title="Reactivate organization?" data-confirm-label="Reactivate" data-confirm-variant="primary">
+                      data-confirm-title="Reactivate customer?" data-confirm-label="Reactivate" data-confirm-variant="primary">
                     @csrf<button type="submit" class="cbx-btn cbx-btn--sm">Reactivate</button>
                 </form>
             @else
                 <form method="POST" action="{{ route('billing.customers.suspend', $organization->id) }}" style="margin:0"
                       data-confirm="Suspend {{ $c['org'] }}? Access is held (billing and credits are untouched) until you reactivate."
-                      data-confirm-title="Suspend organization?" data-confirm-label="Suspend" data-confirm-variant="destructive">
+                      data-confirm-title="Suspend customer?" data-confirm-label="Suspend" data-confirm-variant="destructive">
                     @csrf<button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Suspend</button>
                 </form>
             @endif
@@ -114,13 +114,13 @@
                                 <div style="display:flex;gap:6px;justify-content:flex-end">
                                     @unless ($method['default'])
                                         <form method="POST" action="{{ route('billing.customers.payment-methods.default', $organization->id) }}" style="margin:0">
-                                            @csrf<input type="hidden" name="id" value="{{ $method['id'] }}"><button type="submit" class="cbx-btn" style="font-size:11px;padding:3px 9px">Make default</button>
+                                            @csrf<input type="hidden" name="id" value="{{ $method['id'] }}"><button type="submit" class="cbx-btn cbx-btn--sm">Make default</button>
                                         </form>
                                     @endunless
                                     <form method="POST" action="{{ route('billing.customers.payment-methods.remove', $organization->id) }}" style="margin:0"
                                           data-confirm="Remove the {{ ucfirst($method['brand']) }} ···· {{ $method['last4'] }} card? It is detached from the gateway vault."
                                           data-confirm-title="Remove payment method?" data-confirm-label="Remove" data-confirm-variant="destructive">
-                                        @csrf<input type="hidden" name="id" value="{{ $method['id'] }}"><button type="submit" class="cbx-btn" style="font-size:11px;padding:3px 9px;color:var(--destructive)">Remove</button>
+                                        @csrf<input type="hidden" name="id" value="{{ $method['id'] }}"><button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Remove</button>
                                     </form>
                                 </div>
                             </td>
@@ -145,7 +145,7 @@
                         <td class="rowchev">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="mut" style="padding:20px;text-align:center">No invoices yet.</td></tr>
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'invoice', 'size' => 18, 'sw' => 1.7])</div><h3>No invoices yet.</h3><p>Invoices issued to this customer will appear here.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -261,7 +261,7 @@
                         <td class="num mut">{{ $grant['updated'] }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="mut" style="padding:20px;text-align:center">No access grants mirrored for this organization yet.</td></tr>
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div><h3>No access grants yet.</h3><p>Grants appear as Cbox ID provisioning webhooks (member / role events) arrive.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -282,7 +282,7 @@
                         <td class="rowchev">@if($href)@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])@endif</td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" class="mut" style="padding:20px;text-align:center">No recorded activity yet.</td></tr>
+                    <tr><td colspan="4" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'activity', 'size' => 18, 'sw' => 1.7])</div><h3>No recorded activity yet.</h3><p>Billing events for this customer will appear here.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>

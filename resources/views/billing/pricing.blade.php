@@ -1,6 +1,6 @@
 @extends('layouts.app')
 @section('title', 'Plans & pricing')
-@section('crumb', 'Pricing')
+@section('crumb', 'Plans & pricing')
 
 @php
     use App\Billing\Support\MoneyFormatter;

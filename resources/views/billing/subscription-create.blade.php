@@ -9,7 +9,7 @@
 
 @php
     $labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500';
-    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px';
+    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px';
     // The currencies each plan is priced in, so the currency picker can react to the plan.
     $planCurrencies = [];
     foreach ($plans as $plan) {
@@ -67,7 +67,7 @@
             </div>
 
             <div style="display:flex;gap:8px">
-                <button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Create subscription</button>
+                <button type="submit" class="cbx-btn cbx-btn--primary">Create subscription</button>
                 <a href="{{ route('billing.subscriptions') }}" class="cbx-btn cbx-btn--sm">Cancel</a>
             </div>
         </form>

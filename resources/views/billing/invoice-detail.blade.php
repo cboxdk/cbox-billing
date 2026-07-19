@@ -18,12 +18,12 @@
     $refundedMinor = $creditNotes->sum('gross_minor');
     $remainingMinor = max(0, $invoice->total_minor - $refundedMinor);
     $labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500';
-    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px';
+    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px';
 @endphp
 
 @section('screen')
 <div class="page">
-    <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.invoices') }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to invoices</a>
+    <x-back-button :href="route('billing.invoices')" label="Back to invoices" />
 
     @include('partials.flash')
 

@@ -6,7 +6,6 @@
     // Rendered directly into the mint POST response (SEC-3) — never flashed through the
     // session store, so the show-once plaintext is not written to a persistent session at rest.
     $minted = $minted ?? null;
-    $btnSm = 'font-size:11px;padding:3px 9px';
 @endphp
 
 @section('screen')
@@ -28,7 +27,7 @@
             </header>
             <div style="padding:6px 20px 16px">
                 <p class="cbx-page-desc" style="font-size:12px;margin:0 0 6px">Copy it now — only a hash is stored, so it can never be shown again. Send it as the <span class="num">Authorization: Bearer</span> credential to the management/enforcement API.</p>
-                <textarea readonly rows="2" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);resize:vertical">{{ $minted['plaintext'] }}</textarea>
+                <textarea readonly rows="2" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);resize:vertical">{{ $minted['plaintext'] }}</textarea>
             </div>
         </section>
     @endif
@@ -58,21 +57,21 @@
                                 <span class="mut" style="font-size:11px">Set in config — author a copy to edit here.</span>
                             @else
                                 <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
-                                    <a href="{{ route('billing.settings.sellers.edit', $seller['id']) }}" class="cbx-btn" style="{{ $btnSm }}">Edit</a>
+                                    <a href="{{ route('billing.settings.sellers.edit', $seller['id']) }}" class="cbx-btn cbx-btn--sm">Edit</a>
                                     @if (!$seller['is_default'] && !$seller['archived'])
-                                        <form method="POST" action="{{ route('billing.settings.sellers.default', $seller['id']) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn" style="{{ $btnSm }}">Make default</button></form>
+                                        <form method="POST" action="{{ route('billing.settings.sellers.default', $seller['id']) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn cbx-btn--sm">Make default</button></form>
                                     @endif
                                     @if ($seller['archived'])
-                                        <form method="POST" action="{{ route('billing.settings.sellers.unarchive', $seller['id']) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn" style="{{ $btnSm }}">Reinstate</button></form>
+                                        <form method="POST" action="{{ route('billing.settings.sellers.unarchive', $seller['id']) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn cbx-btn--sm">Reinstate</button></form>
                                     @else
                                         <form method="POST" action="{{ route('billing.settings.sellers.archive', $seller['id']) }}" style="margin:0"
                                               data-confirm="Archive {{ $seller['legal_name'] }}? It stops being offered for new invoices; existing invoices are untouched."
-                                              data-confirm-title="Archive seller?" data-confirm-label="Archive">@csrf<button type="submit" class="cbx-btn" style="{{ $btnSm }}">Archive</button></form>
+                                              data-confirm-title="Archive seller?" data-confirm-label="Archive" data-confirm-variant="primary">@csrf<button type="submit" class="cbx-btn cbx-btn--sm">Archive</button></form>
                                     @endif
                                     <form method="POST" action="{{ route('billing.settings.sellers.destroy', $seller['id']) }}" style="margin:0"
                                           data-confirm="Delete {{ $seller['legal_name'] }}? Refused while it has issued invoices — archive it instead."
                                           data-confirm-title="Delete seller?" data-confirm-label="Delete" data-confirm-variant="destructive">
-                                        @csrf @method('DELETE')<button type="submit" class="cbx-btn" style="{{ $btnSm }};color:var(--destructive)">Delete</button>
+                                        @csrf @method('DELETE')<button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Delete</button>
                                     </form>
                                 </div>
                             @endif
@@ -99,7 +98,7 @@
                         <td class="num mut">{{ $reg['number'] }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="mut" style="padding:20px;text-align:center">No tax registrations configured. Add them on a seller entity above.</td></tr>
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><h3>No tax registrations.</h3><p>Add them on a seller entity above — each seller carries its own VAT/GST nexus.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -143,13 +142,13 @@
                                 <form method="POST" action="{{ route('billing.settings.tokens.revoke', $token['id']) }}" style="margin:0;text-align:right"
                                       data-confirm="Revoke “{{ $token['name'] }}”? It stops authenticating immediately and cannot be restored."
                                       data-confirm-title="Revoke API token?" data-confirm-label="Revoke" data-confirm-variant="destructive">
-                                    @csrf<button type="submit" class="cbx-btn" style="{{ $btnSm }};color:var(--destructive)">Revoke</button>
+                                    @csrf<button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Revoke</button>
                                 </form>
                             @endunless
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="mut" style="padding:20px;text-align:center">No API tokens issued.</td></tr>
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'key', 'size' => 18, 'sw' => 1.7])</div><h3>No API tokens issued.</h3><p>Mint a token to authenticate the management / enforcement API.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>

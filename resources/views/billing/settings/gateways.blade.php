@@ -2,14 +2,14 @@
 @section('title', 'Payment gateways')
 @section('breadcrumb')
     <x-breadcrumb :items="[
-        ['label' => 'Settings', 'href' => route('billing.settings', ['tab' => 'gateways'])],
+        ['label' => 'Settings', 'href' => route('billing.settings').'#gateways'],
         ['label' => 'Payment gateways'],
     ]" />
 @endsection
 
 @section('screen')
 <div class="page">
-    <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.settings', ['tab' => 'gateways']) }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to settings</a>
+    <x-back-button :href="route('billing.settings').'#gateways'" label="Back to settings" />
 
     <header class="cbx-page-header">
         <div>

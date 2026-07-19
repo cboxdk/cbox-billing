@@ -3,7 +3,7 @@
 @section('breadcrumb')
     <x-breadcrumb :items="[
         ['label' => 'Catalog', 'href' => route('billing.catalog')],
-        ['label' => 'Plans', 'href' => route('billing.pricing')],
+        ['label' => 'Plans & pricing', 'href' => route('billing.pricing')],
         ['label' => $plan['name'] ?? 'Plan'],
     ]" />
 @endsection
@@ -16,7 +16,7 @@
 
 @section('screen')
 <div class="page">
-    <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.pricing') }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to plans</a>
+    <x-back-button :href="route('billing.pricing')" label="Back to plans & pricing" />
 
     @include('partials.flash')
 
@@ -27,7 +27,7 @@
                 @if ($pl['retiring'])<span class="cbx-pill cbx-pill--warning" style="margin-left:2px">retiring {{ $pl['retires_at'] }}</span>@endif
             </h1>
             <p class="cbx-page-desc num" style="font-size:13px">{{ $pl['key'] }} · per {{ $pl['interval'] }}
-                @if ($pl['product']) · <a href="{{ route('billing.products.show', $pl['product']['id']) }}" style="color:var(--primary);text-decoration:none">{{ $pl['product']['name'] }}</a>@endif
+                @if ($pl['product']) · <a href="{{ route('billing.products.show', $pl['product']['id']) }}" class="cbx-link">{{ $pl['product']['name'] }}</a>@endif
             </p>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
@@ -55,8 +55,8 @@
     </div>
 
     @if ($pl['retiring'])
-        <section class="cbx-panel" style="padding:14px 20px;border-left:3px solid var(--warning,#c90)">
-            <div style="font-size:13px">Retiring <strong>{{ $pl['retires_at'] }}</strong>@if($pl['default_successor']) · default successor <a href="{{ route('billing.plans.show', $pl['default_successor']['id']) }}" style="color:var(--primary);text-decoration:none">{{ $pl['default_successor']['name'] }}</a>@else · <span style="color:var(--destructive)">no default (unresolved subscribers flagged)</span>@endif</div>
+        <section class="cbx-panel" style="padding:14px 20px;border-left:3px solid var(--warning)">
+            <div style="font-size:13px">Retiring <strong>{{ $pl['retires_at'] }}</strong>@if($pl['default_successor']) · default successor <a href="{{ route('billing.plans.show', $pl['default_successor']['id']) }}" class="cbx-link">{{ $pl['default_successor']['name'] }}</a>@else · <span style="color:var(--destructive)">no default (unresolved subscribers flagged)</span>@endif</div>
         </section>
     @endif
 

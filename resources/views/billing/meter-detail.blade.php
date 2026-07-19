@@ -11,7 +11,7 @@
 
 @section('screen')
 <div class="page">
-    <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.meters') }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to meters</a>
+    <x-back-button :href="route('billing.meters')" label="Back to meters" />
 
     @include('partials.flash')
 
@@ -71,7 +71,7 @@
                         <td class="rowchev">@if($ent['plan_id'])@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])@endif</td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" style="padding:0"><div class="cbx-empty"><h3>Not referenced yet.</h3><p>No plan entitlement uses this meter — it can be deleted outright.</p></div></td></tr>
+                    <tr><td colspan="4" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'gauge', 'size' => 18, 'sw' => 1.7])</div><h3>Not referenced yet.</h3><p>No plan entitlement uses this meter — it can be deleted outright.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>

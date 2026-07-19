@@ -14,7 +14,7 @@
 
 @section('screen')
 <div class="page">
-    <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.licenses') }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to licenses</a>
+    <x-back-button :href="route('billing.licenses')" label="Back to licenses" />
 
     @include('partials.flash')
 
@@ -26,7 +26,9 @@
         <div style="display:flex;gap:8px;align-items:center">
             <span class="cbx-pill cbx-pill--{{ $statusPill[$l['status']] ?? 'muted' }}">{{ $l['status'] }}</span>
             @if ($l['status'] !== 'revoked')
-                <form method="POST" action="{{ route('billing.licenses.renew', ['id' => $l['id']]) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn cbx-btn--sm">Renew</button></form>
+                <form method="POST" action="{{ route('billing.licenses.renew', ['id' => $l['id']]) }}" style="margin:0"
+                      data-confirm="Renew license {{ $l['id'] }}? It extends the license window and issues a freshly signed key."
+                      data-confirm-title="Renew license?" data-confirm-label="Renew" data-confirm-variant="primary">@csrf<button type="submit" class="cbx-btn cbx-btn--sm">Renew</button></form>
                 <form method="POST" action="{{ route('billing.licenses.revoke', ['id' => $l['id']]) }}" style="margin:0"
                       data-confirm="Revoke license {{ $l['id'] }}? It will be refused once the new revocation list is pulled. This cannot be undone."
                       data-confirm-title="Revoke license?" data-confirm-label="Revoke license" data-confirm-variant="destructive">
@@ -46,7 +48,7 @@
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Binding</h2></header>
             <dl style="margin:0;padding:2px 20px 6px">
-                <div class="cbx-kv" style="padding:9px 0"><dt>Customer</dt><dd><a href="{{ route('billing.customers.show', $l['customer_id']) }}">{{ $l['customer_name'] ?? $l['customer_id'] }}</a></dd></div>
+                <div class="cbx-kv" style="padding:9px 0"><dt>Customer</dt><dd><a href="{{ route('billing.customers.show', $l['customer_id']) }}" class="cbx-link">{{ $l['customer_name'] ?? $l['customer_id'] }}</a></dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Deployment</dt><dd class="num">{{ $l['deployment_id'] }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Licensed domain</dt><dd class="num">{{ $l['licensed_domain'] ?? '—' }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Plan profile</dt><dd class="num">{{ $l['plan'] }}</dd></div>
@@ -89,7 +91,7 @@
         <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Minted artifact</h2></header>
         <div style="padding:6px 20px 16px">
             <p class="cbx-page-desc" style="font-size:12px;margin:0 0 6px">The signed license the deployment installs (offline-verifiable). Set it as <span class="num">CBOX_ID_LICENSE_KEY</span>.</p>
-            <textarea readonly rows="4" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);resize:vertical">{{ $l['key'] }}</textarea>
+            <textarea readonly rows="4" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);resize:vertical">{{ $l['key'] }}</textarea>
         </div>
     </section>
 

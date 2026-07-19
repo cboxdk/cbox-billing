@@ -11,7 +11,7 @@
 
 @section('screen')
 <div class="page">
-    <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.products') }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to products</a>
+    <x-back-button :href="route('billing.products')" label="Back to products" />
 
     @include('partials.flash')
 

@@ -28,7 +28,7 @@
             </header>
             <div style="padding:6px 20px 16px">
                 <p class="cbx-page-desc" style="font-size:12px;margin:0 0 6px">Deployment <span class="num">{{ $issued['deployment_id'] }}</span>. Set this as <span class="num">CBOX_ID_LICENSE_KEY</span> in the self-hosted deployment (offline-verifiable — no call home required):</p>
-                <textarea readonly rows="4" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);resize:vertical">{{ $issued['key'] }}</textarea>
+                <textarea readonly rows="4" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:11px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);resize:vertical">{{ $issued['key'] }}</textarea>
             </div>
         </section>
     @endif
@@ -45,7 +45,7 @@
             <form method="POST" action="{{ route('billing.licenses.issue') }}" class="cbx-grid-2" style="padding:8px 20px 18px;gap:12px;align-items:end">
                 @csrf
                 <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500">Customer
-                    <select name="customer_id" required style="height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px">
+                    <select name="customer_id" required style="height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px">
                         <option value="">Select an organization…</option>
                         @foreach ($organizations as $org)
                             <option value="{{ $org->id }}">{{ $org->name }} ({{ $org->id }})</option>
@@ -53,7 +53,7 @@
                     </select>
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500">Licensable plan
-                    <select name="plan" required style="height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px">
+                    <select name="plan" required style="height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px">
                         <option value="">Select a plan…</option>
                         @foreach ($licensablePlans as $plan)
                             <option value="{{ $plan['key'] }}">{{ $plan['label'] }}</option>
@@ -61,10 +61,10 @@
                     </select>
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500">Deployment id <span class="mut" style="font-weight:400">(optional — generated when blank)</span>
-                    <input name="deployment_id" placeholder="dep_…" style="height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px">
+                    <input name="deployment_id" placeholder="dep_…" style="height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px">
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500">Licensed domain <span class="mut" style="font-weight:400">(optional pin)</span>
-                    <input name="licensed_domain" placeholder="id.example.com" style="height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px">
+                    <input name="licensed_domain" placeholder="id.example.com" style="height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px">
                 </label>
                 <div style="grid-column:1 / -1">
                     <button type="submit" class="cbx-btn cbx-btn--primary">@include('partials.icon', ['name' => 'key', 'size' => 14, 'sw' => 1.7])Mint license</button>
@@ -98,15 +98,17 @@
                         <td>
                             <div style="display:flex;gap:6px;justify-content:flex-end">
                                 @if ($license['status'] !== 'revoked')
-                                    <form method="POST" action="{{ route('billing.licenses.renew', ['id' => $license['id']]) }}" style="margin:0">
+                                    <form method="POST" action="{{ route('billing.licenses.renew', ['id' => $license['id']]) }}" style="margin:0"
+                                          data-confirm="Renew license {{ $license['id'] }}? It extends the license window and issues a freshly signed key."
+                                          data-confirm-title="Renew license?" data-confirm-label="Renew" data-confirm-variant="primary">
                                         @csrf
-                                        <button type="submit" class="cbx-btn" style="font-size:11px;padding:3px 9px">Renew</button>
+                                        <button type="submit" class="cbx-btn cbx-btn--sm">Renew</button>
                                     </form>
                                     <form method="POST" action="{{ route('billing.licenses.revoke', ['id' => $license['id']]) }}" style="margin:0"
                                           data-confirm="Revoke license {{ $license['id'] }}? It will be refused once the new revocation list is pulled. This cannot be undone."
-                                          data-confirm-title="Revoke license?" data-confirm-label="Revoke license">
+                                          data-confirm-title="Revoke license?" data-confirm-label="Revoke license" data-confirm-variant="destructive">
                                         @csrf
-                                        <button type="submit" class="cbx-btn" style="font-size:11px;padding:3px 9px;color:var(--destructive)">Revoke</button>
+                                        <button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Revoke</button>
                                     </form>
                                 @else
                                     <span class="mut" style="font-size:11px">revoked</span>

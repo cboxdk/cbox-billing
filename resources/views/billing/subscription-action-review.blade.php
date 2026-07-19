@@ -10,7 +10,7 @@
 
 @section('screen')
 <div class="page">
-    <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.subscriptions.show', $subscription['id']) }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to subscription</a>
+    <x-back-button :href="route('billing.subscriptions.show', $subscription['id'])" label="Back to subscription" />
 
     <header class="cbx-page-header">
         <div>

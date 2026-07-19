@@ -9,7 +9,7 @@
 
 @php
     $labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500';
-    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px';
+    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:0 8px;font-size:13px';
 @endphp
 
 @section('screen')
@@ -48,7 +48,7 @@
                                 <td><input name="lines[{{ $i }}][description]" value="{{ $row['description'] ?? '' }}" placeholder="e.g. Onboarding fee" maxlength="190" style="{{ $inputStyle }};width:100%"></td>
                                 <td><input name="lines[{{ $i }}][quantity]" type="number" min="1" value="{{ $row['quantity'] ?? 1 }}" style="{{ $inputStyle }};width:100%"></td>
                                 <td><input name="lines[{{ $i }}][amount_minor]" type="number" min="0" value="{{ $row['amount_minor'] ?? '' }}" placeholder="50000" class="num" style="{{ $inputStyle }};width:100%"></td>
-                                <td><button type="button" class="cbx-btn cbx-btn--ghost cbx-btn--sm" onclick="this.closest('tr').remove()">×</button></td>
+                                <td><button type="button" class="cbx-btn cbx-btn--ghost cbx-btn--sm" data-remove-line>×</button></td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -57,8 +57,8 @@
             </div>
 
             <div style="display:flex;gap:8px">
-                <button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Issue invoice</button>
-                <a href="{{ route('billing.invoices') }}" class="cbx-btn cbx-btn--sm">Cancel</a>
+                <button type="submit" class="cbx-btn cbx-btn--primary">Issue invoice</button>
+                <a href="{{ route('billing.invoices') }}" class="cbx-btn">Cancel</a>
             </div>
         </form>
     </section>
@@ -75,9 +75,14 @@
                 '<td><input name="lines['+i+'][description]" placeholder="Description" maxlength="190" style="'+style+';width:100%"></td>' +
                 '<td><input name="lines['+i+'][quantity]" type="number" min="1" value="1" style="'+style+';width:100%"></td>' +
                 '<td><input name="lines['+i+'][amount_minor]" type="number" min="0" placeholder="50000" class="num" style="'+style+';width:100%"></td>' +
-                '<td><button type="button" class="cbx-btn cbx-btn--ghost cbx-btn--sm">×</button></td>';
-            tr.querySelector('button').addEventListener('click', function(){ tr.remove(); });
+                '<td><button type="button" class="cbx-btn cbx-btn--ghost cbx-btn--sm" data-remove-line>×</button></td>';
             body.appendChild(tr);
+        });
+        // One delegated handler removes a line row — both the server-rendered rows and the
+        // ones added above, so there is no inline onclick and one mechanism for both.
+        body.addEventListener('click', function(e){
+            var rm = e.target.closest('[data-remove-line]');
+            if (rm) { e.preventDefault(); rm.closest('tr').remove(); }
         });
     })();
 </script>

@@ -24,7 +24,7 @@
             <h1 class="cbx-page-title" style="font-size:20px">Catalog</h1>
             <p class="cbx-page-desc" style="font-size:13px">Products, plans, per-currency prices and metered entitlements</p>
         </div>
-        <a href="{{ route('billing.catalog.prices.create') }}" class="cbx-btn cbx-btn--primary">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New price</a>
+        <a href="{{ route('billing.catalog.prices.create') }}" class="cbx-btn cbx-btn--primary cbx-btn--sm">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New price</a>
     </header>
 
     @include('partials.flash')
@@ -40,7 +40,7 @@
                 <tbody>
                     @foreach ($product['plans'] as $plan)
                         @php($tieredPrices = array_values(array_filter($plan['prices'], fn ($p) => $p['tiered'])))
-                        <tr @if($tieredPrices)style="border-bottom:0"@endif>
+                        <tr data-href="{{ route('billing.plans.show', $plan['id']) }}" tabindex="0" role="link" aria-label="Open plan {{ $plan['name'] }}" @if($tieredPrices)style="border-bottom:0"@endif>
                             <td>
                                 <span style="display:block;font-weight:600">{{ $plan['name'] }}</span>
                                 <span class="num mut" style="font-size:11px">per {{ $plan['interval'] }}</span>
@@ -71,7 +71,7 @@
                             </td>
                         </tr>
                         {{-- Plan retirement authoring (ADR-0016): mark retiring (cutoff + default successor) or un-retire --}}
-                        <tr style="cursor:default" onclick="event.stopPropagation()">
+                        <tr style="cursor:default">
                             <td colspan="6" style="padding:2px 20px 12px">
                                 @if ($plan['retiring'])
                                     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px;color:var(--muted-foreground)">
@@ -98,7 +98,7 @@
                         </tr>
                         {{-- Tiered pricing: render each tiered currency's bracket table (up-to / unit / flat), read from the engine PriceTier set --}}
                         @if ($tieredPrices)
-                            <tr style="cursor:default" onclick="event.stopPropagation()">
+                            <tr style="cursor:default">
                                 <td colspan="6" style="padding:0 20px 14px">
                                     <div style="display:flex;flex-wrap:wrap;gap:16px">
                                         @foreach ($tieredPrices as $price)

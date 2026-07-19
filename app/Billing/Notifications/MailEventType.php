@@ -35,6 +35,43 @@ enum MailEventType: string
         return self::cases();
     }
 
+    /**
+     * The OPTIONAL lifecycle notifications a customer may switch off from the portal — the
+     * courtesy mails (renewal reminder, trial-ending, receipts). Everything else is
+     * transactional/legal (invoice issued, dunning/past-due, retries, subscription changes,
+     * license delivery, plan retirement) and always sends regardless of preference. This is
+     * the single source of truth the notifier's optional-gate and the portal's toggle list
+     * both read, so the mandatory-vs-optional split can never drift between the two.
+     */
+    public function isOptional(): bool
+    {
+        return match ($this) {
+            self::RenewalReminder, self::TrialEnding, self::PaymentReceipt => true,
+            default => false,
+        };
+    }
+
+    /**
+     * The optional events, in the order the portal lists them.
+     *
+     * @return list<self>
+     */
+    public static function optional(): array
+    {
+        return array_values(array_filter(self::cases(), static fn (self $event): bool => $event->isOptional()));
+    }
+
+    /**
+     * The mandatory (always-on) events the portal shows as informational, so the customer
+     * sees exactly which mails they can never miss.
+     *
+     * @return list<self>
+     */
+    public static function mandatory(): array
+    {
+        return array_values(array_filter(self::cases(), static fn (self $event): bool => ! $event->isOptional()));
+    }
+
     public function label(): string
     {
         return match ($this) {

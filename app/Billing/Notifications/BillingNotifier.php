@@ -6,6 +6,7 @@ namespace App\Billing\Notifications;
 
 use App\Billing\Mode\BillingContext;
 use App\Billing\Notifications\Contracts\ComposesTransactionalMail;
+use App\Billing\Notifications\Contracts\ManagesNotificationPreferences;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Notifications\Rendering\RenderedMail;
 use App\Billing\Payments\Dunning\DeclineCategory;
@@ -56,6 +57,7 @@ readonly class BillingNotifier implements NotifiesCustomers
         private CapturedNotifications $captured,
         private LocaleResolver $locales,
         private ComposesTransactionalMail $composer,
+        private ManagesNotificationPreferences $preferences,
     ) {}
 
     /**
@@ -152,7 +154,7 @@ readonly class BillingNotifier implements NotifiesCustomers
             amountFormatted: $this->money($invoice->total(), $locale),
             paidAtLabel: $this->date($invoice->paid_at, $locale),
             gatewayReference: $invoice->gateway_reference,
-        ), 'payment.receipt', $invoice->number);
+        ), 'payment.receipt', $invoice->number, MailEventType::PaymentReceipt);
     }
 
     public function dunningNotice(Organization $organization, Money $amountDue, bool $suspended, ?DateTimeInterface $oldestDueAt): void
@@ -211,7 +213,7 @@ readonly class BillingNotifier implements NotifiesCustomers
             planName: $plan->name,
             endsAtLabel: $this->dateTime($trialEndsAt, $locale) ?? 'n/a',
             amountFormatted: $this->recurringAmount($plan, $currency, $locale),
-        ), 'trial.ending', $subscription->organization_id);
+        ), 'trial.ending', $subscription->organization_id, MailEventType::TrialEnding);
     }
 
     public function renewalReminder(Subscription $subscription): void
@@ -231,7 +233,7 @@ readonly class BillingNotifier implements NotifiesCustomers
             planName: $plan->name,
             renewsAtLabel: $this->date($subscription->current_period_end, $locale),
             amountFormatted: $this->recurringAmount($plan, $currency, $locale),
-        ), 'renewal.reminder', $subscription->organization_id);
+        ), 'renewal.reminder', $subscription->organization_id, MailEventType::RenewalReminder);
     }
 
     public function subscriptionChanged(Subscription $subscription, string $changeType, ?string $previousPlanName = null): void
@@ -293,9 +295,26 @@ readonly class BillingNotifier implements NotifiesCustomers
      * Stamp the mailable with the resolved seller + locale, then queue it to the org's billing
      * contact — or skip + log when there is none. `$event` / `$subject` only annotate the skip
      * log line, so a missing recipient is auditable rather than silent.
+     *
+     * `$optionalGate`, when set, marks this an OPTIONAL mail: it is consulted against the org's
+     * notification preferences and suppressed (logged) when the org has opted out. A mandatory
+     * mail passes no gate and always sends — preferences can never suppress a transactional
+     * or legal notification.
      */
-    private function send(Organization $organization, ?string $sellerId, string $locale, TransactionalMailable $mailable, string $event, string $subject): void
+    private function send(Organization $organization, ?string $sellerId, string $locale, TransactionalMailable $mailable, string $event, string $subject, ?MailEventType $optionalGate = null): void
     {
+        // Optional-mail opt-out: the ONE place a customer preference suppresses a send. A
+        // mandatory mail passes null and is never gated here.
+        if ($optionalGate !== null && ! $this->preferences->allows($organization->id, $optionalGate)) {
+            $this->log->info('Suppressed optional billing notification: organization opted out.', [
+                'event' => $event,
+                'subject' => $subject,
+                'organization' => $organization->id,
+            ]);
+
+            return;
+        }
+
         $recipient = $organization->billingContact();
 
         if ($recipient === null) {

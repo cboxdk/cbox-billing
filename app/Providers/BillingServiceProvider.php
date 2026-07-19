@@ -31,9 +31,11 @@ use App\Billing\Metering\EntitlementsView;
 use App\Billing\Metering\UsageSummaryView;
 use App\Billing\Notifications\BillingNotifier;
 use App\Billing\Notifications\Contracts\ComposesTransactionalMail;
+use App\Billing\Notifications\Contracts\ManagesNotificationPreferences;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Notifications\Contracts\RendersTemplates;
 use App\Billing\Notifications\Contracts\ResolvesMailTemplates;
+use App\Billing\Notifications\NotificationPreferenceService;
 use App\Billing\Notifications\Rendering\DefaultMailTemplates;
 use App\Billing\Notifications\Rendering\MailTemplateResolver;
 use App\Billing\Notifications\Rendering\SafeTemplateRenderer;
@@ -160,6 +162,10 @@ class BillingServiceProvider extends ServiceProvider
         $this->registerUpgradeGate();
         $this->registerApi();
         $this->registerRetentionSeam();
+
+        // The per-org opt-out store for the OPTIONAL lifecycle mails; the notifier consults it
+        // before an optional send and the portal reads/writes it from the toggle UI.
+        $this->app->singleton(ManagesNotificationPreferences::class, NotificationPreferenceService::class);
 
         // The customer-facing transactional mail surface: one place resolves the billing
         // contact and queues the branded Mailable for each lifecycle event.

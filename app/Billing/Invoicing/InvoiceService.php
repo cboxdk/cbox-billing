@@ -225,6 +225,7 @@ readonly class InvoiceService implements GeneratesInvoices
                 'description' => $line->description,
                 'quantity' => $line->quantity,
                 'unit_minor' => $line->quantity > 0 ? intdiv($line->net->minor(), $line->quantity) : $line->net->minor(),
+                'net_minor' => $line->net->minor(),
                 'amount_minor' => $line->gross->minor(),
             ]);
         }

@@ -163,11 +163,67 @@ readonly class CycleRenewalService
             return RenewalOutcome::canceled();
         }
 
+        // The period-advance commits INSIDE the transaction above; the invoice is issued
+        // AFTER it. A crash in that window leaves the advanced period un-invoiced (M6). So a
+        // run that advanced issues the invoice now, and a run that did NOT advance still
+        // completes a missing invoice for a period a PRIOR renewal advanced into — both via
+        // the same idempotent issuance (H4), so the leaked period is picked up on the next
+        // daily pass rather than waiting for the monthly invoicing run.
+        $invoice = $outcome['baseRenewed']
+            ? $this->invoiceRenewal($subscription, true)
+            : $this->completeLeakedRenewalInvoice($subscription);
+
         return RenewalOutcome::processed(
             $outcome['baseRenewed'],
             $outcome['addOnsRenewed'],
-            $this->invoiceRenewal($subscription, $outcome['baseRenewed']),
+            $invoice,
         );
+    }
+
+    /**
+     * Complete a renewal invoice a crash left un-issued (M6). The recovery is deliberately
+     * narrow: it fires only for an Active subscription whose current bounded period has no
+     * invoice AND that a prior renewal demonstrably advanced INTO — the evidence being an
+     * invoice for an earlier period (one ending at or before this period's start). A
+     * never-renewed opening period carries no such prior invoice and is left to the monthly
+     * `billing:invoice` pass, so this changes nothing on the happy path and only heals the
+     * crash gap. Issuance is idempotent per (subscription, period), so a genuine double-run
+     * still returns the existing invoice.
+     */
+    private function completeLeakedRenewalInvoice(Subscription $subscription): ?Invoice
+    {
+        if ($subscription->status !== SubscriptionStatus::Active || $subscription->isPaused()) {
+            return null;
+        }
+
+        $start = $subscription->current_period_start;
+        $end = $subscription->current_period_end;
+
+        if ($start === null || $end === null) {
+            return null;
+        }
+
+        $alreadyInvoiced = Invoice::query()
+            ->where('subscription_id', $subscription->id)
+            ->where('period_start', $start)
+            ->where('period_end', $end)
+            ->exists();
+
+        if ($alreadyInvoiced) {
+            return null;
+        }
+
+        $advancedInto = Invoice::query()
+            ->where('subscription_id', $subscription->id)
+            ->whereNotNull('period_end')
+            ->where('period_end', '<=', $start)
+            ->exists();
+
+        if (! $advancedInto) {
+            return null;
+        }
+
+        return $this->invoiceRenewal($subscription, true);
     }
 
     /**

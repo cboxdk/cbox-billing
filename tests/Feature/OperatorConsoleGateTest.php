@@ -152,7 +152,7 @@ class OperatorConsoleGateTest extends TestCase
     {
         $this->signedIn('org_ops', 'demo|minter')
             ->post('/settings/api-tokens', ['name' => 'audited'])
-            ->assertRedirect();
+            ->assertOk();
 
         $token = ApiToken::query()->where('name', 'audited')->firstOrFail();
         $this->assertSame('demo|minter', $token->created_by_sub);

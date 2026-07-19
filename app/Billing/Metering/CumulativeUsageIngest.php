@@ -42,17 +42,32 @@ readonly class CumulativeUsageIngest
         $now = $this->now();
         $events = [];
 
+        // The per-meter baseline advances WITHIN the batch (M1): the durable sum is read once
+        // per meter, then each accepted delta is folded back in so a second reading for the
+        // same meter measures from the running total, not the stale pre-batch baseline. Two
+        // entries [(m,150),(m,180)] over a durable 100 thus append 50 then 30 (→180), never
+        // 50 then 80 (→230). Appending only happens after the loop, so without this the
+        // eventLog sum would report the same pre-batch figure for both.
+        $baselines = [];
+
         foreach ($entries as $entry) {
             $meter = $entry['meter'];
             $cumulative = $entry['cumulative'];
             $seq = $entry['seq'];
 
-            $alreadyDurable = $this->eventLog->sum($org, $meter, 0, $now);
-            $delta = $cumulative - $alreadyDurable;
+            if (! array_key_exists($meter, $baselines)) {
+                $baselines[$meter] = $this->eventLog->sum($org, $meter, 0, $now);
+            }
+
+            $delta = $cumulative - $baselines[$meter];
 
             if ($delta <= 0) {
                 continue;
             }
+
+            // Advance the running baseline by the accepted delta so a later, higher reading for
+            // the same meter in this batch is measured from here.
+            $baselines[$meter] += $delta;
 
             $events[] = new UsageEvent(
                 id: sprintf('%s:%s:%d', $org, $meter, $seq),

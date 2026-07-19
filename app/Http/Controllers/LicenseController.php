@@ -29,6 +29,19 @@ class LicenseController extends Controller
         $q = $request->query('q');
         $search = is_string($q) && trim($q) !== '' ? trim($q) : null;
 
+        return $this->licensesView($report, $config, null, $search);
+    }
+
+    /**
+     * The Licenses index view, optionally carrying a freshly minted artifact rendered directly
+     * into a POST response. The `issued` copy-pasteable key is passed as a variable, never
+     * flashed through the session store (SEC-3), so the signed show-once artifact is not
+     * written to a persistent session at rest.
+     *
+     * @param  array{id: string, key: string, deployment_id: string, plan: string, expires_at: string}|null  $issued
+     */
+    private function licensesView(LicenseReport $report, Config $config, ?array $issued, ?string $search): View
+    {
         return view('billing.licenses', [
             'activeArea' => 'licenses',
             'activeNav' => 'issued',
@@ -38,6 +51,7 @@ class LicenseController extends Controller
             'organizations' => Organization::query()->orderBy('name')->get(['id', 'name']),
             'licensablePlans' => $this->licensablePlans($config),
             'signingConfigured' => $report->settings()['signing_key_configured'],
+            'issued' => $issued,
         ]);
     }
 
@@ -63,7 +77,7 @@ class LicenseController extends Controller
         ]);
     }
 
-    public function issue(Request $request, IssuesLicenses $licenses): RedirectResponse
+    public function issue(Request $request, IssuesLicenses $licenses, LicenseReport $report, Config $config): View|RedirectResponse
     {
         $request->validate([
             'customer_id' => ['required', 'string'],
@@ -87,12 +101,11 @@ class LicenseController extends Controller
             return back()->with('license_error', $e->getMessage());
         }
 
-        return redirect()
-            ->route('billing.licenses')
-            ->with('issued_license', $this->artifact($license));
+        // Render the signed key directly into this response (SEC-3) rather than flashing it.
+        return $this->licensesView($report, $config, $this->artifact($license), null);
     }
 
-    public function renew(Request $request, string $id, IssuesLicenses $licenses): RedirectResponse
+    public function renew(Request $request, string $id, IssuesLicenses $licenses, LicenseReport $report, Config $config): View|RedirectResponse
     {
         $request->validate(['expires_at' => ['nullable', 'date']]);
 
@@ -102,9 +115,7 @@ class LicenseController extends Controller
             return back()->with('license_error', $e->getMessage());
         }
 
-        return redirect()
-            ->route('billing.licenses')
-            ->with('issued_license', $this->artifact($license));
+        return $this->licensesView($report, $config, $this->artifact($license), null);
     }
 
     public function revoke(Request $request, string $id, IssuesLicenses $licenses): RedirectResponse

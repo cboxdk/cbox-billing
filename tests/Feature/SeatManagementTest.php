@@ -18,6 +18,7 @@ use App\Models\Subscription;
 use App\Models\SubscriptionMrrMovement;
 use Database\Seeders\CatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -92,6 +93,41 @@ class SeatManagementTest extends TestCase
         ]);
 
         return 'perseat';
+    }
+
+    public function test_m2_a_first_assign_locks_the_subscription_before_counting_and_never_exceeds_the_cap(): void
+    {
+        $plan = $this->perSeatPlan();
+        ['subscription' => $subscription] = $this->subscribe('org_race', seats: 1, plan: $plan);
+        $this->mirror('org_race', 'sub_a');
+        $this->mirror('org_race', 'sub_b');
+
+        $seats = app(ManagesSeats::class);
+
+        // The assign re-reads the SUBSCRIPTION row (under a lock) before the count+insert (M2):
+        // a `FOR UPDATE COUNT` over the assignments locks no rows when the count is zero, so two
+        // concurrent first-assigns for a single purchased seat could both read 0 and both
+        // insert. Serializing on the subscription row is the fix — assert the lock read is issued.
+        $sql = [];
+        DB::listen(static function ($query) use (&$sql): void {
+            $sql[] = $query->sql;
+        });
+
+        $seats->assign($subscription, 'sub_a');
+
+        $lockRead = array_filter($sql, static fn (string $q): bool => str_contains($q, 'from "subscriptions"') && str_contains($q, '"id" ='));
+        $this->assertNotEmpty($lockRead, 'assign() must re-read the subscription row to serialize the free-seat check.');
+
+        // The one purchased seat is taken; a second eligible subject is refused — the invariant
+        // assigned ≤ purchased holds, exactly one assignment exists.
+        try {
+            $seats->assign($subscription, 'sub_b');
+            $this->fail('Expected the second assign to be refused: no free seat.');
+        } catch (SeatException) {
+            // expected
+        }
+
+        $this->assertSame(1, SeatAssignment::query()->where('organization_id', 'org_race')->count());
     }
 
     public function test_buying_seats_raises_the_billed_quantity_with_a_prorated_charge_and_mrr_movement(): void

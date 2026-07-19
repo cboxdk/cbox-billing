@@ -62,10 +62,17 @@ readonly class SeatManager implements ManagesSeats
         $org = $subscription->organization_id;
 
         return $this->db->transaction(function () use ($subscription, $org, $subject, $source): SeatAssignment {
+            // Serialize the whole assign on a STABLE row — the subscription (M2). A
+            // `SELECT … FOR UPDATE COUNT` over the assignments locks NO rows when the count is
+            // zero, so two concurrent first-assigns for `purchased = 1` both read 0 and both
+            // insert. Locking the serving subscription row first forces them into a queue, so
+            // the free-seat check + insert is decided against a settled count.
+            $locked = Subscription::query()->whereKey($subscription->getKey())->lockForUpdate()->first();
+            $purchased = $locked instanceof Subscription ? $locked->seats : $subscription->seats;
+
             $existing = SeatAssignment::query()
                 ->where('organization_id', $org)
                 ->where('subject', $subject)
-                ->lockForUpdate()
                 ->first();
 
             // Idempotent: a seated subject keeps its existing seat (and its source).
@@ -77,8 +84,7 @@ readonly class SeatManager implements ManagesSeats
                 throw SeatException::notEligible($subject);
             }
 
-            $purchased = $subscription->seats;
-            $assigned = SeatAssignment::query()->where('organization_id', $org)->lockForUpdate()->count();
+            $assigned = SeatAssignment::query()->where('organization_id', $org)->count();
 
             if ($assigned >= $purchased) {
                 throw SeatException::noFreeSeat($purchased, $assigned);

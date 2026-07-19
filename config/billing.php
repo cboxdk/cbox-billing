@@ -441,6 +441,23 @@ return [
     ],
 
     /*
+     * Request-idempotency records (the `Idempotency-Key` replay store). These rows can hold a
+     * captured 2xx response body, so they are pruned on a schedule (`billing:prune-idempotency`,
+     * registered hourly) — never kept indefinitely (SEC-2).
+     *
+     *  - `retention_hours` — a completed record replays a retry within this window, then is
+     *    dropped. Well past any realistic client retry horizon, short enough not to hoard.
+     *  - `stale_after_minutes` — a CLAIMED-but-never-completed record (`response_status` null,
+     *    L1) blocks its key forever if a first attempt died after claiming; it is reaped once
+     *    older than this, so a genuine retry can re-claim the key. Must comfortably exceed the
+     *    longest legitimate request duration.
+     */
+    'idempotency' => [
+        'retention_hours' => (int) env('CBOX_BILLING_IDEMPOTENCY_RETENTION_HOURS', 72),
+        'stale_after_minutes' => (int) env('CBOX_BILLING_IDEMPOTENCY_STALE_MINUTES', 60),
+    ],
+
+    /*
      * Per-token API rate limits (requests per minute), keyed on the caller's bearer token
      * (the IP is the fallback for an unauthenticated request). Two tiers plus the webhook:
      *

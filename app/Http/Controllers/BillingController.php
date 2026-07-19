@@ -262,6 +262,7 @@ class BillingController extends Controller
             'apiTokens' => $report->apiTokens(),
             'webhook' => $report->webhook(),
             'webhookReceivers' => $report->webhookReceivers(),
+            'minted' => null,
         ]);
     }
 

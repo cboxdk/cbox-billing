@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Billing\Catalog\Exceptions\CatalogActionDenied;
 use App\Billing\Catalog\PlanAuthoring;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Invoicing\InvoicePdfRenderer;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\CycleRenewalService;
@@ -342,6 +343,96 @@ class BillingCorrectnessFixesTest extends TestCase
     }
 
     // --- fixtures -------------------------------------------------------------------------
+
+    // --- M5: the invoice line NET column carries net, not gross ---------------------------
+
+    public function test_m5_per_line_net_sums_to_the_subtotal_on_a_tax_exclusive_invoice(): void
+    {
+        $plan = $this->plan('month', 'per_unit', 500);
+        $sub = $this->subscription('m5_net', $plan, seats: 10, start: '2026-03-01', end: '2026-04-01');
+
+        $invoice = app(GeneratesInvoices::class)->generate($sub->fresh());
+
+        // DK domestic B2B: 5 000 net + 25% VAT = 1 250 tax → 6 250 gross.
+        $this->assertSame(5_000, $invoice->subtotal_minor);
+        $this->assertSame(1_250, $invoice->tax_minor);
+
+        $lines = $invoice->lines()->get();
+        $this->assertNotEmpty($lines);
+
+        // The stored line NET (what the document's NET column now prints) sums to the net
+        // Subtotal — NOT to the gross total. Before M5 the column printed `amount_minor` (gross),
+        // so it summed to 6 250 and never reconciled to the 5 000 Subtotal.
+        $this->assertSame(5_000, (int) $lines->sum('net_minor'));
+        $this->assertSame(6_250, (int) $lines->sum('amount_minor'));
+        $this->assertNotSame((int) $lines->sum('net_minor'), (int) $lines->sum('amount_minor'));
+
+        // And the rendered PDF prints the net figure for the line.
+        $pdf = app(InvoicePdfRenderer::class)->render($invoice->fresh());
+        $this->assertStringStartsWith('%PDF', $pdf);
+    }
+
+    // --- M6: a crash between period-advance and invoicing is healed on the next run --------
+
+    public function test_m6_a_leaked_renewal_invoice_is_completed_on_the_next_pass(): void
+    {
+        $plan = $this->plan('month', 'per_unit', 500);
+        $sub = $this->subscription('m6_leak', $plan, seats: 4, start: '2026-01-01', end: '2026-02-01');
+
+        // First boundary: renew normally so the opening→Feb period is advanced AND invoiced —
+        // this is the "prior period" that proves a renewal advanced into the next one.
+        Carbon::setTestNow(Carbon::parse('2026-02-01 00:00:00', 'UTC'));
+        $first = app(CycleRenewalService::class)->renew($sub->fresh());
+        $this->assertTrue($first->baseRenewed);
+        $this->assertNotNull($first->invoice);
+
+        // Simulate a crash in the SECOND renewal's advance→invoice window: advance the period
+        // by hand (as the committed transaction would) but issue NO invoice for it.
+        Carbon::setTestNow(Carbon::parse('2026-03-01 00:00:00', 'UTC'));
+        $sub->forceFill([
+            'current_period_start' => Carbon::parse('2026-03-01', 'UTC'),
+            'current_period_end' => Carbon::parse('2026-04-01', 'UTC'),
+        ])->save();
+
+        $leaked = Invoice::query()
+            ->where('subscription_id', $sub->id)
+            ->where('period_start', Carbon::parse('2026-03-01', 'UTC'))
+            ->exists();
+        $this->assertFalse($leaked, 'Precondition: the March period is un-invoiced (the crash gap).');
+
+        // The next daily pass finds nothing to advance (period already rolled) but detects and
+        // completes the missing invoice via the idempotent issuance — no monthly-pass wait.
+        $recovery = app(CycleRenewalService::class)->renew($sub->fresh());
+        $this->assertFalse($recovery->baseRenewed);
+        $this->assertNotNull($recovery->invoice);
+        $this->assertSame(2_000, $recovery->invoice->subtotal_minor); // 500 × 4 seats
+        $this->assertSame('2026-03-01', $recovery->invoice->period_start?->format('Y-m-d'));
+
+        // Exactly one invoice per period — the recovery is idempotent, a further run adds none.
+        $again = app(CycleRenewalService::class)->renew($sub->fresh());
+        $this->assertNull($again->invoice);
+        $this->assertSame(2, Invoice::query()->where('subscription_id', $sub->id)->count());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_m6_a_never_renewed_opening_period_is_left_for_the_monthly_pass(): void
+    {
+        // A subscription that has NOT yet renewed: its opening period carries no prior invoice,
+        // so the renewal must NOT invoice it here (the monthly billing:invoice pass owns that) —
+        // proving the recovery is narrow and does not change the happy path.
+        $plan = $this->plan('month', 'per_unit', 500);
+        $sub = $this->subscription('m6_open', $plan, seats: 3, start: '2026-01-01', end: '2026-02-01');
+
+        Carbon::setTestNow(Carbon::parse('2026-01-15 00:00:00', 'UTC'));
+        $outcome = app(CycleRenewalService::class)->renew($sub->fresh());
+
+        $this->assertFalse($outcome->baseRenewed);
+        $this->assertNull($outcome->invoice);
+        $this->assertSame(0, Invoice::query()->where('subscription_id', $sub->id)->count());
+
+        Carbon::setTestNow();
+    }
 
     /**
      * @param  list<array{up_to: int|null, unit_minor: int, flat_minor?: int|null}>  $tiers

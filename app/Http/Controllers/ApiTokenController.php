@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Auth\CurrentUser;
+use App\Billing\Reporting\SettingsReport;
 use App\Http\Middleware\EnsureOperator;
 use App\Models\ApiToken;
 use App\Models\Organization;
@@ -39,7 +40,7 @@ class ApiTokenController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, SettingsReport $report): View
     {
         $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -57,15 +58,26 @@ class ApiTokenController extends Controller
             $this->current->user()?->sub,
         );
 
-        // Show the plaintext ONCE via a one-shot flash (copybox on the settings page), like the
-        // minted license artifact. Only the hash is persisted — it can never be shown again.
-        return redirect()
-            ->route('billing.settings', ['tab' => 'tokens'])
-            ->with('minted_token', [
+        // Show the plaintext ONCE by RENDERING it directly into this POST response (SEC-3) —
+        // never flashing it through the session store, where a persistent driver with
+        // SESSION_ENCRYPT=false would write the secret to disk unencrypted. Only the hash is
+        // persisted; a page refresh (a fresh GET) will never show it again.
+        return view('billing.settings', [
+            'activeArea' => 'settings',
+            'activeNav' => 'tokens',
+            'tab' => 'tokens',
+            'sellers' => $report->sellers(),
+            'taxRegistrations' => $report->taxRegistrations(),
+            'gateways' => $report->gateways(),
+            'apiTokens' => $report->apiTokens(),
+            'webhook' => $report->webhook(),
+            'webhookReceivers' => $report->webhookReceivers(),
+            'minted' => [
                 'name' => $token->name,
                 'scope' => $token->organization_id ?? 'operator',
                 'plaintext' => $plaintext,
-            ]);
+            ],
+        ]);
     }
 
     public function revoke(ApiToken $apiToken): RedirectResponse

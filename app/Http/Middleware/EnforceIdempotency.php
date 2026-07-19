@@ -34,6 +34,15 @@ class EnforceIdempotency
     private const string HEADER = 'Idempotency-Key';
 
     /**
+     * A response may declare secret JSON fields via this header (comma-separated). Those
+     * fields are stripped from the copy PERSISTED for replay (SEC-2), so a show-once artifact
+     * such as a signed license `key` never lands at rest in `idempotency_keys`. The original
+     * caller still receives the full body on its first 2xx; a later replay gets the redacted
+     * copy — the field present but null, a clear signal the secret is not replayable.
+     */
+    private const string REDACT_HEADER = 'X-Idempotency-Redact';
+
+    /**
      * @param  Closure(Request): Response  $next
      */
     public function handle(Request $request, Closure $next): Response
@@ -81,16 +90,72 @@ class EnforceIdempotency
         if ($status >= 200 && $status < 300) {
             $record->forceFill([
                 'response_status' => $status,
-                'response_body' => $response->getContent() === false ? null : $response->getContent(),
+                'response_body' => $this->bodyForStorage($response),
             ])->save();
         } else {
             // No effect committed — free the key so the caller can retry it cleanly.
             $record->delete();
         }
 
+        // The redaction directive is an internal contract between the controller and this
+        // middleware — never leak it to the client.
+        $response->headers->remove(self::REDACT_HEADER);
         $response->headers->set(self::HEADER, $key);
 
         return $response;
+    }
+
+    /**
+     * The response body as it is PERSISTED for replay: the raw content, minus any secret
+     * fields the response declared via {@see REDACT_HEADER} (SEC-2). Redaction nulls the named
+     * top-level JSON fields, so the stored row carries the response shape without the secret.
+     */
+    private function bodyForStorage(Response $response): ?string
+    {
+        $content = $response->getContent();
+
+        if ($content === false || $content === '') {
+            return $content === false ? null : $content;
+        }
+
+        $fields = $this->redactedFields($response);
+
+        if ($fields === []) {
+            return $content;
+        }
+
+        $decoded = json_decode($content, true);
+
+        if (! is_array($decoded)) {
+            // Not a JSON object we can redact field-wise — do not risk persisting the secret.
+            return null;
+        }
+
+        foreach ($fields as $field) {
+            if (array_key_exists($field, $decoded)) {
+                $decoded[$field] = null;
+            }
+        }
+
+        $encoded = json_encode($decoded);
+
+        return $encoded === false ? null : $encoded;
+    }
+
+    /**
+     * The secret field names a response asked to have redacted from the stored replay copy.
+     *
+     * @return list<string>
+     */
+    private function redactedFields(Response $response): array
+    {
+        $header = $response->headers->get(self::REDACT_HEADER);
+
+        if (! is_string($header) || trim($header) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', $header)), static fn (string $f): bool => $f !== ''));
     }
 
     /** Replay, conflict, or in-flight, given a matching record and the retry's fingerprint. */

@@ -327,10 +327,19 @@ class LicensingTest extends TestCase
         $this->get('/licenses')->assertOk()->assertSee('Issue a license');
         $this->get('/licenses/distribution')->assertOk()->assertSee($this->keyPair['publicKey']);
 
-        $this->post('/licenses', [
+        // The signed key is rendered directly into the POST response (SEC-3), never flashed —
+        // so it is not written to the persistent session store at rest.
+        $response = $this->post('/licenses', [
             'customer_id' => 'org_console',
             'plan' => 'enterprise-onprem',
-        ])->assertRedirect(route('billing.licenses'))->assertSessionHas('issued_license');
+        ]);
+        $response->assertOk();
+        $response->assertSessionMissing('issued_license');
+
+        $issued = $response->viewData('issued');
+        $this->assertIsArray($issued);
+        $this->assertNotSame('', $issued['key']);
+        $response->assertSee($issued['key'], false);
 
         $this->assertCount(1, app(DatabaseIssuedLicenseStore::class)->forCustomer('org_console'));
     }

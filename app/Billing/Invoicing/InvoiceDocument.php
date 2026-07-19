@@ -231,7 +231,10 @@ class InvoiceDocument extends FPDF
             $this->Cell($widths['desc'], 6.5, $this->enc($line->description), 0, 0);
             $this->Cell($widths['qty'], 6.5, $this->enc((string) $line->quantity), 0, 0, 'R');
             $this->Cell($widths['unit'], 6.5, $this->enc($this->money($line->unit_minor)), 0, 0, 'R');
-            $this->Cell($widths['amount'], 6.5, $this->enc($this->money($line->amount_minor)), 0, 1, 'R');
+            // The NET column prints the pre-tax line net (M5), so on a tax-exclusive invoice the
+            // per-line amounts sum to the net Subtotal. Legacy rows with no stored net fall back
+            // to `amount_minor` (their historical value).
+            $this->Cell($widths['amount'], 6.5, $this->enc($this->money($line->net_minor ?? $line->amount_minor)), 0, 1, 'R');
             $this->hairlineLight($this->cursorY());
         }
 

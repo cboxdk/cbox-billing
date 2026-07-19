@@ -3,7 +3,9 @@
 @section('crumb', 'Settings')
 
 @php
-    $minted = session('minted_token');
+    // Rendered directly into the mint POST response (SEC-3) — never flashed through the
+    // session store, so the show-once plaintext is not written to a persistent session at rest.
+    $minted = $minted ?? null;
     $btnSm = 'font-size:11px;padding:3px 9px';
 @endphp
 

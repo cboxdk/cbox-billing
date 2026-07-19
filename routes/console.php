@@ -63,3 +63,10 @@ Schedule::command('billing:convert-trials')->dailyAt('04:00')->withoutOverlappin
  * current period is skipped and only a period roll-over triggers a reissue.
  */
 Schedule::command('billing:issue-licenses')->dailyAt('03:30')->withoutOverlapping();
+
+/*
+ * Prune the request-idempotency store (SEC-2 / L1): drop expired completed records (which can
+ * hold a captured 2xx body) and reap stale, never-completed claims (a poisoned key that would
+ * otherwise block its own retries forever). Hourly, so a poisoned key is never stuck for long.
+ */
+Schedule::command('billing:prune-idempotency')->hourly()->withoutOverlapping();

@@ -45,12 +45,15 @@ class SettingsCrudConsoleTest extends TestCase
     public function test_minting_a_token_returns_a_one_time_plaintext_over_a_stored_hash(): void
     {
         $response = $this->withSession($this->session)->post('/settings/api-tokens', ['name' => 'ci token']);
-        $response->assertRedirect(route('billing.settings', ['tab' => 'tokens']));
+        $response->assertOk();
 
-        $minted = $response->getSession()->get('minted_token');
+        // Rendered directly into the response (SEC-3) — never flashed through the session store.
+        $response->assertSessionMissing('minted_token');
+        $minted = $response->viewData('minted');
         $this->assertIsArray($minted);
         $plaintext = $minted['plaintext'];
         $this->assertIsString($plaintext);
+        $response->assertSee($plaintext, false);
 
         $token = ApiToken::query()->where('name', 'ci token')->firstOrFail();
         // Only the hash is stored — never the plaintext.
@@ -61,7 +64,8 @@ class SettingsCrudConsoleTest extends TestCase
     public function test_a_minted_token_authenticates_and_a_revoked_token_does_not(): void
     {
         $response = $this->withSession($this->session)->post('/settings/api-tokens', ['name' => 'sdk token']);
-        $minted = $response->getSession()->get('minted_token');
+        $response->assertOk();
+        $minted = $response->viewData('minted');
         $this->assertIsArray($minted);
         $plaintext = $minted['plaintext'];
         $this->assertIsString($plaintext);

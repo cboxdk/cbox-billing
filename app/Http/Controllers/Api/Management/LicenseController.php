@@ -57,7 +57,10 @@ class LicenseController extends ApiController
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        return new JsonResponse($this->present($license, $config), Response::HTTP_CREATED);
+        // The signed `key` is a show-once secret: tell the idempotency middleware to strip it
+        // from the replay copy it persists (SEC-2), so it is never stored at rest.
+        return (new JsonResponse($this->present($license, $config), Response::HTTP_CREATED))
+            ->withHeaders(['X-Idempotency-Redact' => 'key']);
     }
 
     /** `POST /api/v1/licenses/{id}/renew` — reissue with an extended window. */

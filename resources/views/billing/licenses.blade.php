@@ -4,7 +4,9 @@
 
 @php
     $statusPill = ['active' => 'success', 'expiring' => 'warning', 'expired' => 'muted', 'revoked' => 'destructive'];
-    $issued = session('issued_license');
+    // Rendered directly into the issue/renew POST response (SEC-3) — never flashed through the
+    // session store, so the signed show-once key is not written to a persistent session at rest.
+    $issued = $issued ?? null;
 @endphp
 
 @section('screen')

@@ -16,11 +16,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $description
  * @property int $quantity
  * @property int $unit_minor
+ * @property int|null $net_minor
  * @property int $amount_minor
  */
 class InvoiceLine extends Model
 {
-    protected $fillable = ['invoice_id', 'description', 'quantity', 'unit_minor', 'amount_minor'];
+    protected $fillable = ['invoice_id', 'description', 'quantity', 'unit_minor', 'net_minor', 'amount_minor'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -28,6 +29,7 @@ class InvoiceLine extends Model
         return [
             'quantity' => 'integer',
             'unit_minor' => 'integer',
+            'net_minor' => 'integer',
             'amount_minor' => 'integer',
         ];
     }

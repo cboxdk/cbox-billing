@@ -21,6 +21,7 @@ readonly class WrittenPartition
         public string $disk,
         public string $path,
         public string $manifestPath,
+        public ?string $loadManifestPath,
         public ExportFormat $format,
         public SyncMode $syncMode,
         public int $rows,

@@ -47,6 +47,13 @@ class ConsoleNav
                 ['route' => 'analytics.retention', 'label' => 'Retention', 'key' => 'retention', 'params' => [], 'feature' => null, 'order' => 20],
             ],
         ],
+        'data' => [
+            'label' => 'Data', 'icon' => 'box', 'order' => 16, 'feature' => null,
+            'pages' => [
+                ['route' => 'billing.exports', 'label' => 'Exports', 'key' => 'exports', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.exports.warehouse', 'label' => 'Warehouse sinks', 'key' => 'warehouse', 'params' => [], 'feature' => null, 'order' => 20],
+            ],
+        ],
         'subscriptions' => [
             'label' => 'Subscriptions', 'icon' => 'repeat', 'order' => 20, 'feature' => null,
             'pages' => [

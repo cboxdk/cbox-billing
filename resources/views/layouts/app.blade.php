@@ -165,6 +165,8 @@
         <a class="cmd" href="{{ route('billing.customers') }}">@include('partials.icon', ['name' => 'building', 'size' => 15, 'sw' => 1.7])Go to Customers</a>
         <a class="cmd" href="{{ route('billing.access-grants') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Access grants</a>
         <a class="cmd" href="{{ route('billing.usage') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Usage</a>
+        <a class="cmd" href="{{ route('billing.exports') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Data · Exports</a>
+        <a class="cmd" href="{{ route('billing.exports.warehouse') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Data · Warehouse sinks</a>
         <a class="cmd" href="{{ route('billing.credit-notes') }}">@include('partials.icon', ['name' => 'invoice', 'size' => 15, 'sw' => 1.7])Go to Credit notes</a>
         <a class="cmd" href="{{ route('billing.catalog') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Catalog</a>
         <a class="cmd" href="{{ route('billing.pricing') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Plans &amp; pricing</a>

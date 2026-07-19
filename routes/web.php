@@ -13,6 +13,7 @@ use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\CustomerOpsController;
 use App\Http\Controllers\DunningController;
 use App\Http\Controllers\DunningStrategyController;
+use App\Http\Controllers\ExportController;
 use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MailTemplateController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionOpsController;
 use App\Http\Controllers\TestModeController;
 use App\Http\Controllers\WalletController;
+use App\Http\Controllers\WarehouseSinkController;
 use App\Http\Controllers\WebhookEndpointController;
 use Illuminate\Support\Facades\Route;
 
@@ -105,6 +107,21 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode'])->group(func
     // --- Revenue analytics (engine Reporting module) ---
     Route::get('/analytics/revenue', [AnalyticsController::class, 'revenue'])->middleware('billing.permission:analytics:read')->name('analytics.revenue');
     Route::get('/analytics/retention', [AnalyticsController::class, 'retention'])->middleware('billing.permission:analytics:read')->name('analytics.retention');
+
+    // --- Data export + warehouse sinks (Data area). Streamed dataset downloads (CSV/NDJSON)
+    // carry `analytics:read`; the warehouse-sink control plane (configure/run/manifests) carries
+    // `settings:read`/`settings:manage`. The stream never buffers a whole dataset; the sink stages
+    // partitioned files + load manifests (the real warehouse ingestion pattern).
+    Route::get('/exports', [ExportController::class, 'index'])->middleware('billing.permission:analytics:read')->name('billing.exports');
+    Route::get('/exports/download', [ExportController::class, 'download'])->middleware('billing.permission:analytics:read')->name('billing.exports.download');
+
+    Route::get('/exports/warehouse', [WarehouseSinkController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.exports.warehouse');
+    Route::post('/exports/warehouse', [WarehouseSinkController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.exports.warehouse.store');
+    Route::post('/exports/warehouse/{warehouseSink}', [WarehouseSinkController::class, 'update'])->middleware('billing.permission:settings:manage')->name('billing.exports.warehouse.update');
+    Route::post('/exports/warehouse/{warehouseSink}/toggle', [WarehouseSinkController::class, 'toggle'])->middleware('billing.permission:settings:manage')->name('billing.exports.warehouse.toggle');
+    Route::post('/exports/warehouse/{warehouseSink}/run', [WarehouseSinkController::class, 'run'])->middleware('billing.permission:settings:manage')->name('billing.exports.warehouse.run');
+    Route::delete('/exports/warehouse/{warehouseSink}', [WarehouseSinkController::class, 'destroy'])->middleware('billing.permission:settings:manage')->name('billing.exports.warehouse.destroy');
+    Route::get('/exports/warehouse/{warehouseSink}/manifest/{dataset}', [WarehouseSinkController::class, 'manifest'])->middleware('billing.permission:settings:read')->name('billing.exports.warehouse.manifest');
 
     Route::get('/invoices', [BillingController::class, 'invoices'])->middleware('billing.permission:invoices:read')->name('billing.invoices');
 

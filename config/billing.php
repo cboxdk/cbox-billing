@@ -317,6 +317,24 @@ return [
     ],
 
     /*
+     * Data export + warehouse sinks. The console/API stream any dataset to CSV or NDJSON, and a
+     * scheduled `warehouse:sync` stages incremental partitions to configured object-store sinks
+     * (the way Snowflake/BigQuery/Redshift ingest at scale) alongside copy-paste load manifests.
+     *
+     *  - `chunk_size` — the streaming chunk size; every export reads the database in chunks of
+     *    this many rows and never materialises the whole dataset, so memory is bounded regardless
+     *    of table size. Lower it on a memory-tight host; raise it to trade memory for fewer round
+     *    trips.
+     *  - `default_disk` — the object-store disk a newly-created sink defaults to (any disk in
+     *    config/filesystems.php; `s3` for a real deployment). The staged-file path is fully
+     *    functional with just that disk's credentials — no warehouse SDK is bundled.
+     */
+    'export' => [
+        'chunk_size' => (int) env('CBOX_BILLING_EXPORT_CHUNK_SIZE', 500),
+        'default_disk' => env('CBOX_BILLING_EXPORT_DISK', 's3'),
+    ],
+
+    /*
      * Adaptive dunning — the decline-code-aware recovery strategy that drives the smart-retry
      * schedule above. Where the base `payment.retry.schedule` is one curve for every failure,
      * this branches the recovery on WHY the charge declined: each failed charge's gateway

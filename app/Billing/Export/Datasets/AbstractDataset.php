@@ -60,13 +60,29 @@ abstract class AbstractDataset implements ExportDataset
         $builder = $this->baseQuery($query);
 
         foreach ($this->stream($builder, $cursor) as $record) {
-            $row = (array) $record;
+            $row = $this->fields($record);
 
             yield new ExportRow(
                 $this->projectRow($row),
                 $cursor->normalize($row[$cursor->column] ?? null),
             );
         }
+    }
+
+    /**
+     * The record's columns as a string-keyed map — the projector's input.
+     *
+     * @return array<string, mixed>
+     */
+    private function fields(object $record): array
+    {
+        $fields = [];
+
+        foreach (get_object_vars($record) as $key => $value) {
+            $fields[(string) $key] = $value;
+        }
+
+        return $fields;
     }
 
     /** Build the fully-scoped (plane + range + watermark) query, ready to stream. */
@@ -76,21 +92,43 @@ abstract class AbstractDataset implements ExportDataset
 
         $this->scopePlane($builder, $query->livemode);
 
-        $date = $this->dateColumn();
-        if ($date !== null) {
-            if ($query->from !== null) {
-                $builder->where($this->table().'.'.$date, '>=', $query->from);
-            }
-            if ($query->to !== null) {
-                $builder->where($this->table().'.'.$date, '<=', $query->to);
-            }
+        if ($query->hasRange()) {
+            $this->applyRange($builder, $query);
         }
 
         if ($query->afterCursor !== null) {
             $builder->where($this->table().'.'.$this->cursor()->column, '>', $query->afterCursor);
         }
 
+        $this->constrain($builder);
+
         return $builder;
+    }
+
+    /**
+     * A dataset-specific standing filter applied to every export (e.g. the payments view
+     * restricting the invoices table to settled rows). The default adds nothing.
+     */
+    protected function constrain(Builder $builder): void {}
+
+    /**
+     * Apply the inclusive business-date range against {@see dateColumn()}. Datasets whose date
+     * axis is not a plain datetime column (the usage log's millisecond epoch) override this.
+     */
+    protected function applyRange(Builder $builder, ExportQuery $query): void
+    {
+        $date = $this->dateColumn();
+
+        if ($date === null) {
+            return;
+        }
+
+        if ($query->from !== null) {
+            $builder->where($this->table().'.'.$date, '>=', $query->from);
+        }
+        if ($query->to !== null) {
+            $builder->where($this->table().'.'.$date, '<=', $query->to);
+        }
     }
 
     /**
@@ -108,7 +146,7 @@ abstract class AbstractDataset implements ExportDataset
      * (`lazyById`); a timestamp cursor falls back to ordered offset chunking (`lazy`). Both
      * issue one query per chunk and hold only a chunk in memory.
      *
-     * @return LazyCollection<int, object>
+     * @return LazyCollection<int, \stdClass>
      */
     protected function stream(Builder $builder, ExportCursor $cursor): LazyCollection
     {

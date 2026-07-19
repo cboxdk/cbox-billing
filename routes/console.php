@@ -77,3 +77,13 @@ Schedule::command('billing:issue-licenses')->dailyAt('03:30')->withoutOverlappin
  * otherwise block its own retries forever). Hourly, so a poisoned key is never stuck for long.
  */
 Schedule::command('billing:prune-idempotency')->hourly()->withoutOverlapping();
+
+/*
+ * Stage incremental dataset partitions to every enabled warehouse sink (data export → warehouse
+ * sync). Each dataset ships only the rows added/changed since its per-(sink, dataset) watermark
+ * (a snapshot dataset full-refreshes), alongside the copy-paste load manifest an operator or a
+ * scheduled loader runs. Idempotent and cursor-driven, so an hourly cadence keeps the warehouse
+ * fresh without ever double-delivering a row; a deployment that wants tighter freshness can run
+ * it more often, or a per-sink cron via the sink's own schedule.
+ */
+Schedule::command('warehouse:sync')->hourly()->withoutOverlapping();

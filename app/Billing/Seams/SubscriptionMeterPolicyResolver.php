@@ -48,8 +48,14 @@ readonly class SubscriptionMeterPolicyResolver implements MeterPolicyResolver
             ->where('meter_id', $meterRow->id)
             ->first();
 
-        return $entitlement instanceof PlanEntitlement
-            ? $entitlement->toMeterPolicy()
-            : null;
+        if (! $entitlement instanceof PlanEntitlement) {
+            return null;
+        }
+
+        // The meter row is already in hand — hand it to the entitlement so its policy reads
+        // the meter's aggregation without a second query.
+        $entitlement->setRelation('meter', $meterRow);
+
+        return $entitlement->toMeterPolicy();
     }
 }

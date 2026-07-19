@@ -177,4 +177,11 @@ class Plan extends Model
     {
         return $this->hasMany(PlanEntitlement::class);
     }
+
+    /** Every subscription on this plan (serving or historical) — the subscriber picture. */
+    /** @return HasMany<Subscription, $this> */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
 }

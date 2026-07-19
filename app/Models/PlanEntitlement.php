@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Cbox\Billing\Metering\Enums\Aggregation;
 use Cbox\Billing\Metering\Enums\OverageBehaviour;
 use Cbox\Billing\Metering\ValueObjects\MeterPolicy;
 use Illuminate\Database\Eloquent\Model;
@@ -56,10 +57,15 @@ class PlanEntitlement extends Model
             return MeterPolicy::unlimited();
         }
 
+        $meter = $this->meter;
+
         return MeterPolicy::metered(
             allowance: $this->allowance,
             multiplier: $this->multiplier ?? 0.0,
             overage: $this->overage,
+            // The meter's authored aggregation is the one the engine bills with; absent a
+            // loaded meter it falls to the engine default (Sum), unchanged from before.
+            aggregation: $meter instanceof Meter ? $meter->aggregation : Aggregation::Sum,
         );
     }
 

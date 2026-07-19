@@ -9,6 +9,7 @@ use App\Billing\Licensing\Contracts\LicenseRevocationRegistry;
 use App\Billing\Licensing\DatabaseIssuedLicenseStore;
 use App\Billing\Licensing\DatabaseRevocationRegistry;
 use App\Billing\Licensing\LicenseIssuanceService;
+use App\Billing\Mode\BillingContext;
 use Cbox\Billing\Licensing\Contracts\IssuedLicenseStore;
 use Cbox\Billing\Licensing\Contracts\RevocationRegistry;
 use Cbox\License\Contracts\CapabilityGate;
@@ -68,6 +69,7 @@ class LicensingServiceProvider extends ServiceProvider
 
         $this->app->singleton(IssuedLicenseStore::class, static fn (Application $app): DatabaseIssuedLicenseStore => new DatabaseIssuedLicenseStore(
             $app->make('db')->connection(),
+            $app->make(BillingContext::class),
         ));
 
         $this->app->singleton(DatabaseIssuedLicenseStore::class, static fn (Application $app): DatabaseIssuedLicenseStore => $app->make(IssuedLicenseStore::class));

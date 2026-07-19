@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use App\Billing\Seats\Enums\SeatSource;
 use App\Billing\Seats\SeatManager;
 use Illuminate\Database\Eloquent\Model;
@@ -25,6 +26,8 @@ use Illuminate\Support\Carbon;
  */
 class SeatAssignment extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'organization_id', 'subject', 'source', 'assigned_at',
     ];

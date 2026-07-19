@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Subscriptions;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
 use App\Billing\Subscriptions\Contracts\CollectsProration;
@@ -69,6 +70,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
         private NotifiesCustomers $notifier,
         private SubscriptionMrrMovementRecorder $movements,
         private CollectsProration $collector,
+        private BillingClock $clock,
     ) {}
 
     public function subscribe(Organization $organization, Plan $plan, int $seats = 1, ?string $currency = null): Subscription
@@ -83,7 +85,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
         // Deny-by-default on a nonsensical length: a zero/negative trial is an ordinary
         // paid subscribe (Active from the start), never a Trialing row that converts in
         // the past.
-        $trialEndsAt = $trialDays > 0 ? Carbon::now()->addDays($trialDays)->toDateTimeImmutable() : null;
+        $trialEndsAt = $trialDays > 0 ? $this->nowCarbon()->addDays($trialDays)->toDateTimeImmutable() : null;
 
         return $this->open($organization, $plan, $seats, $currency, $trialEndsAt);
     }
@@ -178,7 +180,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
                 $seats,
                 $this->toImmutable($periodStart),
                 $this->toImmutable($periodEnd),
-                $this->toImmutable(Carbon::now()),
+                $this->toImmutable($this->nowCarbon()),
             );
 
             // Record the MRR movement: a paid subscribe is a new logo (0→amount), or a
@@ -213,8 +215,8 @@ readonly class SubscriptionService implements SubscribesOrganizations
         $previousMrr = $this->movements->contributing($subscription);
 
         $this->db->transaction(function () use ($subscription, $newPlan): void {
-            $periodStart = $subscription->current_period_start ?? Carbon::now()->startOfMonth();
-            $periodEnd = $subscription->current_period_end ?? Carbon::now()->endOfMonth();
+            $periodStart = $subscription->current_period_start ?? $this->nowCarbon()->startOfMonth();
+            $periodEnd = $subscription->current_period_end ?? $this->nowCarbon()->endOfMonth();
 
             $subscription->forceFill(['plan_id' => $newPlan->id])->save();
 
@@ -229,7 +231,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
                 $subscription->seats,
                 $this->toImmutable($periodStart),
                 $this->toImmutable($periodEnd),
-                $this->toImmutable(Carbon::now()),
+                $this->toImmutable($this->nowCarbon()),
             );
         });
 
@@ -273,7 +275,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
         $subscription->forceFill([
             'status' => SubscriptionStatus::Canceled,
             'cancel_at_period_end' => false,
-            'canceled_at' => Carbon::now(),
+            'canceled_at' => $this->nowCarbon(),
         ])->save();
 
         // Churn: contributing MRR moves amount → 0.
@@ -305,8 +307,8 @@ readonly class SubscriptionService implements SubscribesOrganizations
         $currency = $this->currencies->for($organization);
 
         $period = new BillingPeriod(
-            $this->toImmutable($subscription->current_period_start ?? Carbon::now()->startOfMonth()),
-            $this->toImmutable($subscription->current_period_end ?? Carbon::now()->endOfMonth()),
+            $this->toImmutable($subscription->current_period_start ?? $this->nowCarbon()->startOfMonth()),
+            $this->toImmutable($subscription->current_period_end ?? $this->nowCarbon()->endOfMonth()),
         );
 
         return $this->previewer->preview(
@@ -315,7 +317,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
             currentPrice: $currentPlan->priceFor($currency),
             newPrice: $newPlan->priceFor($currency),
             period: $period,
-            at: $this->toImmutable(Carbon::now()),
+            at: $this->toImmutable($this->nowCarbon()),
             context: $this->taxContexts->forOrganization($organization),
             credit: $this->creditConsequence($organization->id, $newPlan),
             description: sprintf('Change to %s', $newPlan->name),
@@ -374,8 +376,8 @@ readonly class SubscriptionService implements SubscribesOrganizations
         }
 
         $period = new BillingPeriod(
-            $this->toImmutable($subscription->current_period_start ?? Carbon::now()->startOfMonth()),
-            $this->toImmutable($subscription->current_period_end ?? Carbon::now()->endOfMonth()),
+            $this->toImmutable($subscription->current_period_start ?? $this->nowCarbon()->startOfMonth()),
+            $this->toImmutable($subscription->current_period_end ?? $this->nowCarbon()->endOfMonth()),
         );
 
         return new EngineSubscription(
@@ -402,7 +404,13 @@ readonly class SubscriptionService implements SubscribesOrganizations
 
     private function now(): DateTimeImmutable
     {
-        return Carbon::now()->toDateTimeImmutable();
+        return $this->clock->now();
+    }
+
+    /** The clock's current instant as a mutable Carbon (the subscribe/anchor windows read it). */
+    private function nowCarbon(): Carbon
+    {
+        return Carbon::instance($this->clock->now());
     }
 
     /**
@@ -417,7 +425,7 @@ readonly class SubscriptionService implements SubscribesOrganizations
      */
     private function currentPeriod(Plan $plan): array
     {
-        $now = Carbon::now();
+        $now = $this->nowCarbon();
 
         if ($plan->billingInterval() === BillingInterval::Yearly) {
             $cycle = BillingCycle::anchoredOnSignup($now->toDateTimeImmutable(), BillingInterval::Yearly);
@@ -436,6 +444,6 @@ readonly class SubscriptionService implements SubscribesOrganizations
 
     private function nowMillis(): int
     {
-        return (int) (Carbon::now()->getTimestamp() * 1000);
+        return (int) ($this->nowCarbon()->getTimestamp() * 1000);
     }
 }

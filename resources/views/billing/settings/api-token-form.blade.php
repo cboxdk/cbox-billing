@@ -54,6 +54,14 @@
                 </label>
             </div>
 
+            <label style="{{ $labelStyle }}">Mode
+                <select name="mode" style="{{ $inputStyle }}">
+                    <option value="live" @selected(old('mode', 'live') === 'live')>Live — operates on real data</option>
+                    <option value="test" @selected(old('mode') === 'test')>Test — sandbox dataset only (fake gateway, no email)</option>
+                </select>
+                <span class="mut" style="font-size:11px">A test token sees and writes only <code>livemode=false</code> rows and routes charges through the fake gateway. Its plaintext carries a <code>cbt_</code> prefix.</span>
+            </label>
+
             <div style="display:flex;gap:10px">
                 <button type="submit" class="cbx-btn cbx-btn--primary">@include('partials.icon', ['name' => 'key', 'size' => 14, 'sw' => 1.7])Mint token</button>
                 <a href="{{ route('billing.settings', ['tab' => 'tokens']) }}" class="cbx-btn">Cancel</a>

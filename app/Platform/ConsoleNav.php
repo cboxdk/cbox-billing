@@ -113,6 +113,7 @@ class ConsoleNav
                 ['route' => 'billing.settings.gateways', 'label' => 'Payment gateways', 'key' => 'gateways', 'params' => [], 'feature' => null, 'order' => 30],
                 ['route' => 'billing.settings', 'label' => 'API tokens', 'key' => 'tokens', 'params' => ['tab' => 'tokens'], 'fragment' => 'tokens', 'feature' => null, 'order' => 40],
                 ['route' => 'billing.settings.webhooks', 'label' => 'Webhooks', 'key' => 'webhooks', 'params' => [], 'feature' => null, 'order' => 50],
+                ['route' => 'billing.test-mode.clocks', 'label' => 'Test clocks', 'key' => 'test-clocks', 'params' => [], 'feature' => null, 'order' => 60],
             ],
         ],
     ];

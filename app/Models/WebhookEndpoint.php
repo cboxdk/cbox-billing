@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use App\Webhooks\Enums\WebhookEvent;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
@@ -31,6 +32,7 @@ use Illuminate\Support\Str;
  */
 class WebhookEndpoint extends Model
 {
+    use BelongsToMode;
     use HasUlids;
 
     protected $table = 'webhook_endpoints';

@@ -81,6 +81,9 @@ The app is organized around a few load-bearing ideas:
 - **[Console UI](console-ui/_index.md)** — the reusable console UX conventions
   (confirm dialog, pagination, breadcrumbs, accessible rows, flash, responsive
   utilities) every provider-console screen follows.
+- **[Testing & sandbox](testing/_index.md)** — test mode's isolated `livemode` plane,
+  the fake gateway with no real charges or emails, and fast-forwardable test clocks
+  for simulating renewals, trials and dunning in seconds.
 - **[Deployment](deployment/_index.md)** — the base Docker image, the private cloud
   composition, the production checklist, and day-two operations.
 - **[Cookbook](cookbook/_index.md)** — task-first recipes with real commands and

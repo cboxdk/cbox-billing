@@ -54,7 +54,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Make the signed-in user available to the app shell.
         View::composer('layouts.app', function (ViewContract $view): void {
-            $view->with('currentUser', $this->app->make(CurrentUser::class)->user());
+            $current = $this->app->make(CurrentUser::class);
+            $view->with('currentUser', $current->user());
+            $view->with('testMode', $current->inTestMode());
         });
 
         // Overlay live, database-derived counts onto the navigation IA.

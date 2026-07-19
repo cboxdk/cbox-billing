@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Payments;
 
+use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Payments\Contracts\PaysInvoices;
 use App\Billing\Payments\Contracts\RetriesPayments;
@@ -44,6 +45,7 @@ readonly class PaymentRetryService implements RetriesPayments
         private SubscribesOrganizations $subscriptions,
         private NotifiesCustomers $notifier,
         private Config $config,
+        private BillingClock $clock,
     ) {}
 
     public function chargeRenewal(Invoice $invoice, Subscription $subscription): void
@@ -78,7 +80,7 @@ readonly class PaymentRetryService implements RetriesPayments
         }
 
         $schedule = $this->schedule();
-        $now = Carbon::now();
+        $now = Carbon::instance($this->clock->now());
 
         // Move the subscription into the engine's PastDue state — it keeps serving while
         // the charge is chased.
@@ -111,7 +113,7 @@ readonly class PaymentRetryService implements RetriesPayments
 
     public function attempt(PaymentRetry $retry): void
     {
-        $now = Carbon::now();
+        $now = Carbon::instance($this->clock->now());
 
         if (! $retry->isRetrying() || $retry->next_attempt_at === null || $retry->next_attempt_at->greaterThan($now)) {
             return;
@@ -194,7 +196,7 @@ readonly class PaymentRetryService implements RetriesPayments
         // Bring the next slot due, then run the ordinary attempt — the per-(invoice,
         // attempt) claim in attempt() keeps it idempotent, so a double click is safe.
         if ($retry->next_attempt_at === null || $retry->next_attempt_at->isFuture()) {
-            $retry->forceFill(['next_attempt_at' => Carbon::now()])->save();
+            $retry->forceFill(['next_attempt_at' => Carbon::instance($this->clock->now())])->save();
         }
 
         $this->attempt($retry->refresh());

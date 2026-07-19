@@ -5,6 +5,7 @@ use App\Http\Middleware\EnforceIdempotency;
 use App\Http\Middleware\EnforcePermission;
 use App\Http\Middleware\EnsureAuthenticated;
 use App\Http\Middleware\EnsureOperator;
+use App\Http\Middleware\ResolveConsoleMode;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -49,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'auth.cbox' => EnsureAuthenticated::class,
             'billing.operator' => EnsureOperator::class,
+            'billing.mode' => ResolveConsoleMode::class,
             'api.token' => AuthenticateApiToken::class,
             'idempotency' => EnforceIdempotency::class,
             'billing.permission' => EnforcePermission::class,

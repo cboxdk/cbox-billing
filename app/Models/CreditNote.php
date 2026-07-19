@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Cbox\Billing\Money\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,6 +37,8 @@ use Illuminate\Support\Carbon;
  */
 class CreditNote extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'number', 'invoice_number', 'invoice_id', 'organization_id', 'seller',
         'currency', 'net_minor', 'tax_minor', 'gross_minor', 'reason', 'kind',

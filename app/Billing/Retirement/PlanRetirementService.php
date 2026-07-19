@@ -6,6 +6,7 @@ namespace App\Billing\Retirement;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Catalog\PlanCatalog;
+use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Retirement\ValueObjects\SunsetNotice;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
@@ -59,6 +60,7 @@ readonly class PlanRetirementService
         private SubscribesOrganizations $subscriptions,
         private ManagesSubscriptionDepth $depth,
         private NotifiesCustomers $notifier,
+        private BillingClock $clock,
     ) {}
 
     /**
@@ -493,6 +495,6 @@ readonly class PlanRetirementService
 
     private function now(): DateTimeImmutable
     {
-        return Carbon::now()->toDateTimeImmutable();
+        return $this->clock->now();
     }
 }

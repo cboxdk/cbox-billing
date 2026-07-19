@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Subscriptions;
 
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
 use App\Billing\Subscriptions\ValueObjects\RenewalOutcome;
 use App\Billing\Wallet\WalletProvisioner;
@@ -65,6 +66,7 @@ readonly class CycleRenewalService
         private WalletProvisioner $provisioner,
         private GeneratesInvoices $invoices,
         private SubscriptionMrrMovementRecorder $movements,
+        private BillingClock $clock,
     ) {}
 
     /**
@@ -73,7 +75,7 @@ readonly class CycleRenewalService
      */
     public function renew(Subscription $subscription, ?DateTimeImmutable $now = null): RenewalOutcome
     {
-        $now ??= Carbon::now()->toDateTimeImmutable();
+        $now ??= $this->clock->now();
 
         // Deny-by-default: a paused or canceled subscription neither grants nor renews.
         if ($subscription->isPaused() || $subscription->status === SubscriptionStatus::Canceled) {
@@ -112,7 +114,7 @@ readonly class CycleRenewalService
                 $subscription->forceFill([
                     'status' => SubscriptionStatus::Canceled,
                     'cancel_at_period_end' => false,
-                    'canceled_at' => Carbon::now(),
+                    'canceled_at' => $this->nowCarbon(),
                 ])->save();
 
                 return ['kind' => 'canceled'];
@@ -256,7 +258,7 @@ readonly class CycleRenewalService
     private function advanceBase(Subscription $subscription, Plan $plan, DateTimeImmutable $now): BillingPeriod
     {
         $cycle = $this->cycleFor($subscription, $plan);
-        $currentStart = $this->toImmutable($subscription->current_period_start ?? Carbon::now()->startOfMonth());
+        $currentStart = $this->toImmutable($subscription->current_period_start ?? $this->nowCarbon()->startOfMonth());
 
         // Anchor the advance on the period START (never the possibly-inclusive end) so the
         // step is exactly one cycle onto clean, month-end-clamped boundaries.
@@ -352,8 +354,8 @@ readonly class CycleRenewalService
     private function basePeriod(Subscription $subscription): BillingPeriod
     {
         return new BillingPeriod(
-            $this->toImmutable($subscription->current_period_start ?? Carbon::now()->startOfMonth()),
-            $this->toImmutable($subscription->current_period_end ?? Carbon::now()->endOfMonth()),
+            $this->toImmutable($subscription->current_period_start ?? $this->nowCarbon()->startOfMonth()),
+            $this->toImmutable($subscription->current_period_end ?? $this->nowCarbon()->endOfMonth()),
         );
     }
 
@@ -364,7 +366,7 @@ readonly class CycleRenewalService
      */
     private function cycleFor(Subscription $subscription, Plan $plan): BillingCycle
     {
-        $start = $subscription->current_period_start ?? Carbon::now()->startOfMonth();
+        $start = $subscription->current_period_start ?? $this->nowCarbon()->startOfMonth();
 
         return new BillingCycle(
             anchorDay: (int) $start->format('j'),
@@ -404,6 +406,12 @@ readonly class CycleRenewalService
     private function toImmutable(Carbon $carbon): DateTimeImmutable
     {
         return $carbon->toDateTimeImmutable();
+    }
+
+    /** The clock's current instant as a mutable Carbon, for the period/stamp fallbacks. */
+    private function nowCarbon(): Carbon
+    {
+        return Carbon::instance($this->clock->now());
     }
 
     private function toMillis(DateTimeImmutable $at): int

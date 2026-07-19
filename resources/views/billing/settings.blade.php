@@ -23,7 +23,7 @@
     @if (is_array($minted))
         <section class="cbx-panel" style="margin-bottom:14px;border-left:3px solid var(--success)">
             <header class="cbx-panel-header" style="padding:12px 20px">
-                <h2 class="cbx-panel-title" style="font-size:14px">API token “{{ $minted['name'] }}” minted — {{ $minted['scope'] }}</h2>
+                <h2 class="cbx-panel-title" style="font-size:14px">API token “{{ $minted['name'] }}” minted — {{ $minted['scope'] }}@if(($minted['mode'] ?? 'live') === 'test')<span class="cbx-pill cbx-pill--warning" style="margin-left:6px"><span class="dot"></span>test</span>@endif</h2>
             </header>
             <div style="padding:6px 20px 16px">
                 <p class="cbx-page-desc" style="font-size:12px;margin:0 0 6px">Copy it now — only a hash is stored, so it can never be shown again. Send it as the <span class="num">Authorization: Bearer</span> credential to the management/enforcement API.</p>
@@ -133,7 +133,10 @@
             <tbody>
                 @forelse ($apiTokens as $token)
                     <tr style="{{ $token['revoked'] ? 'opacity:.55' : '' }}">
-                        <td style="font-weight:500">{{ $token['name'] }}@if($token['revoked'])<span class="cbx-pill cbx-pill--muted" style="margin-left:6px">revoked</span>@endif</td>
+                        <td style="font-weight:500">{{ $token['name'] }}
+                            @if(($token['mode'] ?? 'live') === 'test')<span class="cbx-pill cbx-pill--warning" style="margin-left:6px"><span class="dot"></span>test</span>@endif
+                            @if($token['revoked'])<span class="cbx-pill cbx-pill--muted" style="margin-left:6px">revoked</span>@endif
+                        </td>
                         <td class="num mut">{{ $token['scope'] }}</td>
                         <td class="mut">{{ $token['last_used'] }}</td>
                         <td class="num mut">{{ $token['created'] }}</td>

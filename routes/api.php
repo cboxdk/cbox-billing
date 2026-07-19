@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\Management\PortalSessionController;
 use App\Http\Controllers\Api\Management\SeatController;
 use App\Http\Controllers\Api\Management\SetupIntentController;
 use App\Http\Controllers\Api\Management\SubscriptionController;
+use App\Http\Controllers\Api\Management\TestClockController;
 use App\Http\Controllers\Api\Management\UsageController as UsageSummaryController;
 use App\Http\Controllers\Api\ReserveController;
 use App\Http\Controllers\Api\UsageController;
@@ -114,4 +115,11 @@ Route::middleware('throttle:cbox-management')->group(function (): void {
     Route::post('licenses', [LicenseController::class, 'store'])->middleware('idempotency')->name('licenses.store');
     Route::post('licenses/{id}/renew', [LicenseController::class, 'renew'])->name('licenses.renew');
     Route::post('licenses/{id}/revoke', [LicenseController::class, 'revoke'])->name('licenses.revoke');
+
+    /*
+     * Test clock advance (sandbox only): fast-forward a test clock's virtual time and run the
+     * due billing logic for its bound test subscriptions. Restricted to a test-mode token
+     * (the controller refuses a live credential), so it can never touch live data.
+     */
+    Route::post('test/clocks/{id}/advance', [TestClockController::class, 'advance'])->name('test.clocks.advance');
 });

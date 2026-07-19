@@ -17,6 +17,8 @@ class CurrentUser
 
     private const ID_TOKEN_KEY = 'auth.id_token';
 
+    private const TEST_MODE_KEY = 'console.test_mode';
+
     public function __construct(private readonly Session $session) {}
 
     public function check(): bool
@@ -58,6 +60,18 @@ class CurrentUser
 
     public function logout(): void
     {
-        $this->session->forget([self::USER_KEY, self::ID_TOKEN_KEY]);
+        $this->session->forget([self::USER_KEY, self::ID_TOKEN_KEY, self::TEST_MODE_KEY]);
+    }
+
+    /** Whether the console is currently viewing the TEST (sandbox) plane. */
+    public function inTestMode(): bool
+    {
+        return (bool) $this->session->get(self::TEST_MODE_KEY, false);
+    }
+
+    /** Flip the console between the live and test planes (the persistent test-mode toggle). */
+    public function setTestMode(bool $enabled): void
+    {
+        $this->session->put(self::TEST_MODE_KEY, $enabled);
     }
 }

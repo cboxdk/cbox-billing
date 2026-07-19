@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -22,6 +23,8 @@ use Illuminate\Support\Carbon;
  */
 class CouponRedemption extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'coupon_id', 'organization_id', 'subscription_id', 'redeemed_at',
     ];

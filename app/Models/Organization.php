@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
@@ -40,6 +41,8 @@ use Illuminate\Support\Carbon;
  */
 class Organization extends Model
 {
+    use BelongsToMode;
+
     protected $keyType = 'string';
 
     public $incrementing = false;

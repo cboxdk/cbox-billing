@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Api;
 
+use App\Billing\Mode\BillingContext;
+use App\Billing\Mode\BillingMode;
+
 /**
  * The resolved identity behind an authenticated API request. An operator identity may
  * act for ANY org; an org-scoped identity may act only for its own org. `mayActFor()` is
@@ -14,6 +17,10 @@ namespace App\Billing\Api;
  * billing several products, such a token sees and sells only that product's plans —
  * catalog reads filter to it and plan resolution refuses other products' keys. An
  * unbound token (null) keeps the legacy whole-catalog behavior.
+ *
+ * The `mode` is the billing plane the credential operates in (live or test); the
+ * authenticator sets it from the token, and the API middleware pushes it onto the ambient
+ * {@see BillingContext} so the request reads/writes only that plane's rows.
  */
 readonly class ApiIdentity
 {
@@ -21,16 +28,17 @@ readonly class ApiIdentity
         public bool $isOperator,
         public ?string $organizationId,
         public ?int $productId = null,
+        public BillingMode $mode = BillingMode::Live,
     ) {}
 
-    public static function operator(?int $productId = null): self
+    public static function operator(?int $productId = null, BillingMode $mode = BillingMode::Live): self
     {
-        return new self(true, null, $productId);
+        return new self(true, null, $productId, $mode);
     }
 
-    public static function forOrganization(string $organizationId, ?int $productId = null): self
+    public static function forOrganization(string $organizationId, ?int $productId = null, BillingMode $mode = BillingMode::Live): self
     {
-        return new self(false, $organizationId, $productId);
+        return new self(false, $organizationId, $productId, $mode);
     }
 
     /** Whether this identity is permitted to act for `$org`. */

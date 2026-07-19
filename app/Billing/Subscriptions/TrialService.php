@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Subscriptions;
 
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Payments\Contracts\RetriesPayments;
 use App\Billing\Subscriptions\Contracts\ConvertsTrials;
@@ -15,7 +16,6 @@ use App\Models\Subscription;
 use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use DateTimeImmutable;
 use Illuminate\Contracts\Config\Repository as Config;
-use Illuminate\Support\Carbon;
 use RuntimeException;
 
 /**
@@ -42,11 +42,12 @@ readonly class TrialService implements ConvertsTrials
         private ResolvesGatewayCustomer $customers,
         private PaymentGateway $gateway,
         private Config $config,
+        private BillingClock $clock,
     ) {}
 
     public function convertDue(Subscription $subscription, ?DateTimeImmutable $at = null): string
     {
-        $now = $at ?? Carbon::now()->toDateTimeImmutable();
+        $now = $at ?? $this->clock->now();
 
         // Deny-by-default: only an unpaused, actually-due trial converts.
         if (! $subscription->isTrialing() || $subscription->isPaused()) {

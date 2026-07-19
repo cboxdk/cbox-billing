@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use App\Webhooks\Enums\DeliveryStatus;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
@@ -33,6 +34,7 @@ use Illuminate\Support\Str;
  */
 class WebhookDelivery extends Model
 {
+    use BelongsToMode;
     use HasUlids;
 
     protected $table = 'webhook_deliveries';

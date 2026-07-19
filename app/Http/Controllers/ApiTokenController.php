@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Auth\CurrentUser;
+use App\Billing\Mode\BillingMode;
 use App\Billing\Reporting\SettingsReport;
 use App\Http\Middleware\EnsureOperator;
 use App\Models\ApiToken;
@@ -46,16 +47,19 @@ class ApiTokenController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'organization_id' => ['nullable', 'string', 'exists:organizations,id'],
             'product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'mode' => ['nullable', 'string', 'in:live,test'],
         ]);
 
         $organizationId = $request->filled('organization_id') ? $request->string('organization_id')->toString() : null;
         $productId = $request->filled('product_id') ? $request->integer('product_id') : null;
+        $mode = BillingMode::parse($request->string('mode')->toString());
 
         ['token' => $token, 'plaintext' => $plaintext] = ApiToken::issue(
             $request->string('name')->toString(),
             $organizationId,
             $productId,
             $this->current->user()?->sub,
+            $mode,
         );
 
         // Show the plaintext ONCE by RENDERING it directly into this POST response (SEC-3) —
@@ -75,6 +79,7 @@ class ApiTokenController extends Controller
             'minted' => [
                 'name' => $token->name,
                 'scope' => $token->organization_id ?? 'operator',
+                'mode' => $token->mode,
                 'plaintext' => $plaintext,
             ],
         ]);

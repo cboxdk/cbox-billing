@@ -24,6 +24,7 @@ use App\Http\Controllers\SeatController;
 use App\Http\Controllers\SellerEntityController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionOpsController;
+use App\Http\Controllers\TestModeController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WebhookEndpointController;
 use Illuminate\Support\Facades\Route;
@@ -48,8 +49,20 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // console route below — a valid Cbox ID session is not enough, the principal must belong to an
 // allowlisted operator organization (config/billing.php → console.operator_orgs). It is
 // fail-closed (deny-all when unconfigured) and independent of the flag-gated RBAC above.
-Route::middleware(['auth.cbox', 'billing.operator'])->group(function (): void {
+Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode'])->group(function (): void {
     Route::get('/', [BillingController::class, 'dashboard'])->name('billing.dashboard');
+
+    // --- Sandbox / test mode. The persistent toggle flips the whole console between the live
+    // and test planes; the test-clock pages create/advance a virtual clock and bind test
+    // subscriptions to it. Reads carry `settings:read`, writes `settings:manage`.
+    Route::post('/test-mode/toggle', [TestModeController::class, 'toggle'])->name('billing.test-mode.toggle');
+    Route::get('/test-mode/clocks', [TestModeController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.test-mode.clocks');
+    Route::post('/test-mode/clocks', [TestModeController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.store');
+    Route::get('/test-mode/clocks/{testClock}', [TestModeController::class, 'show'])->middleware('billing.permission:settings:read')->name('billing.test-mode.clocks.show');
+    Route::post('/test-mode/clocks/{testClock}/advance', [TestModeController::class, 'advance'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.advance');
+    Route::post('/test-mode/clocks/{testClock}/bind', [TestModeController::class, 'bind'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.bind');
+    Route::post('/test-mode/clocks/{testClock}/unbind/{subscription}', [TestModeController::class, 'unbind'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.unbind');
+    Route::post('/test-mode/clocks/{testClock}/outcome', [TestModeController::class, 'outcome'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.outcome');
 
     Route::get('/subscriptions', [BillingController::class, 'subscriptions'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions');
     Route::get('/subscriptions/dunning', [BillingController::class, 'dunning'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions.dunning');

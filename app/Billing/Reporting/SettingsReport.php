@@ -185,6 +185,7 @@ readonly class SettingsReport
             'scope' => $token->organization_id === null ? 'operator (any org)' : $token->organization_id,
             'org' => $token->organization?->name,
             'product' => $token->product_id !== null ? (string) $token->product_id : null,
+            'mode' => $token->mode,
             'last_used' => $token->last_used_at?->diffForHumans() ?? 'never',
             'created' => $token->created_at?->format('Y-m-d') ?? '—',
             'revoked' => $token->isRevoked(),

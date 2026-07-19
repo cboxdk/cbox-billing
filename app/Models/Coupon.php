@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Billing\Coupons\Enums\CouponDiscountKind;
 use App\Billing\Coupons\Enums\CouponDuration;
 use App\Billing\Coupons\Enums\CouponScope;
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Pricing\CouponApplier;
 use Cbox\Billing\Pricing\Enums\DiscountType;
@@ -46,6 +47,8 @@ use Illuminate\Support\Carbon;
  */
 class Coupon extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'code', 'name', 'discount_type', 'percent_off', 'amount_off_minor', 'currency',
         'duration', 'duration_in_periods', 'max_redemptions', 'times_redeemed',

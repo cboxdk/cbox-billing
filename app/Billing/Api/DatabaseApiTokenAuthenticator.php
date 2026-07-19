@@ -53,10 +53,11 @@ readonly class DatabaseApiTokenAuthenticator implements ApiTokenAuthenticator
         $this->touchLastUsed($token);
 
         $productId = $token->product_id !== null ? (int) $token->product_id : null;
+        $mode = $token->billingMode();
 
         return $token->organization_id === null
-            ? ApiIdentity::operator($productId)
-            : ApiIdentity::forOrganization($token->organization_id, $productId);
+            ? ApiIdentity::operator($productId, $mode)
+            : ApiIdentity::forOrganization($token->organization_id, $productId, $mode);
     }
 
     /**

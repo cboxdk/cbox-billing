@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\BillingMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -21,12 +22,13 @@ use Illuminate\Support\Str;
  * @property int|null $product_id
  * @property string|null $created_by_sub
  * @property string $hash
+ * @property string $mode
  * @property Carbon|null $last_used_at
  * @property Carbon|null $revoked_at
  */
 class ApiToken extends Model
 {
-    protected $fillable = ['name', 'organization_id', 'product_id', 'created_by_sub', 'hash', 'last_used_at', 'revoked_at'];
+    protected $fillable = ['name', 'organization_id', 'product_id', 'created_by_sub', 'hash', 'mode', 'last_used_at', 'revoked_at'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -41,6 +43,18 @@ class ApiToken extends Model
     public function isRevoked(): bool
     {
         return $this->revoked_at !== null;
+    }
+
+    /** The billing plane this token operates in — a `test` token sees only the sandbox dataset. */
+    public function billingMode(): BillingMode
+    {
+        return BillingMode::parse($this->mode);
+    }
+
+    /** Whether this is a sandbox (test-mode) token. */
+    public function isTestMode(): bool
+    {
+        return $this->billingMode()->isTest();
     }
 
     /** Soft-revoke the token — it stops authenticating immediately, its audit row survives. */
@@ -58,15 +72,18 @@ class ApiToken extends Model
      *
      * @return array{token: self, plaintext: string}
      */
-    public static function issue(string $name, ?string $organizationId = null, ?int $productId = null, ?string $createdBySub = null): array
+    public static function issue(string $name, ?string $organizationId = null, ?int $productId = null, ?string $createdBySub = null, BillingMode $mode = BillingMode::Live): array
     {
-        $plaintext = Str::random(48);
+        // A test token's plaintext carries a `cbt_` prefix (live: `cbl_`) so the plane is
+        // obvious at a glance in a `.env`/log and can never be mistaken for the other.
+        $plaintext = ($mode->isTest() ? 'cbt_' : 'cbl_').Str::random(48);
 
         $token = self::query()->create([
             'name' => $name,
             'organization_id' => $organizationId,
             'product_id' => $productId,
             'created_by_sub' => $createdBySub,
+            'mode' => $mode->value,
             'hash' => hash('sha256', $plaintext),
         ]);
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class WalletAdjustment extends Model
 {
+    use BelongsToMode;
+
     public const DIRECTION_GRANT = 'grant';
 
     public const DIRECTION_DEBIT = 'debit';

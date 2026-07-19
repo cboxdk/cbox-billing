@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Cbox\Billing\Money\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -35,6 +36,8 @@ use Illuminate\Support\Carbon;
  */
 class Invoice extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'organization_id', 'subscription_id', 'period_start', 'period_end',
         'seller', 'number', 'currency',
@@ -97,5 +100,11 @@ class Invoice extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(InvoiceLine::class);
+    }
+
+    /** @return BelongsTo<Subscription, $this> */
+    public function subscription(): BelongsTo
+    {
+        return $this->belongsTo(Subscription::class);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -35,15 +36,19 @@ use Illuminate\Support\Carbon;
  * @property int|null $pending_plan_id
  * @property Carbon|null $pending_effective_at
  * @property string|null $display_standing
+ * @property int|null $test_clock_id
+ * @property bool $livemode
  */
 class Subscription extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'organization_id', 'plan_id', 'status', 'seats',
         'current_period_start', 'current_period_end', 'cancel_at_period_end',
         'trial_ends_at', 'canceled_at',
         'paused_at', 'pending_plan_id', 'pending_effective_at',
-        'display_standing',
+        'display_standing', 'test_clock_id',
     ];
 
     /** @return array<string, string> */
@@ -169,6 +174,18 @@ class Subscription extends Model
     public function addOns(): HasMany
     {
         return $this->hasMany(SubscriptionAddOn::class);
+    }
+
+    /** Whether this subscription's billing runs on a virtual test clock (sandbox only). */
+    public function isTestClockBound(): bool
+    {
+        return $this->test_clock_id !== null;
+    }
+
+    /** @return BelongsTo<TestClock, $this> */
+    public function testClock(): BelongsTo
+    {
+        return $this->belongsTo(TestClock::class);
     }
 
     /**

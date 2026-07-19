@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Licensing;
 
+use App\Billing\Mode\BillingContext;
 use Cbox\Billing\Licensing\Contracts\IssuedLicenseStore;
 use Cbox\Billing\Licensing\ValueObjects\IssuedLicense;
 use Cbox\License\ValueObjects\LicenseLimits;
@@ -30,6 +31,7 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
 {
     public function __construct(
         private ConnectionInterface $db,
+        private BillingContext $context,
     ) {}
 
     public function save(IssuedLicense $license): void
@@ -47,6 +49,7 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
                 'not_before' => $license->notBefore,
                 'expires_at' => $license->expiresAt,
                 'key' => $license->key,
+                'livemode' => $this->context->livemode(),
                 'created_at' => Carbon::now(),
             ],
         );
@@ -54,7 +57,7 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
 
     public function find(string $id): ?IssuedLicense
     {
-        $row = $this->table()->where('id', $id)->first();
+        $row = $this->scoped()->where('id', $id)->first();
 
         return $row instanceof stdClass ? $this->hydrate($row) : null;
     }
@@ -64,7 +67,7 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
      */
     public function forCustomer(string $customerId): array
     {
-        return array_values($this->table()
+        return array_values($this->scoped()
             ->where('customer_id', $customerId)
             ->orderByDesc('created_at')
             ->get()
@@ -77,7 +80,7 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
         // A deployment's current license is the one valid longest: a renewal reissues
         // under a fresh id with an extended `expires_at`, so it wins over the license it
         // superseded. `issued_at` / `created_at` break the (unlikely) tie deterministically.
-        $row = $this->table()
+        $row = $this->scoped()
             ->where('deployment_id', $deploymentId)
             ->orderByDesc('expires_at')
             ->orderByDesc('issued_at')
@@ -95,7 +98,7 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
      */
     public function all(): array
     {
-        return array_values($this->table()
+        return array_values($this->scoped()
             ->orderByDesc('created_at')
             ->get()
             ->map(fn (stdClass $row): IssuedLicense => $this->hydrate($row))
@@ -111,7 +114,7 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
      */
     public function paginate(int $perPage, ?string $search = null): LengthAwarePaginator
     {
-        $query = $this->table()->orderByDesc('created_at');
+        $query = $this->scoped()->orderByDesc('created_at');
 
         $search = $search !== null ? trim($search) : null;
 
@@ -200,5 +203,11 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
     private function table(): Builder
     {
         return $this->db->table('issued_licenses');
+    }
+
+    /** The issued-license table constrained to the current plane (test isolation for reads). */
+    private function scoped(): Builder
+    {
+        return $this->table()->where('livemode', $this->context->livemode());
     }
 }

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Billing\Notifications;
 
+use App\Billing\Mode\BillingContext;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Support\MoneyFormatter;
+use App\Billing\TestMode\CapturedNotifications;
 use App\Mail\InvoiceIssuedMail;
 use App\Mail\LicenseDeliveryMail;
 use App\Mail\PaymentFailedMail;
@@ -37,7 +39,11 @@ use Throwable;
  */
 readonly class BillingNotifier implements NotifiesCustomers
 {
-    public function __construct(private LoggerInterface $log) {}
+    public function __construct(
+        private LoggerInterface $log,
+        private BillingContext $context,
+        private CapturedNotifications $captured,
+    ) {}
 
     public function invoiceIssued(Invoice $invoice, Subscription $subscription): void
     {
@@ -223,6 +229,15 @@ readonly class BillingNotifier implements NotifiesCustomers
                 'subject' => $subject,
                 'organization' => $organization->id,
             ]);
+
+            return;
+        }
+
+        // Test mode never delivers: a sandbox lifecycle event is captured (and logged), never
+        // queued to the mailer, so no real inbox is ever touched while an integrator drives a
+        // year of renewals/dunning through a test clock.
+        if ($this->context->isTest()) {
+            $this->captured->capture($event, $subject, $recipient);
 
             return;
         }

@@ -76,6 +76,9 @@ The app is organized around a few load-bearing ideas:
   checkout/portal, license activation, authentication, throttling, and idempotency.
 - **[Open core](open-core/_index.md)** — the plugin model, capability gating, the
   five commercial plugins, and how a deployment composes them.
+- **[Console UI](console-ui/_index.md)** — the reusable console UX conventions
+  (confirm dialog, pagination, breadcrumbs, accessible rows, flash, responsive
+  utilities) every provider-console screen follows.
 - **[Deployment](deployment/_index.md)** — the base Docker image, the private cloud
   composition, the production checklist, and day-two operations.
 - **[Cookbook](cookbook/_index.md)** — task-first recipes with real commands and

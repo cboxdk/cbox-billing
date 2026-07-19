@@ -218,6 +218,12 @@
     // --- Cancel (carries the survey reason + comment through the retention seam) ---
     const cancelBtn = document.getElementById('cancel-btn');
     if (cancelBtn) cancelBtn.addEventListener('click', async () => {
+        const ok = await window.cboxConfirm({
+            title: 'Cancel subscription?',
+            body: 'Your subscription stays active until the end of the current billing period, then cancels. You can resubscribe at any time.',
+            confirmLabel: 'Cancel at period end',
+        });
+        if (!ok) return;
         cancelBtn.disabled = true;
         const reasonEl = document.getElementById('cancel-reason');
         const commentEl = document.getElementById('cancel-comment');
@@ -241,6 +247,12 @@
     });
     const sunsetCancel = document.getElementById('sunset-cancel');
     if (sunsetCancel) sunsetCancel.addEventListener('click', async () => {
+        const confirmed = await window.cboxConfirm({
+            title: 'Cancel at period end?',
+            body: 'Instead of moving to a new plan, your subscription will cancel at the end of the current period.',
+            confirmLabel: 'Cancel at period end',
+        });
+        if (!confirmed) return;
         sunsetCancel.disabled = true;
         const { ok, body } = await post('/cancel', { at_period_end: true });
         if (!ok) { showErr('sunset-error', body.error); sunsetCancel.disabled = false; return; }

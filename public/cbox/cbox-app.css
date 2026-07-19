@@ -48,7 +48,8 @@ body { margin: 0; font-family: var(--font-sans); color: var(--foreground); }
 .filters { display: flex; align-items: center; gap: 8px; }
 .filters .fsearch { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; flex: 0 0 260px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--card); color: var(--muted-foreground); }
 .filters .fsearch input { border: none; outline: none; background: transparent; font-family: var(--font-sans); font-size: 13px; color: var(--foreground); width: 100%; }
-.fchip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 9999px; border: 1px dashed var(--border-strong); background: transparent; font-size: 12px; font-family: var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
+.fchip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 9999px; border: 1px dashed var(--border-strong); background: transparent; font-size: 12px; font-family: var(--font-sans); color: var(--muted-foreground); cursor: pointer; text-decoration: none; }
+.fchip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .fchip:hover { border-color: var(--muted-foreground); color: var(--foreground); }
 .fchip.set { border-style: solid; border-color: var(--accent-edge); background: var(--accent-soft); color: var(--primary); font-weight: 500; }
 
@@ -99,3 +100,113 @@ kbd.k { font-family: var(--font-mono); font-size: 10px; font-weight: 500; border
  * Scoped to the button so links, icons and accent chips keep the bright --primary. */
 .dark .cbx-btn--primary { background: oklch(0.55 0.19 258); color: oklch(0.99 0.003 247); }
 .dark .cbx-btn--primary:hover { background: oklch(0.62 0.19 258); }
+
+/* ============================================================================
+ * WAVE 1 — app-wide UX foundation (reusable patterns waves 2-4 consume).
+ * Confirm dialog, pagination, accessible table rows, button loading state,
+ * responsive grid utilities + shell/table breakpoints. Token-consistent — no
+ * new visual language, only the existing --* variables and .cbx-* primitives.
+ * ==========================================================================*/
+
+/* ── Responsive grid utilities.
+ * Replace the pervasive inline `grid-template-columns:1fr 1fr` so two/three-up
+ * layouts collapse to a single column on narrow viewports. Override gap/align
+ * inline when a surface needs it (the columns still collapse). */
+.cbx-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.cbx-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 720px) {
+    .cbx-grid-2, .cbx-grid-3 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Accessible table-row navigation.
+ * The reusable row pattern: a `<tr data-href>` is turned into a keyboard-operable
+ * link by the shell JS (click + Enter/Space), so rows are focusable and operable
+ * without a mouse. Inner controls (links, buttons, forms, inputs) keep their own
+ * behaviour — the JS ignores clicks that originate inside them. */
+.tbl tbody tr[data-href] { cursor: pointer; }
+.tbl tbody tr[data-href]:focus-visible {
+    outline: 2px solid var(--ring); outline-offset: -2px;
+    background: color-mix(in oklch, var(--secondary) 55%, transparent);
+}
+.tbl tbody tr[data-href]:focus-visible .rowchev { opacity: 1; }
+
+/* ── Button loading state (anti double-submit).
+ * The shell JS disables a form's submit control and prepends this spinner on
+ * submit, so multi-click can't double-post. Spinner inherits currentColor so it
+ * reads on every button variant. */
+.cbx-spin {
+    display: inline-block; width: 13px; height: 13px; vertical-align: -2px;
+    border: 2px solid color-mix(in oklch, currentColor 30%, transparent);
+    border-top-color: currentColor; border-radius: 9999px;
+    animation: cbx-spin 0.7s linear infinite;
+}
+@keyframes cbx-spin { to { transform: rotate(360deg); } }
+
+/* ── Confirmation dialog (destructive-action guard).
+ * One accessible modal shared by the whole app: focus-trapped, ESC to cancel,
+ * Enter to confirm, aria-modal, restores focus on close. Driven declaratively by
+ * `data-confirm` on a form/link/button, or programmatically via window.cboxConfirm. */
+.cbx-confirm-backdrop {
+    position: fixed; inset: 0; z-index: 200;
+    background: oklch(0.18 0.012 250 / 0.42); animation: fade 140ms ease-out;
+}
+.cbx-confirm-backdrop[hidden] { display: none; }
+.cbx-confirm {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    z-index: 210; width: min(440px, calc(100vw - 32px));
+    border-radius: var(--radius); border: 1px solid var(--border);
+    background: var(--popover); color: var(--foreground);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.22); padding: 20px 22px;
+    animation: cbx-confirm-pop 160ms cubic-bezier(0.16,1,0.3,1);
+}
+.cbx-confirm[hidden] { display: none; }
+@keyframes cbx-confirm-pop { from { opacity: 0; transform: translate(-50%, -46%) scale(0.98); } }
+.cbx-confirm-title { font-family: var(--font-display); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--foreground); }
+.cbx-confirm-body { font-size: 13px; line-height: 1.5; color: var(--muted-foreground); margin: 0 0 18px; }
+.cbx-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── Pagination (reusable partial `partials.pagination`). */
+.cbx-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 4px 2px; }
+.cbx-pagination .cbx-pagination-summary { font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground); }
+.cbx-pagination-pages { display: flex; align-items: center; gap: 4px; }
+.cbx-pagination-pages a, .cbx-pagination-pages span {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px;
+    padding: 0 8px; border-radius: var(--radius-md); border: 1px solid var(--border);
+    background: var(--card); font-family: var(--font-mono); font-size: 12px;
+    color: var(--foreground); text-decoration: none;
+    transition: border-color var(--dur-hover) var(--ease), background-color var(--dur-hover) var(--ease);
+}
+.cbx-pagination-pages a:hover { border-color: var(--border-strong); background: var(--secondary); }
+.cbx-pagination-pages a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.cbx-pagination-pages .is-active { background: var(--accent-soft); border-color: var(--accent-edge); color: var(--primary); font-weight: 600; }
+.cbx-pagination-pages .is-disabled { opacity: 0.45; pointer-events: none; }
+.cbx-pagination-pages .is-gap { border-color: transparent; background: transparent; color: var(--muted-foreground); }
+
+/* ── Shell / table responsiveness.
+ * Collapse the tier-2 subnav on narrow viewports (the tier-1 rail stays), tighten
+ * page padding, and let wide tables scroll horizontally inside their panel rather
+ * than forcing the whole body to scroll. */
+@media (max-width: 900px) {
+    .cbx-subnav { display: none !important; }
+    .page { padding: 22px 20px; }
+    .cbx-panel { overflow-x: auto; }
+    .cbx-page-header { flex-wrap: wrap; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .stats > div:nth-child(2n) { border-right: 0; }
+    /* Keep the tier-1 rail compact (icon-only, in flow) so the content column keeps its
+     * width — the pinned 210px rail is too heavy on a narrow viewport. */
+    .cbx-rail, .cbx-rail.open { width: 52px; }
+    .cbx-rail.open a .lbl, .cbx-rail.open a .badge, .cbx-rail.open .cbx-pin { opacity: 0; pointer-events: none; }
+}
+@media (max-width: 560px) {
+    .page { padding: 18px 14px; }
+    .tb { padding: 0 10px; }
+    .crumb .env-chip { display: none !important; }
+    .filters { flex-wrap: wrap; }
+    .filters .fsearch { flex: 1 1 100%; }
+    .stats { grid-template-columns: 1fr; }
+    .stats > div { border-right: 0; }
+    /* Collapse the topbar ⌘K trigger to an icon so it doesn't overlap the org context. */
+    .cbx-search { width: auto !important; }
+    .cbx-search .label, .cbx-search kbd { display: none; }
+}

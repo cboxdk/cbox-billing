@@ -99,8 +99,12 @@
                     </div>
                 </span>
                 <span class="env-chip" data-env-chip title="Active Cbox ID environment (billing plane)" style="display:inline-flex;align-items:center;height:18px;margin-left:8px;padding:0 7px;border-radius:5px;background:var(--accent-soft);color:var(--primary);font-size:10px;font-weight:600;letter-spacing:.02em">{{ $environmentLabel }}</span>
-                <span class="sep">/</span>
-                <span class="muted">@yield('crumb', 'Dashboard')</span>
+                @hasSection('breadcrumb')
+                    @yield('breadcrumb')
+                @else
+                    <span class="sep">/</span>
+                    <span class="muted">@yield('crumb', 'Dashboard')</span>
+                @endif
             </div>
             <div style="display:flex;align-items:center;gap:6px">
                 <button class="cbx-search" id="palbtn" style="width:200px;height:28px">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<span class="label">Search or jump to…</span><kbd>⌘K</kbd></button>
@@ -119,17 +123,25 @@
 {{-- ⌘K command palette --}}
 <div class="pal-bg" id="palbg"></div>
 <div class="pal" id="pal" role="dialog" aria-label="Command palette">
-    <input id="palinput" placeholder="Type a command or search…">
-    <div class="grp">
+    <input id="palinput" placeholder="Type a command or search…" aria-label="Command palette search">
+    <div class="grp" id="palgroup-nav">
         <p>Navigate</p>
         <a class="cmd sel" href="{{ route('billing.dashboard') }}">@include('partials.icon', ['name' => 'home', 'size' => 15, 'sw' => 1.7])Go to Dashboard<kbd class="k">G D</kbd></a>
         <a class="cmd" href="{{ route('billing.subscriptions') }}">@include('partials.icon', ['name' => 'repeat', 'size' => 15, 'sw' => 1.7])Go to Subscriptions<kbd class="k">G S</kbd></a>
         <a class="cmd" href="{{ route('billing.invoices') }}">@include('partials.icon', ['name' => 'invoice', 'size' => 15, 'sw' => 1.7])Go to Invoices<kbd class="k">G I</kbd></a>
+        <a class="cmd" href="{{ route('billing.customers') }}">@include('partials.icon', ['name' => 'building', 'size' => 15, 'sw' => 1.7])Go to Customers</a>
+        <a class="cmd" href="{{ route('billing.usage') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Usage</a>
+        <a class="cmd" href="{{ route('billing.catalog') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Catalog</a>
     </div>
-    <div class="grp" style="border-top:1px solid var(--border)">
+    {{-- Only real, existing actions — no no-op commands. (Create-subscription/create-invoice
+         flows land in waves 2-4; until then the palette deep-links to what exists.) --}}
+    <div class="grp" id="palgroup-actions" style="border-top:1px solid var(--border)">
         <p>Actions</p>
-        <div class="cmd">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New subscription<kbd class="k">N</kbd></div>
-        <div class="cmd">@include('partials.icon', ['name' => 'receipt', 'size' => 15, 'sw' => 1.7])Create invoice</div>
+        <a class="cmd" href="{{ route('billing.catalog.prices.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New price</a>
+        <a class="cmd" href="{{ route('billing.subscriptions.dunning') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Review dunning</a>
+    </div>
+    <div class="grp" id="palgroup-empty" style="display:none;padding:14px 16px">
+        <span class="mut" style="font-size:13px">No commands match.</span>
     </div>
 </div>
 
@@ -140,12 +152,27 @@
     document.getElementById('modebtn').addEventListener('click', () => setMode(!htmlEl.classList.contains('dark')));
     try{ if(localStorage.getItem('cbox-mode')==='dark') setMode(true); }catch(e){}
 
-    // ⌘K command palette
+    // ⌘K command palette — with live filtering over the (real) command links.
     const pal = document.getElementById('pal'), palbg = document.getElementById('palbg'), palinput = document.getElementById('palinput');
-    function openPal(){ pal.classList.add('open'); palbg.classList.add('open'); palinput.value=''; palinput.focus(); }
+    const palCmds = Array.from(pal.querySelectorAll('.cmd'));
+    const palEmpty = document.getElementById('palgroup-empty');
+    const palGroups = Array.from(pal.querySelectorAll('.grp')).filter(g => g.id !== 'palgroup-empty');
+    function filterPal(){
+        const q = palinput.value.trim().toLowerCase();
+        let visible = 0;
+        palCmds.forEach(c => { const hit = c.textContent.toLowerCase().includes(q); c.style.display = hit ? '' : 'none'; if (hit) visible++; });
+        // Hide a group whose commands are all filtered out.
+        palGroups.forEach(g => { const any = Array.from(g.querySelectorAll('.cmd')).some(c => c.style.display !== 'none'); g.style.display = any ? '' : 'none'; });
+        palEmpty.style.display = visible === 0 ? '' : 'none';
+        palCmds.forEach(c => c.classList.remove('sel'));
+        const first = palCmds.find(c => c.style.display !== 'none'); if (first) first.classList.add('sel');
+    }
+    function openPal(){ pal.classList.add('open'); palbg.classList.add('open'); palinput.value=''; filterPal(); palinput.focus(); }
     function closePal(){ pal.classList.remove('open'); palbg.classList.remove('open'); }
     document.getElementById('palbtn').addEventListener('click', openPal);
     palbg.addEventListener('click', closePal);
+    palinput.addEventListener('input', filterPal);
+    palinput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const sel = palCmds.find(c => c.classList.contains('sel') && c.style.display !== 'none'); if (sel && sel.href) { e.preventDefault(); window.location = sel.href; } } });
     window.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); pal.classList.contains('open') ? closePal() : openPal(); }
         if (e.key === 'Escape') closePal();
@@ -161,10 +188,56 @@
         if (!orgmenu.contains(e.target) && !orgbtn.contains(e.target)) orgmenu.classList.remove('open');
         if (!acctmenu.contains(e.target) && !acctbtn.contains(e.target)) { acctmenu.classList.remove('open'); const rail = document.querySelector('.cbx-rail'); if (rail && rail.classList.contains('unpinned') && !rail.contains(e.target)) rail.classList.remove('open'); }
     });
-    const wsButtons = Array.from(orgmenu.querySelectorAll('.ws[data-ws]'));
-    function switchWs(btn){ wsButtons.forEach(b => b.classList.remove('cur')); btn.classList.add('cur'); document.getElementById('orgname').textContent = btn.dataset.ws; document.getElementById('orgav').textContent = btn.dataset.ini; orgmenu.classList.remove('open'); }
-    wsButtons.forEach(b => b.addEventListener('click', () => switchWs(b)));
-    window.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && ['1','2','3'].includes(e.key)) { const b = wsButtons[Number(e.key)-1]; if (b) { e.preventDefault(); switchWs(b); } } });
+    // NOTE: multi-org switching is not part of the console yet (the org comes from the
+    // Cbox ID session), so the menu shows the current org for context only — there are no
+    // dead switcher buttons or no-op ⌘1/2/3 shortcuts wired here.
+
+    // "F" focuses the list filter input (matches the kbd hint on the filter bar).
+    window.addEventListener('keydown', function(e){
+        if (e.key !== 'f' && e.key !== 'F') return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        var a = document.activeElement;
+        if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
+        var input = document.querySelector('.filters input[name="q"]');
+        if (input) { e.preventDefault(); input.focus(); input.select(); }
+    });
+
+    // Accessible table-row navigation — the reusable pattern for `<tr data-href>`.
+    // Rows become keyboard-operable links (Enter/Space) without swallowing clicks on
+    // inner controls (links, buttons, forms, inputs), which keep their own behaviour.
+    (function(){
+        function fromInteractive(t){ return t.closest('a, button, form, input, select, textarea, label, [data-confirm]'); }
+        document.addEventListener('click', function(e){
+            var row = e.target.closest && e.target.closest('tr[data-href]');
+            if (!row) return;
+            if (fromInteractive(e.target)) return;
+            if (e.metaKey || e.ctrlKey) { window.open(row.dataset.href, '_blank'); return; }
+            window.location = row.dataset.href;
+        });
+        document.addEventListener('keydown', function(e){
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            var row = e.target.closest && e.target.closest('tr[data-href]');
+            if (!row || row !== e.target) return; // only when the row itself is focused
+            e.preventDefault();
+            window.location = row.dataset.href;
+        });
+    })();
+
+    // Button loading state — disable a form's submit control and show a spinner on submit,
+    // so a slow POST can't be double-submitted. Skips forms mid-confirm (the confirm guard
+    // re-submits after the operator confirms, at which point this fires cleanly).
+    (function(){
+        document.addEventListener('submit', function(e){
+            var form = e.target;
+            if (!(form instanceof HTMLFormElement)) return;
+            if (form.hasAttribute('data-confirm') && form.dataset.cbxConfirmed !== '1') return; // wait for confirm
+            var btn = e.submitter || form.querySelector('button[type="submit"], button:not([type])');
+            if (!btn || btn.dataset.loading === '1') return;
+            btn.dataset.loading = '1';
+            btn.disabled = true;
+            if (!btn.querySelector('.cbx-spin')) { var s = document.createElement('span'); s.className = 'cbx-spin'; btn.insertBefore(s, btn.firstChild); }
+        });
+    })();
 
     // Subnav collapse — ⌘. everywhere
     (function(){
@@ -189,6 +262,7 @@
         try{ setPinned(localStorage.getItem('cbox-rail-pin') !== '0'); }catch(e){ setPinned(true); }
     })();
 </script>
+@include('partials.confirm-dialog')
 @yield('scripts')
 </body>
 </html>

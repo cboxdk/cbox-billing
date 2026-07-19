@@ -48,6 +48,7 @@
         @yield('content')
         <p class="hosted-foot">Secured by Cbox · Billing. Card details are handled by the payment provider and never touch this server.</p>
     </div>
+    @include('partials.confirm-dialog')
     @stack('scripts')
 </body>
 </html>

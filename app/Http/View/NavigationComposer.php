@@ -69,6 +69,7 @@ readonly class NavigationComposer
                 // App-specific enrichment; a plugin's own page falls back to its route.
                 $key = $areaMeta[$page->label]['key'] ?? $page->route;
                 $params = $areaMeta[$page->label]['params'] ?? [];
+                $fragment = $areaMeta[$page->label]['fragment'] ?? null;
                 $count = $areaCounts[$key] ?? null;
 
                 $nav[] = [
@@ -76,6 +77,7 @@ readonly class NavigationComposer
                     'key' => $key,
                     'route' => $page->route,
                     'params' => $params,
+                    'fragment' => $fragment,
                     'count' => $count !== null ? (string) $count : null,
                 ];
             }

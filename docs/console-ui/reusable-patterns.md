@@ -111,6 +111,34 @@ handles click + Enter/Space and ignores clicks that land on inner controls
 
 For a currency/scope chip switcher, use a real `<a class="fchip">`, not a button with `onclick`.
 
+## 4b. Detail-page back button — `<x-back-button>`
+
+Every detail page opens with a ghost "Back to …" button. Use the component, never a
+hand-rolled anchor — it carries the correct **left**-pointing glyph (`chevron-left`), so a
+back button never reuses the forward `chevron-right`:
+
+```blade
+<x-back-button :href="route('billing.customers')" label="Back to customers" />
+```
+
+Keep `chevron-right` (and `arrow-up-right`) for *forward* links only (e.g. the dashboard's
+"View all →"). The icon set also carries `log-out` for the account menu's sign-out action.
+
+## 4c. Cross-link to another record — `.cbx-link`
+
+An in-content link to another console record (a customer, plan, product…) uses the shared
+class, not an inline `color:var(--primary);text-decoration:none`:
+
+```blade
+<a href="{{ route('billing.customers.show', $id) }}" class="cbx-link">{{ $name }}</a>
+```
+
+## 4d. Form-control background — `var(--card)`
+
+Every input/select/textarea backs onto `var(--card)` (the same token `.cbx-input` uses) —
+never `var(--surface)` (undefined → transparent). Prefer the `.cbx-input` class; when a
+screen still inlines an `$inputStyle` string, its `background` must be `var(--card)`.
+
 ## 5. Breadcrumbs — `<x-breadcrumb>`
 
 Deep pages set the topbar trail with the breadcrumb component (falls back to `@yield('crumb')`
@@ -158,3 +186,12 @@ Below `900px` the tier-2 subnav collapses and the tier-1 rail stays compact; wid
 inside their panel; below `560px` the topbar tightens. These live in `public/cbox/cbox-app.css`
 under the "WAVE 1 — app-wide UX foundation" section — extend that block rather than adding
 one-off media queries per screen.
+
+## 9. On-page subnav deep-links — nav `fragment`
+
+When several subnav entries point at *sections of one page* (e.g. Settings renders sellers, tax
+and tokens together, each in a `<section id="…">`), give the nav page a `fragment` in
+`ConsoleNav::AREAS` so its URL ends with `#that-id` and the "deep link" actually scrolls there
+— not merely highlights the nav. `NavigationComposer` threads `fragment` onto the nav item and
+the layout's `$navUrl` appends it. Cross-page back-links to a section use the same anchor
+(`route('billing.settings').'#gateways'`).

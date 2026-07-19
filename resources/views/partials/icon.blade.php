@@ -14,6 +14,7 @@
     @case('search') <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/> @break
     @case('chevron-down') <path d="m6 9 6 6 6-6"/> @break
     @case('chevron-right') <path d="m9 18 6-6-6-6"/> @break
+    @case('chevron-left') <path d="m15 18-6-6 6-6"/> @break
     @case('check') <path d="M20 6 9 17l-5-5"/> @break
     @case('moon') <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/> @break
     @case('grid') <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/> @break
@@ -32,6 +33,7 @@
     @case('play') <path d="M6 3v18l15-9Z"/> @break
     @case('rotate') <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/> @break
     @case('x') <path d="M18 6 6 18"/><path d="m6 6 12 12"/> @break
+    @case('log-out') <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/> @break
     @default <circle cx="12" cy="12" r="9"/>
 @endswitch
 </svg>

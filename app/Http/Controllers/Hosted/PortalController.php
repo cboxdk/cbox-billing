@@ -394,10 +394,17 @@ class PortalController extends HostedController
     /** @return array<string, mixed> */
     private function presentPreview(PlanChangePreview $preview): array
     {
+        $currency = $preview->newRecurring->currency();
+        $dueNowMinor = $preview->dueNowQuote?->totals->gross->minor() ?? 0;
+
         return [
-            'due_now_minor' => $preview->dueNowQuote?->totals->gross->minor() ?? 0,
+            'due_now_minor' => $dueNowMinor,
+            // Preformatted server-side through the single money seam, so the client never
+            // re-derives an amount with a hardcoded /100 + locale (wrong for JPY/ISK & co.).
+            'due_now' => MoneyFormatter::minor($dueNowMinor, $currency),
             'new_recurring_minor' => $preview->newRecurring->minor(),
-            'currency' => $preview->newRecurring->currency(),
+            'new_recurring' => MoneyFormatter::money($preview->newRecurring),
+            'currency' => $currency,
             'effective_at' => $preview->effectiveAt->format(DateTimeImmutable::ATOM),
         ];
     }

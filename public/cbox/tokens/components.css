@@ -33,6 +33,10 @@
 .cbx-input::placeholder { color: var(--muted-foreground); }
 .cbx-input:focus { outline: none; border-color: var(--ring); box-shadow: 0 0 0 2px var(--accent-soft); }
 
+/* ── Cross-link — the in-content link to another console record (primary, no underline) */
+.cbx-link { color: var(--primary); text-decoration: none; }
+.cbx-link:hover { text-decoration: underline; }
+
 /* ── DataPanel */
 .cbx-panel {
     border-radius: var(--radius); border: 1px solid var(--border);

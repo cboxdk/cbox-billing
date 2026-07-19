@@ -30,7 +30,7 @@ class ConsoleNav
      *     icon: string,
      *     order: int,
      *     feature: string|null,
-     *     pages: list<array{route: string, label: string, key: string, params: array<string, string>, feature: string|null, order: int}>
+     *     pages: list<array{route: string, label: string, key: string, params: array<string, string>, fragment?: string, feature: string|null, order: int}>
      * }>
      */
     private const AREAS = [
@@ -73,8 +73,8 @@ class ConsoleNav
         'usage' => [
             'label' => 'Usage', 'icon' => 'activity', 'order' => 40, 'feature' => null,
             'pages' => [
-                ['route' => 'billing.usage', 'label' => 'Meters', 'key' => 'meters', 'params' => [], 'feature' => null, 'order' => 10],
-                ['route' => 'billing.meters', 'label' => 'Manage meters', 'key' => 'meters-manage', 'params' => [], 'feature' => null, 'order' => 20],
+                ['route' => 'billing.usage', 'label' => 'Usage', 'key' => 'meters', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.meters', 'label' => 'Meters', 'key' => 'meters-manage', 'params' => [], 'feature' => null, 'order' => 20],
             ],
         ],
         'catalog' => [
@@ -82,14 +82,14 @@ class ConsoleNav
             'pages' => [
                 ['route' => 'billing.catalog', 'label' => 'Catalog', 'key' => 'catalog', 'params' => [], 'feature' => null, 'order' => 10],
                 ['route' => 'billing.products', 'label' => 'Products', 'key' => 'products', 'params' => [], 'feature' => null, 'order' => 20],
-                ['route' => 'billing.pricing', 'label' => 'Plans &amp; pricing', 'key' => 'plans', 'params' => [], 'feature' => null, 'order' => 30],
+                ['route' => 'billing.pricing', 'label' => 'Plans & pricing', 'key' => 'plans', 'params' => [], 'feature' => null, 'order' => 30],
                 ['route' => 'billing.catalog.prices.create', 'label' => 'New price', 'key' => 'price-new', 'params' => [], 'feature' => null, 'order' => 40],
             ],
         ],
         'customers' => [
             'label' => 'Customers', 'icon' => 'building', 'order' => 60, 'feature' => null,
             'pages' => [
-                ['route' => 'billing.customers', 'label' => 'Organizations', 'key' => 'organizations', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.customers', 'label' => 'Customers', 'key' => 'organizations', 'params' => [], 'feature' => null, 'order' => 10],
                 ['route' => 'billing.access-grants', 'label' => 'Access grants', 'key' => 'access-grants', 'params' => [], 'feature' => null, 'order' => 20],
             ],
         ],
@@ -107,10 +107,10 @@ class ConsoleNav
         'settings' => [
             'label' => 'Settings', 'icon' => 'settings', 'order' => 80, 'feature' => null,
             'pages' => [
-                ['route' => 'billing.settings', 'label' => 'Sellers', 'key' => 'sellers', 'params' => ['tab' => 'sellers'], 'feature' => null, 'order' => 10],
-                ['route' => 'billing.settings', 'label' => 'Tax', 'key' => 'tax', 'params' => ['tab' => 'tax'], 'feature' => null, 'order' => 20],
+                ['route' => 'billing.settings', 'label' => 'Sellers', 'key' => 'sellers', 'params' => ['tab' => 'sellers'], 'fragment' => 'sellers', 'feature' => null, 'order' => 10],
+                ['route' => 'billing.settings', 'label' => 'Tax', 'key' => 'tax', 'params' => ['tab' => 'tax'], 'fragment' => 'tax', 'feature' => null, 'order' => 20],
                 ['route' => 'billing.settings.gateways', 'label' => 'Payment gateways', 'key' => 'gateways', 'params' => [], 'feature' => null, 'order' => 30],
-                ['route' => 'billing.settings', 'label' => 'API tokens', 'key' => 'tokens', 'params' => ['tab' => 'tokens'], 'feature' => null, 'order' => 40],
+                ['route' => 'billing.settings', 'label' => 'API tokens', 'key' => 'tokens', 'params' => ['tab' => 'tokens'], 'fragment' => 'tokens', 'feature' => null, 'order' => 40],
                 ['route' => 'billing.settings.webhooks', 'label' => 'Webhooks', 'key' => 'webhooks', 'params' => [], 'feature' => null, 'order' => 50],
             ],
         ],
@@ -134,7 +134,7 @@ class ConsoleNav
      * (labels are unique within an area). A page the registry holds but this map does not —
      * a plugin's own page — falls back to no params and its route as the active-state key.
      *
-     * @return array<string, array<string, array{key: string, params: array<string, string>}>>
+     * @return array<string, array<string, array{key: string, params: array<string, string>, fragment: string|null}>>
      */
     public static function pageMeta(): array
     {
@@ -142,7 +142,11 @@ class ConsoleNav
 
         foreach (self::AREAS as $areaKey => $area) {
             foreach ($area['pages'] as $page) {
-                $meta[$areaKey][$page['label']] = ['key' => $page['key'], 'params' => $page['params']];
+                $meta[$areaKey][$page['label']] = [
+                    'key' => $page['key'],
+                    'params' => $page['params'],
+                    'fragment' => $page['fragment'] ?? null,
+                ];
             }
         }
 

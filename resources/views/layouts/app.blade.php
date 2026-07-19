@@ -22,7 +22,13 @@
         return route($area['route']);
     };
     $navUrl = function (array $item) {
-        return $item['route'] ? route($item['route'], $item['params'] ?? []) : '#';
+        if (! $item['route']) {
+            return '#';
+        }
+        $url = route($item['route'], $item['params'] ?? []);
+        // A `fragment` jumps to an on-page anchor (e.g. the Settings sections that all render
+        // on one page) so the "deep link" actually scrolls there, not just highlights the nav.
+        return ($item['fragment'] ?? null) ? $url.'#'.$item['fragment'] : $url;
     };
     $u = $currentUser ?? null;
     $userName = $u?->name ?? 'Account';
@@ -60,7 +66,7 @@
                 <button class="act">Manage account <span class="num" style="margin-left:auto;font-size:10px">↗ id</span></button>
                 <form method="POST" action="{{ route('logout') }}" style="margin:0">
                     @csrf
-                    <button type="submit" class="act" style="width:100%;color:var(--destructive)">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])Log out</button>
+                    <button type="submit" class="act" style="width:100%;color:var(--destructive)">@include('partials.icon', ['name' => 'log-out', 'size' => 14, 'sw' => 1.7])Log out</button>
                 </form>
             </div>
         </div>

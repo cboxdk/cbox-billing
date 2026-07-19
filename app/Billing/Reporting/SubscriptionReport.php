@@ -176,7 +176,7 @@ readonly class SubscriptionReport
      * The plans a subscriber can move to: active, priced in its currency, excluding its
      * current plan — the choices the console plan-change picker offers.
      *
-     * @return list<array{key: string, name: string, minor: int}>
+     * @return list<array{key: string, name: string, minor: int, interval: string}>
      */
     private function availablePlans(string $currency, ?string $currentKey): array
     {
@@ -190,6 +190,7 @@ readonly class SubscriptionReport
                 'key' => $plan->key,
                 'name' => $plan->name,
                 'minor' => $plan->priceFor($currency)->minor(),
+                'interval' => $plan->interval,
             ])
             ->all());
     }

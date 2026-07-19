@@ -13,11 +13,15 @@
     $standingPill = ['good' => 'success', 'disputed' => 'warning', 'suspended' => 'destructive'];
     $invStatusPill = ['paid' => 'success', 'open' => 'warning', 'draft' => 'muted', 'void' => 'muted'];
     $c = $customer;
+    $labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500';
+    $inputStyle = 'height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--foreground);padding:0 8px;font-size:13px';
 @endphp
 
 @section('screen')
 <div class="page">
     <a class="cbx-btn cbx-btn--ghost cbx-btn--sm" href="{{ route('billing.customers') }}" style="align-self:flex-start">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7]) Back to customers</a>
+
+    @include('partials.flash')
 
     <header class="cbx-page-header">
         <div style="display:flex;align-items:center;gap:12px">
@@ -71,6 +75,95 @@
                 @endforelse
             </tbody>
         </table>
+    </section>
+
+    {{-- Wallet / credits (Wave 3): per-pool balances over the engine wallet + the ledger. --}}
+    <section class="cbx-panel">
+        <header class="cbx-panel-header" style="padding:12px 20px">
+            <h2 class="cbx-panel-title" style="font-size:14px">Wallet &amp; credits</h2>
+            <p class="cbx-panel-desc" style="font-size:12px">Balances are derived from the engine wallet lots — never stored loose.</p>
+        </header>
+
+        @if (!empty($wallet['pools']))
+            <div style="display:flex;flex-wrap:wrap;gap:12px;padding:16px 20px">
+                @foreach ($wallet['pools'] as $pool)
+                    <div style="min-width:150px;border:1px solid var(--border);border-radius:10px;padding:10px 14px">
+                        <div class="mut" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em">{{ $pool['pool'] }} · {{ $pool['denomination'] }}</div>
+                        <div class="num" style="font-size:20px;font-weight:600">{{ number_format($pool['balance']) }}</div>
+                        <div class="mut" style="font-size:11px">{{ $pool['spendable'] ? 'spendable' : 'tracked' }}@if($pool['forfeits']) · forfeits on cancel @endif</div>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <div style="padding:16px 20px" class="mut">No wallet activity yet.</div>
+        @endif
+
+        {{-- Operator credit adjustment --}}
+        <div style="padding:16px 20px;border-top:1px solid var(--border)">
+            <form method="POST" action="{{ route('billing.customers.wallet.adjust', $organization->id) }}" class="cbx-grid-3" style="gap:10px;align-items:end"
+                  data-confirm="Apply this wallet adjustment for {{ $c['org'] }}?" data-confirm-title="Adjust wallet?" data-confirm-label="Apply" data-confirm-variant="primary">
+                @csrf
+                <label style="{{ $labelStyle }}">Action
+                    <select name="direction" style="{{ $inputStyle }}">
+                        <option value="grant">Grant credit</option>
+                        <option value="debit">Debit (correction)</option>
+                    </select></label>
+                <label style="{{ $labelStyle }}">Pool
+                    <select name="pool" style="{{ $inputStyle }}">
+                        <option value="promotional">Promotional (goodwill)</option>
+                        <option value="purchased">Purchased (top-up)</option>
+                        <option value="included">Included</option>
+                    </select></label>
+                <label style="{{ $labelStyle }}">Amount
+                    <input type="number" name="amount" min="1" required value="100" class="num" style="{{ $inputStyle }}"></label>
+                <label style="{{ $labelStyle }}">Denomination
+                    <input name="denomination" value="credit" required maxlength="32" style="{{ $inputStyle }}"></label>
+                <label style="{{ $labelStyle }}">Expiry (days, grants only)
+                    <input type="number" name="expires_in_days" min="1" max="3650" placeholder="365" class="num" style="{{ $inputStyle }}"></label>
+                <label style="{{ $labelStyle }}">Reason
+                    <input name="reason" required maxlength="255" placeholder="Goodwill for outage" style="{{ $inputStyle }}"></label>
+                <div><button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Apply adjustment</button></div>
+            </form>
+        </div>
+
+        {{-- Grant / debit ledger --}}
+        @if (!empty($wallet['lots']))
+            <table class="tbl">
+                <thead><tr><th>Pool</th><th>Denomination</th><th class="right" style="width:120px">Remaining</th><th style="width:120px">Kind</th><th style="width:120px">Granted</th><th style="width:120px">Expires</th></tr></thead>
+                <tbody>
+                    @foreach ($wallet['lots'] as $lot)
+                        <tr style="cursor:default;{{ $lot['active'] ? '' : 'opacity:.55' }}">
+                            <td>{{ $lot['pool'] }}</td>
+                            <td class="num">{{ $lot['denomination'] }}</td>
+                            <td class="right num">{{ number_format($lot['remaining']) }}</td>
+                            <td class="mut">{{ $lot['kind'] }}</td>
+                            <td class="num mut">{{ $lot['granted_at'] }}</td>
+                            <td class="num mut">{{ $lot['expires_at'] }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+
+        {{-- Operator-adjustment audit trail --}}
+        @if (!empty($wallet['adjustments']))
+            <header class="cbx-panel-header" style="padding:12px 20px;border-top:1px solid var(--border)"><h2 class="cbx-panel-title" style="font-size:13px">Adjustment audit</h2></header>
+            <table class="tbl">
+                <thead><tr><th style="width:150px">When</th><th style="width:90px">Action</th><th>Pool</th><th class="right" style="width:120px">Amount</th><th>Reason</th><th style="width:180px">Operator</th></tr></thead>
+                <tbody>
+                    @foreach ($wallet['adjustments'] as $adj)
+                        <tr style="cursor:default">
+                            <td class="num mut">{{ $adj['at'] }}</td>
+                            <td><span class="cbx-pill cbx-pill--{{ $adj['direction'] === 'grant' ? 'success' : 'warning' }}">{{ $adj['direction'] }}</span></td>
+                            <td>{{ $adj['pool'] }}</td>
+                            <td class="right num">{{ number_format($adj['amount']) }} {{ $adj['denomination'] }}</td>
+                            <td>{{ $adj['reason'] }}</td>
+                            <td class="mut">{{ $adj['actor'] ?? '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
     </section>
 </div>
 @endsection

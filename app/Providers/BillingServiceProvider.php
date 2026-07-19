@@ -59,6 +59,8 @@ use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\SubscriptionDepthService;
 use App\Billing\Subscriptions\SubscriptionService;
 use App\Billing\Subscriptions\TrialService;
+use App\Billing\Wallet\Contracts\AdjustsWallet;
+use App\Billing\Wallet\WalletAdjustmentService;
 use Cbox\Billing\Account\Contracts\AccountStanding;
 use Cbox\Billing\Account\Contracts\BillingCurrencyLock;
 use Cbox\Billing\Account\CurrencyLock\DatabaseBillingCurrencyLock;
@@ -378,6 +380,10 @@ class BillingServiceProvider extends ServiceProvider
         $this->app->singleton(RetriesPayments::class, PaymentRetryService::class);
 
         $this->app->singleton(ConvertsTrials::class, TrialService::class);
+
+        // Operator wallet adjustments (Wave 3): grant/debit through the engine wallet with
+        // an audit row and the no-debt-beyond-policy guardrail.
+        $this->app->singleton(AdjustsWallet::class, WalletAdjustmentService::class);
     }
 
     /**

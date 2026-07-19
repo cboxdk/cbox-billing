@@ -13,6 +13,7 @@ use App\Billing\Reporting\RevenueMetrics;
 use App\Billing\Reporting\SettingsReport;
 use App\Billing\Reporting\SubscriptionReport;
 use App\Billing\Reporting\UsageReport;
+use App\Billing\Reporting\WalletReport;
 use App\Billing\Retirement\PlanRetirementService;
 use App\Billing\Seats\Contracts\ManagesSeats;
 use App\Billing\Support\SubscriptionStanding;
@@ -223,12 +224,14 @@ class BillingController extends Controller
         ]);
     }
 
-    public function customer(Organization $organization, CustomerReport $report): View
+    public function customer(Organization $organization, CustomerReport $report, WalletReport $wallet): View
     {
         return view('billing.customer-detail', [
             'activeArea' => 'customers',
             'activeNav' => 'organizations',
             'customer' => $report->find($organization->id),
+            'organization' => $organization,
+            'wallet' => $wallet->forOrganization($organization->id),
         ]);
     }
 

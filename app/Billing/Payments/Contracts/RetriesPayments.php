@@ -38,4 +38,18 @@ interface RetriesPayments
      * terminal action once the schedule is exhausted. Idempotent per (invoice, attempt).
      */
     public function attempt(PaymentRetry $retry): void;
+
+    /**
+     * Operator "retry now": bring the next scheduled attempt due and run it immediately —
+     * the same {@see attempt()} charge, so it stays idempotent per (invoice, attempt) and a
+     * double-click never double-charges. A retry that is not `retrying` is a no-op.
+     */
+    public function retryNow(PaymentRetry $retry): void;
+
+    /**
+     * Operator "stop dunning": halt the retry schedule for the subscription. `$cancel`
+     * chooses the terminal action — cancel the subscription immediately, or leave it
+     * `PastDue`. Idempotent — a retry that is not `retrying` is left as-is.
+     */
+    public function stop(PaymentRetry $retry, bool $cancel): void;
 }

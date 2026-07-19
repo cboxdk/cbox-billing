@@ -243,6 +243,7 @@ readonly class SubscriptionReport
         $invoice = $retry->invoice;
 
         return [
+            'id' => $retry->id,
             'org' => $name,
             'ini' => Initials::of($name),
             'subscription_id' => $retry->subscription_id,
@@ -309,7 +310,7 @@ readonly class SubscriptionReport
      * The active smart-retry state for a subscription's failed charge, or null when it is
      * not in dunning.
      *
-     * @return array{attempts: int, max_attempts: int, status: string, next_attempt_at: string, first_failed_at: string, invoice: string}|null
+     * @return array{id: int, attempts: int, max_attempts: int, status: string, retrying: bool, next_attempt_at: string, first_failed_at: string, invoice: string}|null
      */
     private function dunningFor(Subscription $subscription): ?array
     {
@@ -326,9 +327,11 @@ readonly class SubscriptionReport
         $invoice = $retry->invoice;
 
         return [
+            'id' => $retry->id,
             'attempts' => $retry->attempts,
             'max_attempts' => $retry->max_attempts,
             'status' => $retry->status,
+            'retrying' => $retry->isRetrying(),
             'next_attempt_at' => $retry->next_attempt_at?->format('Y-m-d') ?? '—',
             'first_failed_at' => $retry->first_failed_at->format('Y-m-d'),
             'invoice' => $invoice !== null ? $invoice->number : '—',

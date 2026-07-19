@@ -35,6 +35,9 @@ class PaymentRetry extends Model
 
     public const STATUS_EXHAUSTED = 'exhausted';
 
+    /** Manually halted by an operator before the schedule ran out (Wave 3). */
+    public const STATUS_STOPPED = 'stopped';
+
     protected $fillable = [
         'invoice_id', 'organization_id', 'subscription_id',
         'attempts', 'max_attempts', 'status',

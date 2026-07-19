@@ -7,6 +7,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CreditNoteController;
+use App\Http\Controllers\DunningController;
 use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MeterController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RetentionController;
 use App\Http\Controllers\SeatController;
 use App\Http\Controllers\SubscriptionOpsController;
+use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
 
 // --- Authentication (Cbox ID as OIDC provider) ---
@@ -39,6 +41,10 @@ Route::middleware('auth.cbox')->group(function (): void {
 
     Route::get('/subscriptions', [BillingController::class, 'subscriptions'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions');
     Route::get('/subscriptions/dunning', [BillingController::class, 'dunning'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions.dunning');
+
+    // Manual dunning controls (Wave 3): retry-now + stop-dunning (with the terminal choice).
+    Route::post('/subscriptions/dunning/{retry}/retry', [DunningController::class, 'retry'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.dunning.retry');
+    Route::post('/subscriptions/dunning/{retry}/stop', [DunningController::class, 'stop'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.dunning.stop');
 
     // --- Subscription operator lifecycle (Wave 3): create + plan change / quantity /
     // add-ons (each preview → confirm through the engine) + cancel a scheduled change.
@@ -170,6 +176,10 @@ Route::middleware('auth.cbox')->group(function (): void {
 
     Route::get('/customers', [BillingController::class, 'customers'])->middleware('billing.permission:customers:read')->name('billing.customers');
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->middleware('billing.permission:customers:read')->name('billing.customers.show');
+
+    // Wallet / credits (Wave 3): an operator credit adjustment (promotional/goodwill grant
+    // or correcting debit) through the engine wallet with an audit row. Mutating → manage.
+    Route::post('/customers/{organization}/wallet/adjust', [WalletController::class, 'adjust'])->middleware('billing.permission:customers:manage')->name('billing.customers.wallet.adjust');
 
     // --- On-prem licensing (issuer console) ---
     // Gated on the `licenses` console-kit feature (presence gate): the routes 404 when

@@ -240,6 +240,23 @@
                 <div class="cbx-kv" style="padding:9px 0"><dt>First failed</dt><dd class="num">{{ $d['first_failed_at'] }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Next retry</dt><dd class="num">{{ $d['next_attempt_at'] }}</dd></div>
             </dl>
+            @if (!empty($d['retrying']))
+                <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <form method="POST" action="{{ route('billing.subscriptions.dunning.retry', $d['id']) }}"
+                          data-confirm="Retry the charge now?" data-confirm-title="Retry now?" data-confirm-label="Retry" data-confirm-variant="primary">
+                        @csrf<button type="submit" class="cbx-btn cbx-btn--secondary cbx-btn--sm">Retry now</button>
+                    </form>
+                    <form method="POST" action="{{ route('billing.subscriptions.dunning.stop', $d['id']) }}" style="display:flex;gap:6px;align-items:center"
+                          data-confirm="Stop dunning for this subscription?" data-confirm-title="Stop dunning?" data-confirm-label="Stop" data-confirm-variant="destructive">
+                        @csrf
+                        <select name="terminal" aria-label="Terminal action" style="{{ $inputStyle }};height:28px">
+                            <option value="keep">leave past due</option>
+                            <option value="cancel">cancel subscription</option>
+                        </select>
+                        <button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Stop dunning</button>
+                    </form>
+                </div>
+            @endif
         </section>
     @endif
 

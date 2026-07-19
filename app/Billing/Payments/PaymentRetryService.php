@@ -179,6 +179,43 @@ readonly class PaymentRetryService implements RetriesPayments
         $this->notifier->paymentRetryFailed($subscription, $invoice, $attemptNumber, $retry->max_attempts, $nextAt, exhausted: false);
     }
 
+    public function retryNow(PaymentRetry $retry): void
+    {
+        if (! $retry->isRetrying()) {
+            return;
+        }
+
+        // Bring the next slot due, then run the ordinary attempt — the per-(invoice,
+        // attempt) claim in attempt() keeps it idempotent, so a double click is safe.
+        if ($retry->next_attempt_at === null || $retry->next_attempt_at->isFuture()) {
+            $retry->forceFill(['next_attempt_at' => Carbon::now()])->save();
+        }
+
+        $this->attempt($retry->refresh());
+    }
+
+    public function stop(PaymentRetry $retry, bool $cancel): void
+    {
+        if (! $retry->isRetrying()) {
+            return;
+        }
+
+        $retry->forceFill([
+            'status' => PaymentRetry::STATUS_STOPPED,
+            'next_attempt_at' => null,
+        ])->save();
+
+        if (! $cancel) {
+            return; // the subscription is left PastDue (the schedule is simply halted).
+        }
+
+        $subscription = $retry->subscription()->with(['organization', 'plan'])->first();
+
+        if ($subscription instanceof Subscription) {
+            $this->subscriptions->cancel($subscription, atPeriodEnd: false);
+        }
+    }
+
     /** Apply the settled charge to the invoice (marks it paid and queues the receipt). */
     private function settle(Invoice $invoice, PaymentResult $result): void
     {

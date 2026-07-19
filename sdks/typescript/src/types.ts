@@ -13,9 +13,26 @@ export interface Money {
   currency: CurrencyCode;
 }
 
-/** The list envelope every collection endpoint returns. There is no server-side cursor today. */
+/** The list envelope a mutation returns (the full set, not paginated — e.g. set-default). */
 export interface DataEnvelope<T> {
   data: T[];
+}
+
+/**
+ * The cursor-pagination envelope every collection endpoint returns: one page of `data` plus
+ * the opaque `next_cursor` (echo it back as `?cursor=` for the next page; `null`/absent on the
+ * last page). `AutoPager` follows it transparently.
+ */
+export interface PageEnvelope<T> {
+  data: T[];
+  has_more?: boolean;
+  next_cursor?: string | null;
+}
+
+/** Per-page controls accepted by the cursor-paginated list endpoints. */
+export interface PageParams {
+  cursor?: string;
+  limit?: number;
 }
 
 // ── Enforcement ──
@@ -101,6 +118,8 @@ export interface Plan {
 export interface PlanList {
   currency: CurrencyCode;
   data: Plan[];
+  has_more?: boolean;
+  next_cursor?: string | null;
 }
 
 export interface ListPlansParams {

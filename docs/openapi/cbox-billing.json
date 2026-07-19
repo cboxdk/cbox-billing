@@ -479,11 +479,17 @@
                             "maxLength": 3,
                             "example": "EUR"
                         }
+                    },
+                    {
+                        "$ref": "#/components/parameters/CursorQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/LimitQuery"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "The priced catalog.",
+                        "description": "The priced catalog (one cursor page).",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -493,6 +499,8 @@
                                     "default": {
                                         "value": {
                                             "currency": "EUR",
+                                            "has_more": false,
+                                            "next_cursor": null,
                                             "data": [
                                                 {
                                                     "key": "pro",
@@ -1883,11 +1891,17 @@
                 "parameters": [
                     {
                         "$ref": "#/components/parameters/OrgPath"
+                    },
+                    {
+                        "$ref": "#/components/parameters/CursorQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/LimitQuery"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "The org's invoices.",
+                        "description": "The org's invoices (one cursor page, newest first).",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -1896,6 +1910,8 @@
                                 "examples": {
                                     "default": {
                                         "value": {
+                                            "has_more": true,
+                                            "next_cursor": "eyJrIjo0Mn0",
                                             "data": [
                                                 {
                                                     "number": "INV-2026-0001",
@@ -2233,11 +2249,17 @@
                 "parameters": [
                     {
                         "$ref": "#/components/parameters/OrgPath"
+                    },
+                    {
+                        "$ref": "#/components/parameters/CursorQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/LimitQuery"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "The saved methods.",
+                        "description": "The saved methods (one cursor page).",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -2246,6 +2268,8 @@
                                 "examples": {
                                     "default": {
                                         "value": {
+                                            "has_more": false,
+                                            "next_cursor": null,
                                             "data": [
                                                 {
                                                     "id": "pm_1",
@@ -2319,7 +2343,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/PaymentMethodList"
+                                    "$ref": "#/components/schemas/PaymentMethodSet"
                                 }
                             }
                         }
@@ -2892,6 +2916,29 @@
                     "example": "lic_abc123"
                 }
             },
+            "CursorQuery": {
+                "name": "cursor",
+                "in": "query",
+                "required": false,
+                "description": "The opaque `next_cursor` from a previous page. Treat it as a black box — echo it back\nverbatim to fetch the following page. Omit it for the first page. A malformed cursor is\na `400`.\n",
+                "schema": {
+                    "type": "string",
+                    "example": "eyJrIjo0Mn0"
+                }
+            },
+            "LimitQuery": {
+                "name": "limit",
+                "in": "query",
+                "required": false,
+                "description": "Maximum items per page (1–100). Defaults to 20.",
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 20,
+                    "example": 20
+                }
+            },
             "IdempotencyKeyOptional": {
                 "name": "Idempotency-Key",
                 "in": "header",
@@ -3069,6 +3116,27 @@
             }
         },
         "schemas": {
+            "Page": {
+                "type": "object",
+                "description": "Cursor-pagination metadata carried by every list response. When `has_more` is true,\npass `next_cursor` back as `?cursor=` to fetch the following page; the SDK's `AutoPager`\nfollows it transparently.\n",
+                "required": [
+                    "has_more",
+                    "next_cursor"
+                ],
+                "properties": {
+                    "has_more": {
+                        "type": "boolean",
+                        "description": "Whether another page follows this one."
+                    },
+                    "next_cursor": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                }
+            },
             "Error": {
                 "type": "object",
                 "description": "The app's canonical error shape for auth, scope, not-found, conflict, and business refusals.",
@@ -3451,23 +3519,30 @@
                 }
             },
             "PlanList": {
-                "type": "object",
-                "required": [
-                    "currency",
-                    "data"
-                ],
-                "properties": {
-                    "currency": {
-                        "type": "string",
-                        "description": "The currency the catalog was priced in."
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Page"
                     },
-                    "data": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/Plan"
+                    {
+                        "type": "object",
+                        "required": [
+                            "currency",
+                            "data"
+                        ],
+                        "properties": {
+                            "currency": {
+                                "type": "string",
+                                "description": "The currency the catalog was priced in."
+                            },
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/Plan"
+                                }
+                            }
                         }
                     }
-                }
+                ]
             },
             "OrganizationUpsertRequest": {
                 "type": "object",
@@ -4280,18 +4355,25 @@
                 }
             },
             "InvoiceList": {
-                "type": "object",
-                "required": [
-                    "data"
-                ],
-                "properties": {
-                    "data": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/Invoice"
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                        "type": "object",
+                        "required": [
+                            "data"
+                        ],
+                        "properties": {
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/Invoice"
+                                }
+                            }
                         }
                     }
-                }
+                ]
             },
             "CheckoutSessionRequest": {
                 "type": "object",
@@ -4468,7 +4550,29 @@
                 }
             },
             "PaymentMethodList": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                        "type": "object",
+                        "required": [
+                            "data"
+                        ],
+                        "properties": {
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/PaymentMethod"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            "PaymentMethodSet": {
                 "type": "object",
+                "description": "The full saved-method set after a mutation (set-default) — not paginated.",
                 "required": [
                     "data"
                 ],

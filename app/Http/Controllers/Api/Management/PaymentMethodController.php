@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Management;
 
+use App\Billing\Api\CursorPaginator;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization;
@@ -40,12 +41,15 @@ class PaymentMethodController extends ApiController
             return new JsonResponse(['error' => 'Unknown organization.'], Response::HTTP_NOT_FOUND);
         }
 
-        $methods = array_map(
-            $this->present(...),
+        // The gateway owns the vault and hands back the whole set of value objects, so this
+        // pages the materialised list with an opaque offset cursor (same envelope as the
+        // query-backed lists) rather than a keyset column.
+        $page = CursorPaginator::fromList(
             $gateway->paymentMethods($customers->resolve($organization)),
+            $request,
         );
 
-        return new JsonResponse(['data' => $methods]);
+        return new JsonResponse($page->envelope($this->present(...)));
     }
 
     public function setDefault(Request $request, string $org, PaymentGateway $gateway, ResolvesGatewayCustomer $customers): JsonResponse

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Management;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Api\CursorPaginator;
 use App\Billing\Catalog\PlanCatalogView;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization;
 use App\Models\Plan;
+use App\Models\PlanPrice;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,19 +30,21 @@ class PlanController extends ApiController
 
         $productId = $this->identity($request)->productId;
 
-        $plans = Plan::query()
+        $query = Plan::query()
             ->with(['prices', 'entitlements.meter'])
             ->where('active', true)
             // A product-bound token sees only its own product's catalog (shared instance).
             ->when($productId !== null, static fn ($query) => $query->where('product_id', $productId))
-            ->orderBy('id')
-            ->get()
-            ->filter(static fn (Plan $plan): bool => $plan->prices->contains('currency', $currency));
+            // A plan not priced in the resolved currency is omitted rather than shown at a
+            // fabricated rate. Filtering in SQL (not after the fetch) keeps every cursor page
+            // full and the `has_more` flag honest.
+            ->whereIn('id', PlanPrice::query()->where('currency', $currency)->select('plan_id'));
 
-        return new JsonResponse([
-            'currency' => $currency,
-            'data' => $view->present($plans, $currency),
-        ]);
+        $page = CursorPaginator::fromQuery($query, $request, 'id', 'asc');
+
+        return new JsonResponse(['currency' => $currency] + $page->envelope(
+            static fn (Plan $plan): array => $view->presentOne($plan, $currency),
+        ));
     }
 
     /** The currency to price the catalog in: an explicit `?currency=`, else the caller's account, else the app default. */

@@ -325,9 +325,11 @@ paths:
           required: false
           description: ISO-4217 currency to price the catalog in. Defaults to the caller's account currency, else the app default.
           schema: { type: string, minLength: 3, maxLength: 3, example: EUR }
+        - $ref: '#/components/parameters/CursorQuery'
+        - $ref: '#/components/parameters/LimitQuery'
       responses:
         '200':
-          description: The priced catalog.
+          description: The priced catalog (one cursor page).
           content:
             application/json:
               schema:
@@ -336,6 +338,8 @@ paths:
                 default:
                   value:
                     currency: EUR
+                    has_more: false
+                    next_cursor: null
                     data:
                       - key: pro
                         name: Pro
@@ -1001,15 +1005,19 @@ paths:
       summary: An organization's issued invoices (newest first)
       parameters:
         - $ref: '#/components/parameters/OrgPath'
+        - $ref: '#/components/parameters/CursorQuery'
+        - $ref: '#/components/parameters/LimitQuery'
       responses:
         '200':
-          description: The org's invoices.
+          description: The org's invoices (one cursor page, newest first).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InvoiceList' }
               examples:
                 default:
                   value:
+                    has_more: true
+                    next_cursor: "eyJrIjo0Mn0"
                     data:
                       - { number: "INV-2026-0001", date: "2026-07-01T00:00:00+00:00", amount_minor: 4900, currency: EUR, status: paid }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -1166,15 +1174,19 @@ paths:
       description: The non-sensitive display fields only (brand/last4/expiry) — the gateway owns the vault.
       parameters:
         - $ref: '#/components/parameters/OrgPath'
+        - $ref: '#/components/parameters/CursorQuery'
+        - $ref: '#/components/parameters/LimitQuery'
       responses:
         '200':
-          description: The saved methods.
+          description: The saved methods (one cursor page).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PaymentMethodList' }
               examples:
                 default:
                   value:
+                    has_more: false
+                    next_cursor: null
                     data:
                       - { id: pm_1, brand: visa, last4: "4242", exp_month: 12, exp_year: 2028, is_default: true }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -1205,7 +1217,7 @@ paths:
           description: The saved methods after setting the default.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/PaymentMethodList' }
+              schema: { $ref: '#/components/schemas/PaymentMethodSet' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404':
@@ -1502,6 +1514,21 @@ components:
       required: true
       description: The license id.
       schema: { type: string, example: lic_abc123 }
+    CursorQuery:
+      name: cursor
+      in: query
+      required: false
+      description: |
+        The opaque `next_cursor` from a previous page. Treat it as a black box — echo it back
+        verbatim to fetch the following page. Omit it for the first page. A malformed cursor is
+        a `400`.
+      schema: { type: string, example: "eyJrIjo0Mn0" }
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      description: Maximum items per page (1–100). Defaults to 20.
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20, example: 20 }
     IdempotencyKeyOptional:
       name: Idempotency-Key
       in: header
@@ -1587,6 +1614,16 @@ components:
 
   schemas:
     # ── Errors ──
+    Page:
+      type: object
+      description: |
+        Cursor-pagination metadata carried by every list response. When `has_more` is true,
+        pass `next_cursor` back as `?cursor=` to fetch the following page; the SDK's `AutoPager`
+        follows it transparently.
+      required: [has_more, next_cursor]
+      properties:
+        has_more: { type: boolean, description: Whether another page follows this one. }
+        next_cursor: { type: [string, "null"], description: Opaque cursor for the next page; null on the last page. }
     Error:
       type: object
       description: The app's canonical error shape for auth, scope, not-found, conflict, and business refusals.
@@ -1741,13 +1778,15 @@ components:
         minor: { type: integer, description: The amount in integer minor units. }
         currency: { type: string, minLength: 3, maxLength: 3 }
     PlanList:
-      type: object
-      required: [currency, data]
-      properties:
-        currency: { type: string, description: The currency the catalog was priced in. }
-        data:
-          type: array
-          items: { $ref: '#/components/schemas/Plan' }
+      allOf:
+        - $ref: '#/components/schemas/Page'
+        - type: object
+          required: [currency, data]
+          properties:
+            currency: { type: string, description: The currency the catalog was priced in. }
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Plan' }
 
     # ── Organizations ──
     OrganizationUpsertRequest:
@@ -2014,12 +2053,14 @@ components:
         currency: { type: string }
         status: { type: string, description: "e.g. `draft`, `open`, `paid`, `void`." }
     InvoiceList:
-      type: object
-      required: [data]
-      properties:
-        data:
-          type: array
-          items: { $ref: '#/components/schemas/Invoice' }
+      allOf:
+        - $ref: '#/components/schemas/Page'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Invoice' }
 
     # ── Checkout / Portal ──
     CheckoutSessionRequest:
@@ -2079,7 +2120,17 @@ components:
         exp_year: { type: [integer, "null"] }
         is_default: { type: boolean }
     PaymentMethodList:
+      allOf:
+        - $ref: '#/components/schemas/Page'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/PaymentMethod' }
+    PaymentMethodSet:
       type: object
+      description: The full saved-method set after a mutation (set-default) — not paginated.
       required: [data]
       example:
         data:

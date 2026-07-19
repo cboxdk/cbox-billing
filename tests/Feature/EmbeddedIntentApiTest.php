@@ -165,6 +165,30 @@ class EmbeddedIntentApiTest extends TestCase
             ->assertJsonPath('data.0.id', 'pm_two');
     }
 
+    public function test_payment_methods_list_is_cursor_paginated(): void
+    {
+        $gateway = $this->bindGateway();
+        [$organization, $auth] = $this->orgWithToken('org_pm_paged');
+
+        $account = app(ResolvesGatewayCustomer::class)->resolve($organization);
+        $gateway->attachPaymentMethod($account, 'pm_one');
+        $gateway->attachPaymentMethod($account, 'pm_two');
+        $gateway->attachPaymentMethod($account, 'pm_three');
+
+        // Page 1 of 2: the offset cursor pages the gateway-owned set.
+        $page1 = $this->getJson('/api/v1/payment-methods/org_pm_paged?limit=2', $auth)->assertOk();
+        $page1->assertJsonCount(2, 'data')->assertJsonPath('has_more', true);
+        $cursor = $page1->json('next_cursor');
+        $this->assertIsString($cursor);
+
+        // Page 2: the remaining method, no further pages.
+        $this->getJson('/api/v1/payment-methods/org_pm_paged?limit=2&cursor='.$cursor, $auth)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('has_more', false)
+            ->assertJsonPath('next_cursor', null);
+    }
+
     public function test_embedded_intent_api_enforces_per_org_scope(): void
     {
         $this->bindGateway();

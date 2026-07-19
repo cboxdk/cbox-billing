@@ -1,23 +1,24 @@
 /**
- * Auto-paging over the list endpoints.
+ * Auto-paging over the cursor-paginated list endpoints.
  *
- * The management API's collection endpoints (`invoices`, `plans`, `payment-methods`)
- * currently return a flat `{ data: [...] }` envelope with **no server-side cursor** — the
- * whole collection comes back in one page. `AutoPager` wraps that envelope in an async
- * iterator so calling code reads the same way it would against a cursored API:
+ * The management API's collection endpoints (`invoices`, `plans`, `payment-methods`) return a
+ * `{ data, has_more, next_cursor }` page. `AutoPager` wraps that envelope in an async iterator
+ * that follows `next_cursor` transparently, so calling code reads the whole collection without
+ * ever handling a cursor by hand:
  *
  * ```ts
  * for await (const invoice of client.invoices.list('org_acme')) { ... }
  * ```
  *
- * It is written against a `fetchPage(cursor)` seam, so the day the API grows real cursor
- * pagination the iterator keeps working unchanged — only the resource method's `fetchPage`
- * needs to thread the cursor through. Today `fetchPage` is called once.
+ * It drives a `fetchPage(cursor)` seam: the first call passes `undefined` (first page); each
+ * subsequent call threads the previous page's `next_cursor`, stopping when it comes back
+ * null/absent.
  */
 
 export interface PageEnvelope<T> {
   data: T[];
-  /** Reserved for a future cursor; absent today. */
+  has_more?: boolean;
+  /** Opaque cursor for the next page; null/absent on the last page. */
   next_cursor?: string | null;
 }
 

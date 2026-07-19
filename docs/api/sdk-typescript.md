@@ -52,8 +52,9 @@ const { subscription } = await client.subscriptions.create({
   `409`, never a silent replay.
 - **Retries** — 429/5xx and transient network failures retry with exponential backoff +
   full jitter, honouring `Retry-After` (bounded by `maxDelayMs`).
-- **Auto-paging** — list endpoints return an `AutoPager` you can `for await` over or
-  `.all()`.
+- **Auto-paging** — the cursor-paginated list endpoints return an `AutoPager` you can
+  `for await` over or `.all()`; it follows the server's `next_cursor` transparently. Pass
+  `{ limit }` to size the page, `{ cursor }` to resume from one.
 - **Typed errors** — `CboxBillingError` subclasses (`AuthenticationError`,
   `PermissionError`, `NotFoundError`, `ConflictError`, `ValidationError`, `RateLimitError`,
   `ConnectionError`) carrying `status`, `code`, `message`, and per-field `details`.

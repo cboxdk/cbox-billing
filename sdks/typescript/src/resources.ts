@@ -23,6 +23,18 @@ function idem(opts?: WriteOptions): { idempotency?: string; timeoutMs?: number; 
   };
 }
 
+/** The `?cursor=`/`?limit=` query for a paginated list request (the cursor wins over `params`). */
+function pageQuery(
+  params: T.PageParams,
+  cursor: string | undefined,
+): Record<string, string | number | undefined> {
+  const active = cursor ?? params.cursor;
+  return {
+    ...(active !== undefined ? { cursor: active } : {}),
+    ...(params.limit !== undefined ? { limit: params.limit } : {}),
+  };
+}
+
 // ─────────────────────────────── Enforcement ───────────────────────────────
 export class EnforcementResource {
   constructor(private readonly http: HttpClient) {}
@@ -58,13 +70,32 @@ export class EnforcementResource {
 export class PlansResource {
   constructor(private readonly http: HttpClient) {}
 
-  /** List the sellable catalog, priced in the caller's account currency (or `params.currency`). */
+  /**
+   * List the sellable catalog, priced in the caller's account currency (or `params.currency`).
+   * The endpoint is cursor-paginated; this follows every page and returns the whole catalog in
+   * one `PlanList` (the `currency` from the first page, with `has_more: false`).
+   */
   async list(params: T.ListPlansParams = {}): Promise<T.PlanList> {
-    return this.http.request({
-      method: 'GET',
-      path: '/plans',
-      ...(params.currency !== undefined ? { query: { currency: params.currency } } : {}),
-    });
+    const query: Record<string, string | undefined> = {
+      ...(params.currency !== undefined ? { currency: params.currency } : {}),
+    };
+
+    const data: T.Plan[] = [];
+    let currency: T.CurrencyCode | undefined;
+    let cursor: string | undefined;
+
+    do {
+      const page: T.PlanList = await this.http.request({
+        method: 'GET',
+        path: '/plans',
+        query: { ...query, ...(cursor !== undefined ? { cursor } : {}) },
+      });
+      currency ??= page.currency;
+      data.push(...page.data);
+      cursor = page.next_cursor ?? undefined;
+    } while (cursor);
+
+    return { currency: currency as T.CurrencyCode, data, has_more: false, next_cursor: null };
   }
 }
 
@@ -243,10 +274,14 @@ export class UsageResource {
 export class InvoicesResource {
   constructor(private readonly http: HttpClient) {}
 
-  /** The org's issued invoices, newest first — auto-pageable. */
-  list(org: string): AutoPager<T.Invoice> {
-    return new AutoPager<T.Invoice>(() =>
-      this.http.request({ method: 'GET', path: `/invoices/${encodeURIComponent(org)}` }),
+  /** The org's issued invoices, newest first — auto-pageable (follows the server cursor). */
+  list(org: string, params: T.PageParams = {}): AutoPager<T.Invoice> {
+    return new AutoPager<T.Invoice>((cursor) =>
+      this.http.request({
+        method: 'GET',
+        path: `/invoices/${encodeURIComponent(org)}`,
+        query: pageQuery(params, cursor),
+      }),
     );
   }
 }
@@ -289,9 +324,13 @@ export class PaymentMethodsResource {
   constructor(private readonly http: HttpClient) {}
 
   /** List an org's saved payment methods (display fields only). Auto-pageable. */
-  list(org: string): AutoPager<T.PaymentMethod> {
-    return new AutoPager<T.PaymentMethod>(() =>
-      this.http.request({ method: 'GET', path: `/payment-methods/${encodeURIComponent(org)}` }),
+  list(org: string, params: T.PageParams = {}): AutoPager<T.PaymentMethod> {
+    return new AutoPager<T.PaymentMethod>((cursor) =>
+      this.http.request({
+        method: 'GET',
+        path: `/payment-methods/${encodeURIComponent(org)}`,
+        query: pageQuery(params, cursor),
+      }),
     );
   }
 

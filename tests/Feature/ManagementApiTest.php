@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\ApiToken;
+use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
 use Cbox\Billing\Account\Contracts\BillingCurrencyLock;
@@ -152,6 +153,77 @@ class ManagementApiTest extends TestCase
             ->assertJsonPath('data.0.currency', 'DKK')
             ->assertJsonPath('data.0.amount_minor', $invoice->total_minor)
             ->assertJsonPath('data.0.status', 'open');
+    }
+
+    public function test_invoices_list_cursor_pagination_is_stable_and_ordered(): void
+    {
+        [$organization, $auth] = $this->orgWithToken('org_paged');
+
+        // Seed five invoices; ids ascend, so the API's newest-first order is 5,4,3,2,1.
+        for ($n = 1; $n <= 5; $n++) {
+            Invoice::query()->create([
+                'organization_id' => $organization->id,
+                'number' => sprintf('INV-%04d', $n),
+                'seller' => 'default',
+                'currency' => 'DKK',
+                'subtotal_minor' => 1000 * $n,
+                'tax_minor' => 0,
+                'total_minor' => 1000 * $n,
+                'status' => 'open',
+                'issued_at' => now()->subDays(5 - $n),
+            ]);
+        }
+
+        // Page 1: newest two, has_more, a cursor.
+        $page1 = $this->getJson('/api/v1/invoices/org_paged?limit=2', $auth)->assertOk();
+        $page1->assertJsonPath('has_more', true);
+        $this->assertSame(['INV-0005', 'INV-0004'], collect($page1->json('data'))->pluck('number')->all());
+        $cursor = $page1->json('next_cursor');
+        $this->assertIsString($cursor);
+
+        // Page 2: the next two, following the opaque cursor verbatim.
+        $page2 = $this->getJson('/api/v1/invoices/org_paged?limit=2&cursor='.$cursor, $auth)->assertOk();
+        $page2->assertJsonPath('has_more', true);
+        $this->assertSame(['INV-0003', 'INV-0002'], collect($page2->json('data'))->pluck('number')->all());
+
+        // Page 3: the last one, no more pages, null cursor.
+        $page3 = $this->getJson('/api/v1/invoices/org_paged?limit=2&cursor='.$page2->json('next_cursor'), $auth)->assertOk();
+        $page3->assertJsonPath('has_more', false)->assertJsonPath('next_cursor', null);
+        $this->assertSame(['INV-0001'], collect($page3->json('data'))->pluck('number')->all());
+    }
+
+    public function test_invoices_list_rejects_a_malformed_cursor(): void
+    {
+        [, $auth] = $this->orgWithToken('org_badcursor');
+
+        $this->getJson('/api/v1/invoices/org_badcursor?cursor=not-a-real-cursor', $auth)
+            ->assertStatus(400);
+    }
+
+    public function test_plans_list_cursor_pages_preserve_the_currency_envelope(): void
+    {
+        [, $auth] = $this->orgWithToken('org_plans_paged');
+
+        // Walk the whole DKK catalog one plan per page, following the cursor to the end.
+        $seen = [];
+        $cursor = null;
+        $currency = null;
+
+        do {
+            $url = '/api/v1/plans?limit=1'.($cursor !== null ? '&cursor='.$cursor : '');
+            $page = $this->getJson($url, $auth)->assertOk();
+            $currency = $page->json('currency');
+            $this->assertSame('DKK', $currency, 'currency is carried on every page');
+            foreach ($page->json('data') as $plan) {
+                $seen[] = $plan['key'];
+            }
+            $cursor = $page->json('next_cursor');
+        } while ($cursor !== null);
+
+        // Every priced plan surfaced exactly once, and the walk matched a single unpaged fetch.
+        $all = collect($this->getJson('/api/v1/plans?limit=100', $auth)->json('data'))->pluck('key')->all();
+        $this->assertSame($all, $seen);
+        $this->assertContains('team', $seen);
     }
 
     public function test_plans_are_priced_in_the_requested_currency(): void

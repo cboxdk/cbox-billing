@@ -180,6 +180,39 @@ test('auto-pages a {data:[]} list into individual items', async () => {
   assert.equal(total, 350);
 });
 
+test('follows a real server cursor across pages, threading ?cursor= and stopping on null', async () => {
+  const { fetch, calls } = fakeFetch([
+    { status: 200, body: { data: [{ number: 'INV-1', amount_minor: 100 }], has_more: true, next_cursor: 'eyJrIjoxfQ' } },
+    { status: 200, body: { data: [{ number: 'INV-2', amount_minor: 250 }], has_more: false, next_cursor: null } },
+  ]);
+  const client = makeClient(fetch);
+
+  const numbers: string[] = [];
+  for await (const inv of client.invoices.list('org_1', { limit: 1 })) numbers.push(inv.number);
+
+  assert.deepEqual(numbers, ['INV-1', 'INV-2']);
+  // Two pages were fetched: the first without a cursor, the second threading next_cursor.
+  assert.equal(calls.length, 2);
+  assert.ok(!calls[0]!.url.includes('cursor='), 'first page carries no cursor');
+  assert.ok(calls[0]!.url.includes('limit=1'), 'limit is threaded through');
+  assert.ok(calls[1]!.url.includes('cursor=eyJrIjoxfQ'), 'second page echoes next_cursor verbatim');
+});
+
+test('plans.list aggregates every cursor page into one PlanList', async () => {
+  const { fetch, calls } = fakeFetch([
+    { status: 200, body: { currency: 'EUR', data: [{ key: 'starter' }], has_more: true, next_cursor: 'eyJrIjo3fQ' } },
+    { status: 200, body: { currency: 'EUR', data: [{ key: 'pro' }], has_more: false, next_cursor: null } },
+  ]);
+  const client = makeClient(fetch);
+
+  const plans = await client.plans.list({ currency: 'EUR' });
+  assert.equal(plans.currency, 'EUR');
+  assert.deepEqual(plans.data.map((p) => p.key), ['starter', 'pro']);
+  assert.equal(plans.has_more, false);
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1]!.url.includes('cursor=eyJrIjo3fQ'));
+});
+
 test('reserve outcome narrows on the discriminant', async () => {
   const { fetch } = fakeFetch([{ status: 200, body: { outcome: 'denied', reason: 'allowance_exhausted', upgrade: { required_plan: 'pro', checkout_url: 'https://x/y' } } }]);
   const client = makeClient(fetch);

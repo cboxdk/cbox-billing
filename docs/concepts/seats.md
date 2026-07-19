@@ -85,6 +85,10 @@ change to the model, the reporting, or the API — Light stays free until then.
   `POST /subscriptions/{org}/seats` sets the purchased count (buy/release);
   `POST /subscriptions/{org}/seats/assign` and `.../seats/unassign` move a member between
   Full and Light. A refused invariant is a `409`.
+- **Customer portal** — the token-scoped [hosted portal](../api/hosted-checkout-and-portal.md)
+  lets the customer self-serve the same operations: preview the prorated due-now for a seat
+  buy/release then confirm, and assign / unassign their own members — driven through the same
+  `SeatManager` semantics and cap guardrails (a refusal is a `422`).
 - **Reporting** — MRR reflects the **purchased** Full-seat count (you bill what is
   purchased); Full-billed vs Light-free counts are surfaced wherever seats appear.
 

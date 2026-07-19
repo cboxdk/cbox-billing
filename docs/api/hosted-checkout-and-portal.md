@@ -52,6 +52,42 @@ it — so a checkout never creates a paying subscription before money settles.
 | `POST` | `/billing/portal/{token}/cancel` | Cancel. |
 | `POST` | `/billing/portal/{token}/setup-intent` | Start a payment-method setup. |
 | `POST` | `/billing/portal/{token}/payment-method` | Update the payment method. |
+| `POST` | `/billing/portal/{token}/payment-method/default` | Make a saved method the default. |
+| `POST` | `/billing/portal/{token}/payment-method/remove` | Detach a saved method. |
+| `POST` | `/billing/portal/{token}/seats/preview` | Preview a seat buy/release (prorated due-now). |
+| `POST` | `/billing/portal/{token}/seats` | Buy/release purchased seats. |
+| `POST` | `/billing/portal/{token}/seats/assign` | Assign a purchased seat to a member. |
+| `POST` | `/billing/portal/{token}/seats/unassign` | Release a member's seat (→ Light). |
+| `POST` | `/billing/portal/{token}/notifications` | Toggle an optional email notification. |
+
+Every portal endpoint is scoped to the session token's `organization_id`: a token for
+one org can never read or mutate another org's usage, seats, invoices, or preferences —
+an off-org resource resolves to a 404/deny, never a leak.
+
+## Self-service depth
+
+The portal is built so a customer never needs to email support. Beyond plan change and
+cancellation, one page covers:
+
+- **Usage & consumption** — per-meter allowance / used / remaining / % consumed (progress
+  bars), projected overage, and the reset date for the current period. It reads through the
+  **same `EntitlementsView` + `UsageSummaryView`** the console usage screen and the
+  enforcement path use (`UsageReport::forOrganization()`), so a customer sees exactly what
+  the server enforces. Hidden entirely for a flat / un-metered plan.
+- **Self-serve seats** — buy or release purchased Full seats (preview the prorated due-now,
+  then confirm; the H6 proration is charged through the engine's `changeQuantity` and the
+  same collector the console + API use), and assign / unassign the org's own members between
+  Full and Light. Cap-enforced: assigning past the purchased count returns "buy more seats",
+  and releasing below the assigned count is refused — mirroring `SeatManager` exactly.
+- **Billing history** — a chronological timeline broader than the invoices table: invoices
+  (issued / paid / void), the receipt each paid invoice produced, credit notes (refunds /
+  adjustments), and coupon redemptions, each with its amount, status, and a PDF link where
+  a document exists.
+- **Notification preferences** — opt in/out of the **optional** lifecycle emails (renewal
+  reminder, trial-ending, receipts). The **mandatory** transactional/legal mails (invoice
+  issued, past-due / dunning, subscription changes, license delivery, plan retirement) are
+  shown as always-on and cannot be switched off. See
+  [Notifications → Preferences](../notifications/preferences.md).
 
 ## Embedded intents (Path B)
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Notifications\Contracts;
 
+use App\Billing\Payments\Dunning\DeclineCategory;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -43,9 +44,12 @@ interface NotifiesCustomers
      * A renewal charge failed and the smart-retry schedule is chasing it → tell the customer
      * their payment failed, when the next attempt is (or that retries are exhausted).
      * `$attempt` is 0 for the initial failure notice, then the attempt number for each
-     * retry; `$exhausted` is true on the final, give-up notice.
+     * retry; `$exhausted` is true on the final, give-up notice. `$category` is the classified
+     * decline category the copy is tailored to — a hard decline asks for a new method, a
+     * needs-action decline sends an authenticate link — defaulting to null (generic copy) so a
+     * caller without a classification still works.
      */
-    public function paymentRetryFailed(Subscription $subscription, Invoice $invoice, int $attempt, int $maxAttempts, ?DateTimeInterface $nextAttemptAt, bool $exhausted): void;
+    public function paymentRetryFailed(Subscription $subscription, Invoice $invoice, int $attempt, int $maxAttempts, ?DateTimeInterface $nextAttemptAt, bool $exhausted, ?DeclineCategory $category = null): void;
 
     /** Ahead of a trial's conversion → remind the customer their trial ends (and will charge). */
     public function trialEnding(Subscription $subscription, DateTimeInterface $trialEndsAt): void;

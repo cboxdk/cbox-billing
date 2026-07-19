@@ -8,6 +8,7 @@ use App\Billing\Mode\BillingContext;
 use App\Billing\Notifications\Contracts\ComposesTransactionalMail;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Notifications\Rendering\RenderedMail;
+use App\Billing\Payments\Dunning\DeclineCategory;
 use App\Billing\Support\MoneyFormatter;
 use App\Billing\TestMode\CapturedNotifications;
 use App\Mail\InvoiceIssuedMail;
@@ -166,7 +167,7 @@ readonly class BillingNotifier implements NotifiesCustomers
         ), 'dunning.notice', $organization->id);
     }
 
-    public function paymentRetryFailed(Subscription $subscription, Invoice $invoice, int $attempt, int $maxAttempts, ?DateTimeInterface $nextAttemptAt, bool $exhausted): void
+    public function paymentRetryFailed(Subscription $subscription, Invoice $invoice, int $attempt, int $maxAttempts, ?DateTimeInterface $nextAttemptAt, bool $exhausted, ?DeclineCategory $category = null): void
     {
         $organization = $invoice->organization ?? $subscription->organization;
 
@@ -175,6 +176,7 @@ readonly class BillingNotifier implements NotifiesCustomers
         }
 
         $locale = $this->localeFor($organization, $invoice->seller);
+        $category ??= DeclineCategory::Unknown;
 
         $this->send($organization, $invoice->seller, $locale, new PaymentRetryMail(
             organizationName: $organization->name,
@@ -184,6 +186,11 @@ readonly class BillingNotifier implements NotifiesCustomers
             maxAttempts: $maxAttempts,
             nextAttemptLabel: $this->dateTime($nextAttemptAt, $locale),
             exhausted: $exhausted,
+            declineCategory: $category->value,
+            // A needs-action decline is resolved by the customer authenticating; a hard decline
+            // requires a brand-new method — both drive distinct copy in the template.
+            needsAction: $category === DeclineCategory::NeedsAction,
+            requiresNewMethod: $category === DeclineCategory::Hard,
         ), 'payment.retry', $invoice->number);
     }
 

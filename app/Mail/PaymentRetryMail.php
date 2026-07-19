@@ -22,6 +22,9 @@ class PaymentRetryMail extends TransactionalMailable
         public int $maxAttempts,
         public ?string $nextAttemptLabel = null,
         public bool $exhausted = false,
+        public string $declineCategory = 'unknown',
+        public bool $needsAction = false,
+        public bool $requiresNewMethod = false,
     ) {}
 
     public function eventType(): MailEventType
@@ -39,6 +42,11 @@ class PaymentRetryMail extends TransactionalMailable
             'max_attempts' => $this->maxAttempts,
             'next_attempt_label' => $this->nextAttemptLabel ?? '',
             'exhausted' => $this->exhausted,
+            // The decline category selects the message: `needs_action` sends an authenticate
+            // link; a hard decline (`requires_new_method`) asks for a new card up front.
+            'decline_category' => $this->declineCategory,
+            'needs_action' => $this->needsAction,
+            'requires_new_method' => $this->requiresNewMethod,
         ];
     }
 }

@@ -104,6 +104,9 @@ enum MailEventType: string
                 'max_attempts' => ['description' => 'The total number of scheduled attempts', 'sample' => 4],
                 'next_attempt_label' => ['description' => 'When the next attempt runs (may be empty)', 'sample' => '9 Jul 2026'],
                 'exhausted' => ['description' => 'Whether retries are exhausted (the final notice)', 'sample' => false],
+                'decline_category' => ['description' => 'The classified decline category (hard, insufficient_funds, recoverable, try_again_later, needs_action, unknown)', 'sample' => 'insufficient_funds'],
+                'needs_action' => ['description' => 'The bank requires authentication (SCA) — show an authenticate link', 'sample' => false],
+                'requires_new_method' => ['description' => 'A hard decline — the customer must add a new payment method', 'sample' => false],
             ],
             self::TrialEnding => [
                 'organization_name' => ['description' => "The customer organization's name", 'sample' => 'Northwind Traders'],

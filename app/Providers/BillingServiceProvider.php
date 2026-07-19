@@ -38,16 +38,26 @@ use App\Billing\Notifications\Rendering\DefaultMailTemplates;
 use App\Billing\Notifications\Rendering\MailTemplateResolver;
 use App\Billing\Notifications\Rendering\SafeTemplateRenderer;
 use App\Billing\Notifications\Rendering\TransactionalMailComposer;
+use App\Billing\Payments\AdaptiveRetryStrategy;
+use App\Billing\Payments\Contracts\ClassifiesDeclines;
 use App\Billing\Payments\Contracts\PaysInvoices;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Payments\Contracts\RetriesPayments;
+use App\Billing\Payments\Contracts\SchedulesRetries;
+use App\Billing\Payments\Contracts\UpdatesCards;
+use App\Billing\Payments\Contracts\VerifiesCardUpdates;
 use App\Billing\Payments\DatabaseDunningStateStore;
 use App\Billing\Payments\DatabaseGatewayCustomerResolver;
 use App\Billing\Payments\DatabaseProcessedEventStore;
 use App\Billing\Payments\DatabaseSettledPaymentStore;
+use App\Billing\Payments\DeclineClassifier;
+use App\Billing\Payments\DunningCardUpdater;
+use App\Billing\Payments\ManualCardUpdateVerifier;
 use App\Billing\Payments\ManualWebhookVerifier;
+use App\Billing\Payments\NullCardUpdateVerifier;
 use App\Billing\Payments\PaymentRetryService;
 use App\Billing\Payments\PaymentService;
+use App\Billing\Payments\StripeCardUpdateVerifier;
 use App\Billing\Refunds\DatabaseRefundRepository;
 use App\Billing\Retention\BasicCancellationSurvey;
 use App\Billing\Retention\BasicRetentionOffers;
@@ -444,9 +454,19 @@ class BillingServiceProvider extends ServiceProvider
 
         $this->app->singleton(PaysInvoices::class, PaymentService::class);
 
-        // The smart-retry dunning collector (failed renewal → PastDue → backoff retries →
-        // recover or terminal action) and the trial-conversion service.
+        // Adaptive dunning: the decline taxonomy (classifies a gateway failure into a recovery
+        // category) and the per-category adaptive retry schedule the collector drives off it.
+        $this->app->singleton(ClassifiesDeclines::class, DeclineClassifier::class);
+        $this->app->singleton(SchedulesRetries::class, AdaptiveRetryStrategy::class);
+
+        // The smart-retry dunning collector (failed renewal → classify → PastDue → adaptive
+        // backoff retries → recover or terminal action) and the trial-conversion service.
         $this->app->singleton(RetriesPayments::class, PaymentRetryService::class);
+
+        // The card / account-updater seam: a gateway card-update points the vaulted default at
+        // the fresh card and re-attempts the account's in-dunning charges. NullCardUpdater is
+        // the inert default; the deployable app binds the working DunningCardUpdater.
+        $this->app->singleton(UpdatesCards::class, DunningCardUpdater::class);
 
         $this->app->singleton(ConvertsTrials::class, TrialService::class);
 
@@ -499,6 +519,31 @@ class BillingServiceProvider extends ServiceProvider
                 );
             });
         }
+
+        // The card / account-updater verifier — the seam the engine's settlement webhook does
+        // not model. Prefer the REAL Stripe verifier when its signing secret is set (it consumes
+        // `payment_method.automatically_updated` & friends the settlement adapter ignores);
+        // otherwise the manual HMAC verifier when a webhook secret is set; else deny-by-default.
+        $this->app->singleton(VerifiesCardUpdates::class, static function (Application $app): VerifiesCardUpdates {
+            $config = $app->make(Config::class);
+            $stripeSecret = $config->get('billing-stripe.webhook_secret');
+
+            if (is_string($stripeSecret) && $stripeSecret !== '') {
+                return new StripeCardUpdateVerifier($stripeSecret);
+            }
+
+            $secret = $config->get('billing.webhook.secret');
+            $header = $config->get('billing.webhook.signature_header', 'X-Cbox-Signature');
+
+            if (is_string($secret) && $secret !== '') {
+                return new ManualCardUpdateVerifier(
+                    secret: $secret,
+                    signatureHeader: is_string($header) ? $header : 'X-Cbox-Signature',
+                );
+            }
+
+            return new NullCardUpdateVerifier;
+        });
     }
 
     /** Whether a Stripe secret key is configured, so the Stripe gateway is the bound one. */

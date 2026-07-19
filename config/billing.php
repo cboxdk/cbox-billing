@@ -295,10 +295,12 @@ return [
         'retry' => [
 
             /*
-             * The backoff schedule as day-offsets from the initial failure: attempt N fires
-             * `schedule[N-1]` days after the charge first failed. The number of entries is
-             * the maximum number of retries — once the last offset's attempt fails, the
-             * schedule is exhausted. Default: retry on days 1, 3, 5 and 7.
+             * The BASE backoff schedule as day-offsets from the initial failure: attempt N
+             * fires `schedule[N-1]` days after the charge first failed. Adaptive dunning
+             * (`dunning.strategies` below) uses this as the curve every decline category
+             * inherits until it opts into its own — so a deployment that never tunes a category
+             * keeps exactly this schedule, and a category with a specific curve (insufficient
+             * funds, do-not-honor) overrides it. The number of entries is the retry ceiling.
              *
              * @var list<int>
              */
@@ -311,6 +313,90 @@ return [
              * handling; the access-gating dunning pass still governs suspension).
              */
             'terminal_action' => env('CBOX_BILLING_RETRY_TERMINAL_ACTION', 'cancel'),
+        ],
+    ],
+
+    /*
+     * Adaptive dunning — the decline-code-aware recovery strategy that drives the smart-retry
+     * schedule above. Where the base `payment.retry.schedule` is one curve for every failure,
+     * this branches the recovery on WHY the charge declined: each failed charge's gateway
+     * decline code is classified into a category (hard · insufficient-funds · recoverable ·
+     * try-again-later · needs-action) and a per-category strategy chooses the retry count,
+     * backoff curve and timing heuristics. The goal is Recurly/Stripe-Smart-Retries-grade
+     * recovery: don't hammer a lost card, don't retry a short balance before payday, don't
+     * cluster attempts on weekends, and give up inside a bounded window.
+     *
+     * Everything here is a DEFAULT. An operator tunes a category at runtime from the console
+     * (Settings → Dunning strategy); those overrides live in the `dunning_strategies` table and
+     * win over these values. A category absent from both inherits the base curve above.
+     */
+    'dunning' => [
+
+        'strategies' => [
+
+            /*
+             * Never schedule a retry beyond this many days after the first failure — the
+             * bounded recovery window. An attempt whose (heuristic-adjusted) instant would fall
+             * past it is dropped and the schedule exhausts.
+             */
+            'max_window_days' => (int) env('CBOX_BILLING_DUNNING_MAX_WINDOW_DAYS', 30),
+
+            /*
+             * The days-of-month insufficient-funds attempts are pulled forward to (typical
+             * payday anchors) — retrying a short balance the moment it declines just declines
+             * again, so the attempt is nudged to the next payday at or after its raw offset.
+             *
+             * @var list<int>
+             */
+            'payday_days' => [1, 15],
+
+            /*
+             * ISO-8601 weekday numbers (1=Mon … 7=Sun) an attempt is pushed OFF when a
+             * category enables weekend avoidance — banks post fewer transactions on these days.
+             *
+             * @var list<int>
+             */
+            'quiet_weekdays' => [6, 7],
+
+            /*
+             * The per-decline-category overrides of the base curve. A category names only the
+             * knobs it changes; anything omitted inherits (`backoff_days` → the base
+             * `payment.retry.schedule`; `retry` → true; the heuristics → off). `hard` is forced
+             * non-retryable in code regardless of what is set here.
+             *
+             *  - `retry`           — whether the category is retried at all.
+             *  - `backoff_days`    — this category's own curve (day-offsets from first failure).
+             *  - `avoid_weekends`  — push an attempt off the `quiet_weekdays`.
+             *  - `align_to_payday` — pull an attempt forward to the next `payday_days` anchor.
+             */
+            'categories' => [
+
+                // Lost/stolen/closed/expired/fraud — retrying the same method cannot succeed.
+                'hard' => [
+                    'retry' => false,
+                ],
+
+                // A short balance — spread wider, pull to payday, skip weekends.
+                'insufficient_funds' => [
+                    'backoff_days' => [2, 5, 9, 14],
+                    'avoid_weekends' => true,
+                    'align_to_payday' => true,
+                ],
+
+                // The issuer asked us to back off — a longer curve, skip weekends.
+                'try_again_later' => [
+                    'backoff_days' => [2, 5, 10, 16, 24],
+                    'avoid_weekends' => true,
+                ],
+
+                // SCA — the customer authenticates; a short curve while the link is live.
+                'needs_action' => [
+                    'backoff_days' => [1, 3, 5],
+                ],
+
+                // `recoverable` and `unknown` are intentionally omitted: they inherit the base
+                // curve, so the untuned path is identical to the legacy fixed schedule.
+            ],
         ],
     ],
 

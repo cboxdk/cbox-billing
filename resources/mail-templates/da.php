@@ -61,17 +61,33 @@ return [
     ],
 
     'payment_retry' => [
-        'subject' => '{{#if exhausted }}Vi kunne ikke gennemføre din betaling for {{ invoice_number }}{{else}}Din betaling for {{ invoice_number }} gik ikke igennem{{/if}}',
-        'body' => '{{#if exhausted }}'.$eyebrow('Betalingsproblem').$heading('Vi kunne ikke gennemføre din betaling')
+        'subject' => '{{#if requires_new_method }}Handling kræves: opdater din betalingsmetode for {{ invoice_number }}{{else}}{{#if exhausted }}Vi kunne ikke gennemføre din betaling for {{ invoice_number }}{{else}}{{#if needs_action }}Bekræft din betaling for {{ invoice_number }}{{else}}Din betaling for {{ invoice_number }} gik ikke igennem{{/if}}{{/if}}{{/if}}',
+        // Afvisningskategorien vælger beskeden: en hård afvisning beder om et nyt kort;
+        // needs_action beder kunden bekræfte (SCA); exhausted er den endelige besked.
+        'body' => '{{#if requires_new_method }}'
+            .$eyebrow('Handling kræves').$heading('Opdater venligst din betalingsmetode')
+            .$p('Hej {{ organization_name }},')
+            .$p('Din betalingsmetode blev afvist for faktura {{ invoice_number }} og kan ikke forsøges igen — det betyder oftest, at kortet er meldt tabt eller stjålet, er udløbet eller er lukket. For at beholde din service bedes du tilføje en ny betalingsmetode og betale det udestående beløb.')
+            .$summaryOpen.$row('Faktura', '{{ invoice_number }}').$row('Status', 'En ny betalingsmetode kræves').$total('Beløb til betaling', '{{ amount_formatted }}').$summaryClose
+            .$note('Så snart en ny metode er registreret, trækker vi beløbet automatisk.')
+            .'{{else}}{{#if exhausted }}'
+            .$eyebrow('Betalingsproblem').$heading('Vi kunne ikke gennemføre din betaling')
             .$p('Hej {{ organization_name }},')
             .$p('Vi forsøgte {{ max_attempts }} gange at gennemføre betalingen for faktura {{ invoice_number }}, men det lykkedes ikke. For at undgå at miste adgang bedes du opdatere din betalingsmetode og betale det udestående beløb.')
             .$summaryOpen.$row('Faktura', '{{ invoice_number }}').$row('Status', 'Forsøg opbrugt').$total('Beløb til betaling', '{{ amount_formatted }}').$summaryClose
-            .'{{else}}'.$eyebrow('Betalingsproblem').$heading('Din betaling gik ikke igennem')
+            .'{{else}}{{#if needs_action }}'
+            .$eyebrow('Bekræftelse kræves').$heading('Bekræft din betaling')
+            .$p('Hej {{ organization_name }},')
+            .$p('Din bank kræver, at du bekræfter betalingen for faktura {{ invoice_number }}, før den kan gennemføres. Bekræft venligst betalingen i din betalingsportal{{#if next_attempt_label }} — vi prøver igen den {{ next_attempt_label }}{{/if}}.')
+            .$summaryOpen.$row('Faktura', '{{ invoice_number }}').'{{#if next_attempt_label }}'.$row('Næste forsøg', '{{ next_attempt_label }}').'{{/if}}'.$total('Beløb til betaling', '{{ amount_formatted }}').$summaryClose
+            .$note('Ved at bekræfte nu undgår du enhver afbrydelse af din service.')
+            .'{{else}}'
+            .$eyebrow('Betalingsproblem').$heading('Din betaling gik ikke igennem')
             .$p('Hej {{ organization_name }},')
             .$p('Vi kunne ikke trække betalingen på din betalingsmetode for faktura {{ invoice_number }}. Din service fortsætter indtil videre — vi prøver automatisk igen{{#if next_attempt_label }} den {{ next_attempt_label }}{{/if}}.')
             .$summaryOpen.$row('Faktura', '{{ invoice_number }}').'{{#if next_attempt_label }}'.$row('Næste forsøg', '{{ next_attempt_label }}').'{{/if}}'.$total('Beløb til betaling', '{{ amount_formatted }}').$summaryClose
             .$note('Du kan undgå flere forsøg ved at opdatere din betalingsmetode i din betalingsportal.')
-            .'{{/if}}',
+            .'{{/if}}{{/if}}{{/if}}',
     ],
 
     'trial_ending' => [

@@ -63,17 +63,34 @@ return [
     ],
 
     'payment_retry' => [
-        'subject' => '{{#if exhausted }}We couldn’t process your payment for {{ invoice_number }}{{else}}Your payment for {{ invoice_number }} didn’t go through{{/if}}',
-        'body' => '{{#if exhausted }}'.$eyebrow('Payment issue').$heading('We couldn’t process your payment')
+        'subject' => '{{#if requires_new_method }}Action needed: update your payment method for {{ invoice_number }}{{else}}{{#if exhausted }}We couldn’t process your payment for {{ invoice_number }}{{else}}{{#if needs_action }}Confirm your payment for {{ invoice_number }}{{else}}Your payment for {{ invoice_number }} didn’t go through{{/if}}{{/if}}{{/if}}',
+        // The decline category selects the message: a hard decline (requires_new_method) asks for
+        // a new card and never promises a retry; needs_action asks the customer to authenticate;
+        // exhausted is the give-up notice; otherwise it is the ordinary "we’ll try again" notice.
+        'body' => '{{#if requires_new_method }}'
+            .$eyebrow('Action needed').$heading('Please update your payment method')
+            .$p('Hi {{ organization_name }},')
+            .$p('Your payment method was declined for invoice {{ invoice_number }} and can’t be charged again — this usually means the card was reported lost or stolen, has expired, or was closed. To keep your service, please add a new payment method and settle the outstanding balance.')
+            .$summaryOpen.$row('Invoice', '{{ invoice_number }}').$row('Status', 'A new payment method is required').$total('Amount due', '{{ amount_formatted }}').$summaryClose
+            .$note('Once a new method is on file we’ll collect the balance automatically.')
+            .'{{else}}{{#if exhausted }}'
+            .$eyebrow('Payment issue').$heading('We couldn’t process your payment')
             .$p('Hi {{ organization_name }},')
             .$p('We tried {{ max_attempts }} times to collect payment for invoice {{ invoice_number }} but weren’t able to. To avoid losing access, please update your payment method and settle the outstanding balance.')
             .$summaryOpen.$row('Invoice', '{{ invoice_number }}').$row('Status', 'Retries exhausted').$total('Amount due', '{{ amount_formatted }}').$summaryClose
-            .'{{else}}'.$eyebrow('Payment issue').$heading('Your payment didn’t go through')
+            .'{{else}}{{#if needs_action }}'
+            .$eyebrow('Confirmation needed').$heading('Confirm your payment')
+            .$p('Hi {{ organization_name }},')
+            .$p('Your bank needs you to confirm the payment for invoice {{ invoice_number }} before it can go through. Please authenticate the payment from your billing portal to complete it{{#if next_attempt_label }} — we’ll try again on {{ next_attempt_label }}{{/if}}.')
+            .$summaryOpen.$row('Invoice', '{{ invoice_number }}').'{{#if next_attempt_label }}'.$row('Next attempt', '{{ next_attempt_label }}').'{{/if}}'.$total('Amount due', '{{ amount_formatted }}').$summaryClose
+            .$note('Authenticating now avoids any interruption to your service.')
+            .'{{else}}'
+            .$eyebrow('Payment issue').$heading('Your payment didn’t go through')
             .$p('Hi {{ organization_name }},')
             .$p('We weren’t able to charge your payment method for invoice {{ invoice_number }}. Your service continues for now — we’ll automatically try again{{#if next_attempt_label }} on {{ next_attempt_label }}{{/if}}.')
             .$summaryOpen.$row('Invoice', '{{ invoice_number }}').'{{#if next_attempt_label }}'.$row('Next attempt', '{{ next_attempt_label }}').'{{/if}}'.$total('Amount due', '{{ amount_formatted }}').$summaryClose
             .$note('You can avoid further retries by updating your payment method in your billing portal.')
-            .'{{/if}}',
+            .'{{/if}}{{/if}}{{/if}}',
     ],
 
     'trial_ending' => [

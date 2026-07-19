@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\CardUpdateWebhookController;
 use App\Http\Controllers\WebhookController;
 use Cbox\Id\Client\Http\WebhookController as CboxIdWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -15,6 +16,15 @@ use Illuminate\Support\Facades\Route;
  * job (see CboxIdWebhookServiceProvider), so a slow handler never stalls the ack.
  */
 Route::post('webhooks/cbox-id', CboxIdWebhookController::class)->name('webhooks.cbox-id');
+
+/*
+ * Inbound card / account-updater webhooks (adaptive dunning's recovery seam). Public —
+ * authenticity is proved by the gateway signature the bound VerifiesCardUpdates checks
+ * (deny-by-default). A verified card-update points the account's default at the fresh card and
+ * re-attempts any in-dunning charge it can recover. Declared BEFORE the settlement `{gateway}`
+ * wildcard; the extra `/payment-method` segment keeps the two paths disjoint regardless.
+ */
+Route::post('webhooks/{gateway}/payment-method', CardUpdateWebhookController::class)->name('webhooks.card-update');
 
 /*
  * Inbound payment-settlement webhooks. Public (no bearer token) — authenticity is proved

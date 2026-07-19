@@ -10,12 +10,20 @@ use App\Billing\Coupons\CouponRedeemer;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
+use App\Billing\Hosted\PortalBillingHistory;
 use App\Billing\Invoicing\InvoicePdfRenderer;
+use App\Billing\Notifications\Contracts\ManagesNotificationPreferences;
+use App\Billing\Notifications\MailEventType;
+use App\Billing\Reporting\UsageReport;
 use App\Billing\Retention\Contracts\ManagesRetention;
 use App\Billing\Retention\Enums\CancellationMode;
 use App\Billing\Retention\ValueObjects\CancellationRequest;
 use App\Billing\Retirement\PlanRetirementService;
+use App\Billing\Seats\Contracts\ManagesSeats;
+use App\Billing\Seats\Exceptions\SeatException;
+use App\Billing\Seats\ValueObjects\SeatBreakdown;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Subscriptions\ValueObjects\QuantityPreview;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\BillingSession;
 use App\Models\Coupon;
@@ -63,6 +71,10 @@ class PortalController extends HostedController
         private readonly RetentionOffers $offers,
         private readonly CouponRedeemer $coupons,
         private readonly CouponDiscounter $discounter,
+        private readonly UsageReport $usage,
+        private readonly ManagesSeats $seats,
+        private readonly PortalBillingHistory $history,
+        private readonly ManagesNotificationPreferences $notifications,
     ) {
         parent::__construct($sessions);
     }
@@ -87,6 +99,15 @@ class PortalController extends HostedController
             'sunset' => $subscription instanceof Subscription ? $this->retirements->noticeFor($subscription) : null,
             'reasons' => $this->cancellationReasons($session->organization_id, $subscription),
             'offers' => $this->saveOffers($session->organization_id, $subscription),
+            // Usage & consumption for the current period (same readers the enforcer uses),
+            // shown only for a metered plan.
+            'usage' => $this->usageMeters($organization),
+            // Purchased + assigned seats (only for a seat-driving subscription).
+            'seats' => $subscription instanceof Subscription ? $this->seats->breakdown($subscription) : null,
+            // The broad billing history (invoices, receipts, credit notes, coupons).
+            'history' => $this->history->forOrganization($session->organization_id),
+            // Optional-vs-mandatory notification preferences.
+            'notifications' => $this->notificationSettings($session->organization_id),
         ]);
     }
 
@@ -311,6 +332,151 @@ class PortalController extends HostedController
     }
 
     /**
+     * `POST` {seats} — the prorated consequence of buying/releasing to `{seats}` purchased Full
+     * seats, WITHOUT applying it (preview == charge). Guardrailed exactly as the change is: a
+     * count below one or below the assigned members is refused (422) before any preview.
+     */
+    public function seatPreview(Request $request, string $token): JsonResponse
+    {
+        [$subscription, $seats, $error] = $this->resolveSeatChange($request, $token);
+
+        if ($error instanceof JsonResponse) {
+            return $error;
+        }
+
+        try {
+            $preview = $this->seats->previewPurchased($subscription, $seats);
+        } catch (SeatException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return new JsonResponse($this->presentSeatPreview($preview));
+    }
+
+    /**
+     * `POST` {seats} — buy/release purchased Full seats: raises/lowers the billed quantity
+     * through the engine's prorated `changeQuantity` (the H6 proration is charged/credited by
+     * the same collector the console + API use). Returns the refreshed seat breakdown.
+     */
+    public function setSeats(Request $request, string $token): JsonResponse
+    {
+        [$subscription, $seats, $error] = $this->resolveSeatChange($request, $token);
+
+        if ($error instanceof JsonResponse) {
+            return $error;
+        }
+
+        try {
+            $this->seats->setPurchased($subscription, $seats);
+        } catch (SeatException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return new JsonResponse($this->presentSeats($subscription->refresh()));
+    }
+
+    /**
+     * `POST` {subject} — hand a free purchased seat to an eligible member of THIS org (Full).
+     * Cap-enforced and eligibility-gated in the service; a refusal ("buy more seats" / not
+     * eligible) surfaces as a 422 with the guardrail message.
+     */
+    public function assignSeat(Request $request, string $token): JsonResponse
+    {
+        $request->validate(['subject' => ['required', 'string']]);
+
+        [$subscription, $error] = $this->resolveSubscription($token);
+
+        if ($error instanceof JsonResponse) {
+            return $error;
+        }
+
+        try {
+            $this->seats->assign($subscription, $request->string('subject')->toString());
+        } catch (SeatException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return new JsonResponse($this->presentSeats($subscription));
+    }
+
+    /** `POST` {subject} — free a member's seat (they become Light); the purchased count is unchanged. */
+    public function unassignSeat(Request $request, string $token): JsonResponse
+    {
+        $request->validate(['subject' => ['required', 'string']]);
+
+        [$subscription, $error] = $this->resolveSubscription($token);
+
+        if ($error instanceof JsonResponse) {
+            return $error;
+        }
+
+        $this->seats->unassign($subscription->organization_id, $request->string('subject')->toString());
+
+        return new JsonResponse($this->presentSeats($subscription));
+    }
+
+    /**
+     * `POST` {event, opted_in} — flip one OPTIONAL notification for this org. A mandatory/legal
+     * event is refused (422): those can never be switched off. Returns the refreshed settings.
+     */
+    public function updateNotifications(Request $request, string $token): JsonResponse
+    {
+        $request->validate([
+            'event' => ['required', 'string'],
+            'opted_in' => ['required', 'boolean'],
+        ]);
+
+        $session = $this->require($token, SessionType::Portal);
+        $event = MailEventType::tryFrom($request->string('event')->toString());
+
+        if (! $event instanceof MailEventType || ! $event->isOptional()) {
+            return new JsonResponse(['error' => 'This notification cannot be changed.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $this->notifications->setOptedIn($session->organization_id, $event, $request->boolean('opted_in'));
+
+        return new JsonResponse(['optional' => $this->notifications->snapshot($session->organization_id)]);
+    }
+
+    /**
+     * Resolve the session's active subscription for a seat action (scoped to the token's org).
+     * On no active subscription, slot 0 is a placeholder and slot 1 is a ready 404 — so callers
+     * guard on the error and can treat slot 0 as a real subscription once past the guard.
+     *
+     * @return array{0: Subscription, 1: JsonResponse|null}
+     */
+    private function resolveSubscription(string $token): array
+    {
+        $session = $this->require($token, SessionType::Portal);
+        $subscription = $this->activeSubscription($session->organization_id);
+
+        if (! $subscription instanceof Subscription) {
+            return [new Subscription, new JsonResponse(['error' => 'No active subscription.'], Response::HTTP_NOT_FOUND)];
+        }
+
+        return [$subscription, null];
+    }
+
+    /**
+     * Resolve `[subscription, seats, error]` for a seat buy/release/preview — the seats input is
+     * validated and the session's active subscription resolved (scoped to the token's org).
+     *
+     * @return array{0: Subscription, 1: int, 2: JsonResponse|null}
+     */
+    private function resolveSeatChange(Request $request, string $token): array
+    {
+        $request->validate(['seats' => ['required', 'integer', 'min:1']]);
+
+        [$subscription, $error] = $this->resolveSubscription($token);
+
+        if ($error instanceof JsonResponse) {
+            return [new Subscription, 0, $error];
+        }
+
+        return [$subscription, $request->integer('seats'), null];
+    }
+
+    /**
      * The account's vaulted methods in the portal's display shape.
      *
      * @return list<array{id: string, brand: string, last4: string, exp_month: int|null, exp_year: int|null, default: bool}>
@@ -490,6 +656,122 @@ class PortalController extends HostedController
             'new_recurring' => MoneyFormatter::money($discounted),
             'discount_minor' => $discount === null ? 0 : $discount->amount->minor(),
         ];
+    }
+
+    /**
+     * The current-period usage-against-allowance for the org, filtered to the ENABLED metered
+     * dimensions — the same {@see UsageReport} the console renders and the enforcement path
+     * reads (one source of truth). Returns null for a flat/un-metered plan so the whole section
+     * is hidden rather than shown empty.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function usageMeters(Organization $organization): ?array
+    {
+        $report = $this->usage->forOrganization($organization);
+        $meters = $report['meters'] ?? [];
+
+        if (! is_array($meters)) {
+            return null;
+        }
+
+        $metered = [];
+
+        foreach ($meters as $meter) {
+            if (is_array($meter) && ($meter['enabled'] ?? false)) {
+                $metered[] = $meter;
+            }
+        }
+
+        if ($metered === []) {
+            return null;
+        }
+
+        return [
+            'period_start' => is_string($report['period_start'] ?? null) ? $report['period_start'] : '',
+            'period_end' => is_string($report['period_end'] ?? null) ? $report['period_end'] : '',
+            'meters' => $metered,
+        ];
+    }
+
+    /**
+     * The seat breakdown in the portal's JSON/display shape.
+     *
+     * @return array<string, mixed>
+     */
+    private function presentSeats(Subscription $subscription): array
+    {
+        return $this->seatShape($this->seats->breakdown($subscription));
+    }
+
+    /** @return array<string, mixed> */
+    private function seatShape(SeatBreakdown $breakdown): array
+    {
+        return [
+            'purchased' => $breakdown->purchased,
+            'assigned' => $breakdown->assigned,
+            'free' => $breakdown->free(),
+            'full_count' => $breakdown->fullCount(),
+            'light_count' => $breakdown->lightCount(),
+            'full' => $breakdown->full,
+            'light' => $breakdown->light,
+            'assignable' => $breakdown->assignable,
+        ];
+    }
+
+    /**
+     * The prorated seat-change preview: the amount due now on a buy (a reduction credits and
+     * owes nothing now), server-preformatted through the single money seam.
+     *
+     * @return array<string, mixed>
+     */
+    private function presentSeatPreview(QuantityPreview $preview): array
+    {
+        $currency = $preview->charge->currency();
+        $credit = $preview->isCredit();
+        $dueNowMinor = $credit ? 0 : $preview->charge->minor();
+
+        return [
+            'from_seats' => $preview->fromSeats,
+            'to_seats' => $preview->toSeats,
+            'is_credit' => $credit,
+            'due_now_minor' => $dueNowMinor,
+            'due_now' => MoneyFormatter::minor($dueNowMinor, $currency),
+            // The signed proration (negative when a reduction credits the wallet).
+            'charge' => MoneyFormatter::money($preview->charge),
+            'currency' => $currency,
+        ];
+    }
+
+    /**
+     * The org's notification settings for the portal: the optional toggles (with their current
+     * opt-in state) split from the mandatory always-on mails, both sourced from the single
+     * {@see MailEventType} classification so the two lists can never drift.
+     *
+     * @return array{optional: list<array<string, mixed>>, mandatory: list<array{label: string, description: string}>}
+     */
+    private function notificationSettings(string $org): array
+    {
+        $snapshot = $this->notifications->snapshot($org);
+
+        $optional = [];
+
+        foreach (MailEventType::optional() as $event) {
+            $optional[] = [
+                'event' => $event->value,
+                'label' => $event->label(),
+                'description' => $event->description(),
+                'opted_in' => $snapshot[$event->value] ?? true,
+            ];
+        }
+
+        $mandatory = [];
+
+        foreach (MailEventType::mandatory() as $event) {
+            $mandatory[] = ['label' => $event->label(), 'description' => $event->description()];
+        }
+
+        return ['optional' => $optional, 'mandatory' => $mandatory];
     }
 
     /** @return array{id: string, brand: string, last4: string, exp_month: int|null, exp_year: int|null, default: bool} */

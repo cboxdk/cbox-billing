@@ -29,4 +29,14 @@ Route::prefix('billing')->name('hosted.')->group(function (): void {
     Route::post('portal/{token}/payment-method', [PortalController::class, 'paymentMethod'])->name('portal.payment-method');
     Route::post('portal/{token}/payment-method/default', [PortalController::class, 'setDefaultMethod'])->name('portal.payment-method.default');
     Route::post('portal/{token}/payment-method/remove', [PortalController::class, 'removeMethod'])->name('portal.payment-method.remove');
+
+    // Self-serve seats: preview the prorated buy/release, apply it, and assign/unassign the
+    // org's own members to Full seats (cap-enforced in the service).
+    Route::post('portal/{token}/seats/preview', [PortalController::class, 'seatPreview'])->name('portal.seats.preview');
+    Route::post('portal/{token}/seats', [PortalController::class, 'setSeats'])->name('portal.seats.set');
+    Route::post('portal/{token}/seats/assign', [PortalController::class, 'assignSeat'])->name('portal.seats.assign');
+    Route::post('portal/{token}/seats/unassign', [PortalController::class, 'unassignSeat'])->name('portal.seats.unassign');
+
+    // Optional-notification opt-in/out (mandatory/legal mails are never togglable here).
+    Route::post('portal/{token}/notifications', [PortalController::class, 'updateNotifications'])->name('portal.notifications');
 });

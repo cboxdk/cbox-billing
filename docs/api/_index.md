@@ -24,6 +24,19 @@ The enforcement and management APIs share the same token auth and per-org scope;
 differ in throttle tier and in that the management **writes** honour an
 `Idempotency-Key`.
 
+## The contract & SDK
+
+The `/api/v1` surface is described by a hand-authored **OpenAPI 3.1** contract, served live
+and kept in lock-step with the routes by a drift test. Read it, or a typed client, before
+you write a line of integration:
+
+- `GET /api/openapi.yaml` · `GET /api/openapi.json` — the machine-readable contract.
+- `GET /api/docs` — a self-contained HTML reference (also linked from the console command
+  palette and Settings → API tokens).
+- A typed **[TypeScript SDK](sdk-typescript.md)** under `sdks/typescript/`.
+
+See [OpenAPI spec & live reference](openapi.md) for the full story.
+
 ## In this section
 
 | Page | What |
@@ -33,6 +46,8 @@ differ in throttle tier and in that the management **writes** honour an
 | [Management API](management.md) | plans, organizations, subscriptions, usage, invoices, payment methods, checkout/portal sessions, intents, licenses. |
 | [Hosted checkout & portal](hosted-checkout-and-portal.md) | The token-authorized pages and their JSON action endpoints. |
 | [License activation](license-activation.md) | The optional, unauthenticated heartbeat. |
+| [OpenAPI spec & live reference](openapi.md) | The OpenAPI 3.1 contract, `/api/openapi.{yaml,json}`, `/api/docs`, and the drift guard. |
+| [TypeScript SDK](sdk-typescript.md) | The typed client under `sdks/typescript/` — install, config, and transport features. |
 
 ## Idempotency
 

@@ -54,6 +54,10 @@ The app is organized around a few load-bearing ideas:
   cancel/pause/resume/reactivate, seat quantity, add-ons, usage, invoices, payment
   methods, hosted checkout / portal sessions, embedded intents, and license
   issue/renew/revoke.
+- **OpenAPI contract + SDK** — the whole `/api/v1` surface is described by a hand-authored
+  [OpenAPI 3.1 contract](api/openapi.md) served live at `/api/openapi.yaml`, `/api/openapi.json`,
+  and a self-contained `/api/docs` reference; a typed [TypeScript SDK](api/sdk-typescript.md)
+  ships under `sdks/typescript/`.
 - **Hosted surfaces** (`/billing`) — token-authorized checkout and customer portal
   pages, no provider auth gate.
 - **On-prem licensing** — mint signed, offline-verifiable Ed25519 licenses from a

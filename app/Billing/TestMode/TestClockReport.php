@@ -60,6 +60,7 @@ readonly class TestClockReport
             ->orderByDesc('id')
             ->get()
             ->map(fn (Invoice $invoice): array => [
+                'id' => $invoice->id,
                 'number' => $invoice->number,
                 'total' => MoneyFormatter::money($invoice->total()),
                 'paid' => $invoice->isPaid(),

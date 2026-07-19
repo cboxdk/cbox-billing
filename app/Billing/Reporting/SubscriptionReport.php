@@ -7,6 +7,8 @@ namespace App\Billing\Reporting;
 use App\Billing\Support\Initials;
 use App\Billing\Support\SubscriptionRevenue;
 use App\Billing\Support\SubscriptionStanding;
+use App\Models\Coupon;
+use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\PaymentRetry;
 use App\Models\Plan;
@@ -16,6 +18,7 @@ use App\Models\Subscription;
 use App\Models\SubscriptionAddOn;
 use App\Models\SubscriptionCancellation;
 use App\Models\SubscriptionCoupon;
+use App\Models\TestClock;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -91,7 +94,7 @@ readonly class SubscriptionReport
     public function find(int $id): ?array
     {
         $subscription = Subscription::query()
-            ->with(['organization.invoices', 'plan.prices', 'plan.entitlements.meter', 'plan.creditGrants', 'pendingPlan', 'addOns', 'coupon'])
+            ->with(['organization.invoices', 'plan.prices', 'plan.entitlements.meter', 'plan.creditGrants', 'pendingPlan', 'addOns', 'coupon', 'testClock'])
             ->find($id);
 
         if ($subscription === null) {
@@ -136,6 +139,13 @@ readonly class SubscriptionReport
             : null;
         $row['serving'] = $subscription->isServing();
         $row['coupon'] = $this->couponFor($subscription);
+
+        // Cross-links (deep integration): this subscription's own invoices, and the sandbox
+        // test clock it is bound to (if any) — the reciprocal of the clock→subscription link.
+        $row['invoices'] = $this->invoicesFor($subscription);
+        $row['test_clock'] = $subscription->testClock instanceof TestClock
+            ? ['id' => $subscription->testClock->id, 'name' => $subscription->testClock->name]
+            : null;
 
         if ($plan === null) {
             return $row;
@@ -254,6 +264,7 @@ readonly class SubscriptionReport
             'ini' => Initials::of($name),
             'subscription_id' => $retry->subscription_id,
             'invoice' => $invoice !== null ? $invoice->number : '—',
+            'invoice_id' => $invoice?->id,
             'invoice_minor' => $invoice !== null ? $invoice->total_minor : 0,
             'currency' => $invoice !== null ? $invoice->currency : 'DKK',
             'attempts' => $retry->attempts,
@@ -285,6 +296,7 @@ readonly class SubscriptionReport
             'ini' => Initials::of($name),
             'plan' => $plan !== null ? $plan->name : '—',
             'plan_key' => $plan !== null ? $plan->key : '',
+            'plan_id' => $plan?->id,
             'minor' => $monthly->minor(),
             'currency' => $monthly->currency(),
             'status' => $standing,
@@ -318,7 +330,7 @@ readonly class SubscriptionReport
      * The coupon bound to this subscription — its code, discount label, duration, and the
      * periods still to be discounted (null = forever) — or null when none is bound.
      *
-     * @return array{code: string, label: string, duration: string, remaining_periods: int|null, applies_now: bool}|null
+     * @return array{code: string, id: int|null, label: string, duration: string, remaining_periods: int|null, applies_now: bool}|null
      */
     private function couponFor(Subscription $subscription): ?array
     {
@@ -328,13 +340,45 @@ readonly class SubscriptionReport
             return null;
         }
 
+        // Resolve the authored catalog coupon by its code so the detail page can cross-link to
+        // it; null when the code no longer maps to a live coupon (the link is then omitted).
+        $couponId = Coupon::query()->where('code', $binding->code)->value('id');
+
         return [
             'code' => $binding->code,
+            'id' => is_int($couponId) ? $couponId : null,
             'label' => $binding->label(),
             'duration' => $binding->durationKind()->label(),
             'remaining_periods' => $binding->remaining_periods,
             'applies_now' => $binding->appliesNow(),
         ];
+    }
+
+    /**
+     * This subscription's own invoices (newest first) for the detail-page cross-link panel.
+     *
+     * @return list<array{id: int, number: string, total_minor: int, currency: string, status: string, issued: string}>
+     */
+    private function invoicesFor(Subscription $subscription): array
+    {
+        $organization = $subscription->organization;
+
+        if ($organization === null) {
+            return [];
+        }
+
+        return array_values($organization->invoices
+            ->where('subscription_id', $subscription->id)
+            ->sortByDesc('id')
+            ->map(static fn (Invoice $invoice): array => [
+                'id' => $invoice->id,
+                'number' => $invoice->number,
+                'total_minor' => $invoice->total_minor,
+                'currency' => $invoice->currency,
+                'status' => $invoice->status,
+                'issued' => $invoice->issued_at?->format('Y-m-d') ?? '—',
+            ])
+            ->all());
     }
 
     /**

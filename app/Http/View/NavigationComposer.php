@@ -16,6 +16,7 @@ use App\Models\Organization;
 use App\Models\PaymentRetry;
 use App\Models\Plan;
 use App\Models\Product;
+use App\Models\WebhookEndpoint;
 use App\Platform\ConsoleNav;
 use Cbox\Console\Kit\Contracts\FeatureRegistry;
 use Cbox\Console\Kit\Contracts\NavRegistry;
@@ -151,7 +152,7 @@ readonly class NavigationComposer
                 'tax' => count($this->settings->taxRegistrations()),
                 'gateways' => count($this->settings->gateways()),
                 'tokens' => $this->settings->apiTokens()->count(),
-                'webhooks' => 1,
+                'webhooks' => WebhookEndpoint::query()->count(),
             ],
         ];
     }

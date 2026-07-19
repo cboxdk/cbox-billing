@@ -17,12 +17,13 @@
 
 @section('screen')
 <div class="page">
+    <x-back-button :href="route('billing.settings.emails', ['seller' => $sellerId])" label="Back to email templates" />
+
     <header class="cbx-page-header">
         <div>
             <h1 class="cbx-page-title" style="font-size:20px">{{ $event->label() }}</h1>
             <p class="cbx-page-desc" style="font-size:13px">{{ $event->description() }}</p>
         </div>
-        <a href="{{ route('billing.settings.emails', ['seller' => $sellerId]) }}" class="cbx-btn">Back to all</a>
     </header>
 
     @include('partials.flash')
@@ -68,11 +69,13 @@
                 <input type="hidden" name="seller" value="{{ $sellerId }}">
 
                 <label style="{{ $labelStyle }}">Subject
-                    <input type="text" name="subject" id="tpl-subject" value="{{ $subject }}" required maxlength="300" style="{{ $inputStyle }}">
+                    <input type="text" name="subject" id="tpl-subject" value="{{ old('subject', $subject) }}" required maxlength="300" style="{{ $inputStyle }}">
+                    @error('subject')<span style="color:var(--destructive);font-size:11px">{{ $message }}</span>@enderror
                 </label>
 
                 <label style="{{ $labelStyle }}">Body
-                    <textarea name="body" id="tpl-body" required rows="18" spellcheck="false" style="border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55;resize:vertical">{{ $body }}</textarea>
+                    <textarea name="body" id="tpl-body" required rows="18" spellcheck="false" style="border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--foreground);padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55;resize:vertical">{{ old('body', $body) }}</textarea>
+                    @error('body')<span style="color:var(--destructive);font-size:11px">{{ $message }}</span>@enderror
                     <span class="mut" style="font-size:11px">Sandboxed mustache syntax — <span class="num">@{{ variable }}</span> (auto-escaped), <span class="num">@{{#if x}}…@{{else}}…@{{/if}}</span>, <span class="num">@{{#each list}}…@{{/each}}</span>. Never evaluated as PHP/Blade.</span>
                 </label>
 

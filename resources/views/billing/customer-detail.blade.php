@@ -61,9 +61,14 @@
             </dl>
         </section>
         <section class="cbx-panel">
-            <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Subscription</h2></header>
+            <header class="cbx-panel-header" style="padding:12px 20px">
+                <h2 class="cbx-panel-title" style="font-size:14px">Subscription</h2>
+                @if ($c['subscription_id'] !== null)
+                    <a class="cbx-link" style="font-size:12px" href="{{ route('billing.subscriptions.show', $c['subscription_id']) }}">Open →</a>
+                @endif
+            </header>
             <dl style="margin:0;padding:2px 20px 6px">
-                <div class="cbx-kv" style="padding:9px 0"><dt>Plan</dt><dd>{{ $c['plan'] ?? 'No active subscription' }}</dd></div>
+                <div class="cbx-kv" style="padding:9px 0"><dt>Plan</dt><dd>@if ($c['subscription_id'] !== null)<a class="cbx-link" href="{{ route('billing.subscriptions.show', $c['subscription_id']) }}">{{ $c['plan'] ?? '—' }}</a>@else{{ $c['plan'] ?? 'No active subscription' }}@endif</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Status</dt><dd><span class="cbx-pill cbx-pill--{{ $statusPill[$c['status']] ?? 'muted' }}">{{ $c['status'] === 'none' ? 'no sub' : $c['status'] }}</span></dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>MRR</dt><dd class="num">{{ MoneyFormatter::minor($c['mrr'], $c['currency']) }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Outstanding</dt><dd class="num">{{ $c['outstanding_label'] }}</dd></div>
@@ -150,6 +155,25 @@
             </tbody>
         </table>
     </section>
+
+    {{-- Coupons this customer has redeemed — cross-linked to the coupon + the subscription. --}}
+    @if (count($redemptions) > 0)
+        <section class="cbx-panel">
+            <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Coupons redeemed</h2><span class="mut num" style="font-size:12px">{{ count($redemptions) }}</span></header>
+            <table class="tbl">
+                <thead><tr><th>Coupon</th><th style="width:150px">Subscription</th><th style="width:150px">Redeemed</th></tr></thead>
+                <tbody>
+                    @foreach ($redemptions as $redemption)
+                        <tr>
+                            <td><a class="cbx-link" href="{{ route('billing.coupons.show', $redemption['coupon_id']) }}"><span class="num">{{ $redemption['code'] }}</span>@if ($redemption['name'] !== '—') <span class="mut">· {{ $redemption['name'] }}</span>@endif</a></td>
+                            <td class="num">@if ($redemption['subscription_id'] !== null)<a class="cbx-link" href="{{ route('billing.subscriptions.show', $redemption['subscription_id']) }}">#{{ $redemption['subscription_id'] }}</a>@else<span class="mut">—</span>@endif</td>
+                            <td class="num mut">{{ $redemption['redeemed_at'] }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </section>
+    @endif
 
     {{-- Wallet / credits (Wave 3): per-pool balances over the engine wallet + the ledger. --}}
     <section class="cbx-panel">

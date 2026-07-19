@@ -68,6 +68,6 @@
         </table>
     </section>
 
-    <p class="mut" style="font-size:12px;margin:12px 4px 0">Per-seller branding (logo, accent colour, from-name, footer) lives on each <a href="{{ route('billing.settings', ['tab' => 'sellers']) }}" style="color:var(--primary)">selling entity</a>. Emails wrap every template in that entity's brand.</p>
+    <p class="mut" style="font-size:12px;margin:12px 4px 0">Per-seller branding (logo, accent colour, from-name, footer) lives on each <a href="{{ route('billing.settings').'#sellers' }}" class="cbx-link">selling entity</a>. Emails wrap every template in that entity's brand.</p>
 </div>
 @endsection

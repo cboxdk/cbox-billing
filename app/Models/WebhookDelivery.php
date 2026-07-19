@@ -58,6 +58,41 @@ class WebhookDelivery extends Model
     }
 
     /**
+     * The console record this delivery's event is about, for the delivery-log cross-link: the
+     * most specific subject carried in the payload (invoice → subscription → customer). Null
+     * when the payload holds no linkable subject id (e.g. an invoice event that only stamped a
+     * number, or a license event) — the log then renders the subject as plain text.
+     *
+     * @return array{label: string, route: string, param: int|string}|null
+     */
+    public function subjectLink(): ?array
+    {
+        $payload = $this->payload;
+
+        $invoiceId = $payload['invoice_id'] ?? null;
+        if (is_int($invoiceId)) {
+            return ['label' => 'Invoice #'.$invoiceId, 'route' => 'billing.invoices.show', 'param' => $invoiceId];
+        }
+
+        // Subscription events carry the subscription id as `id`; other events reference it as
+        // `subscription_id`. Either identifies the subscription the event is about.
+        $subscriptionId = $payload['subscription_id'] ?? null;
+        if (! is_int($subscriptionId) && str_starts_with($this->event_type, 'subscription.')) {
+            $subscriptionId = $payload['id'] ?? null;
+        }
+        if (is_int($subscriptionId)) {
+            return ['label' => 'Subscription #'.$subscriptionId, 'route' => 'billing.subscriptions.show', 'param' => $subscriptionId];
+        }
+
+        $organizationId = $payload['organization_id'] ?? null;
+        if (is_string($organizationId) && $organizationId !== '') {
+            return ['label' => $organizationId, 'route' => 'billing.customers.show', 'param' => $organizationId];
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

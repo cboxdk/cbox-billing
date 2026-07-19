@@ -33,7 +33,7 @@
                 @forelse ($retries as $r)
                     <tr @if($r['subscription_id']) data-href="{{ route('billing.subscriptions.show', $r['subscription_id']) }}" tabindex="0" role="link" aria-label="Open subscription for {{ $r['org'] }}" @else style="cursor:default" @endif>
                         <td><span style="display:flex;align-items:center;gap:10px"><span class="avatar-sm">{{ $r['ini'] }}</span>{{ $r['org'] }}</span></td>
-                        <td class="num">{{ $r['invoice'] }}</td>
+                        <td class="num">@if (!empty($r['invoice_id']))<a class="cbx-link" href="{{ route('billing.invoices.show', $r['invoice_id']) }}">{{ $r['invoice'] }}</a>@else{{ $r['invoice'] }}@endif</td>
                         <td class="right num">{{ MoneyFormatter::minor($r['invoice_minor'], $r['currency']) }}</td>
                         <td class="right num">{{ $r['attempts'] }} / {{ $r['max_attempts'] }}</td>
                         <td class="num mut">{{ $r['next_attempt_at'] }}</td>

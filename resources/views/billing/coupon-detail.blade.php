@@ -73,7 +73,7 @@
                 @forelse ($c['redemptions'] as $redemption)
                     <tr>
                         <td><a class="cbx-link num" href="{{ route('billing.customers.show', $redemption['organization_id']) }}">{{ $redemption['organization_id'] }}</a></td>
-                        <td class="num mut">{{ $redemption['subscription_id'] !== null ? '#'.$redemption['subscription_id'] : '—' }}</td>
+                        <td class="num">@if ($redemption['subscription_id'] !== null)<a class="cbx-link" href="{{ route('billing.subscriptions.show', $redemption['subscription_id']) }}">#{{ $redemption['subscription_id'] }}</a>@else<span class="mut">—</span>@endif</td>
                         <td class="num mut">{{ $redemption['redeemed_at'] }}</td>
                     </tr>
                 @empty

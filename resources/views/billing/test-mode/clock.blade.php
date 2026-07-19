@@ -15,12 +15,13 @@
 
 @section('screen')
 <div class="page">
+    <x-back-button :href="route('billing.test-mode.clocks')" label="Back to test clocks" />
+
     <header class="cbx-page-header">
         <div>
             <h1 class="cbx-page-title" style="font-size:20px">{{ $clock['name'] }}</h1>
             <p class="cbx-page-desc" style="font-size:13px">Virtual time <span class="num" style="font-weight:600">{{ $clock['now_at'] }}</span>. Advancing runs the due billing logic for the bound subscriptions.</p>
         </div>
-        <a href="{{ route('billing.test-mode.clocks') }}" class="cbx-btn">Back</a>
     </header>
 
     @include('partials.flash')
@@ -28,7 +29,8 @@
     <div class="cbx-grid-2" style="align-items:start;gap:14px;margin-bottom:14px">
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Advance the clock</h2></header>
-            <form method="POST" action="{{ route('billing.test-mode.clocks.advance', $clock['id']) }}" style="padding:6px 20px 18px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+            <form method="POST" action="{{ route('billing.test-mode.clocks.advance', $clock['id']) }}" style="padding:6px 20px 18px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap"
+                  data-confirm="Advance the clock? This runs due billing for the bound subscriptions and may raise invoices and drive dunning." data-confirm-title="Advance clock?" data-confirm-label="Advance" data-confirm-variant="primary">
                 @csrf
                 <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500">Advance to
                     <input type="datetime-local" name="target" required style="{{ $inputStyle }}">
@@ -58,7 +60,7 @@
             <thead><tr><th>#</th><th>Organization</th><th>Plan</th><th>Status</th><th>Period end</th><th style="width:90px"></th></tr></thead>
             <tbody>
                 @forelse ($detail['subscriptions'] as $sub)
-                    <tr>
+                    <tr data-href="{{ route('billing.subscriptions.show', $sub['id']) }}" tabindex="0" role="link" aria-label="Open subscription {{ $sub['organization'] }}">
                         <td class="num mut">{{ $sub['id'] }}</td>
                         <td style="font-weight:500">{{ $sub['organization'] }}</td>
                         <td class="mut">{{ $sub['plan'] }}</td>
@@ -94,8 +96,8 @@
             <thead><tr><th>Number</th><th>Period</th><th>Total</th><th>Status</th><th>Issued</th></tr></thead>
             <tbody>
                 @forelse ($detail['invoices'] as $invoice)
-                    <tr>
-                        <td class="num" style="font-weight:500">{{ $invoice['number'] }}</td>
+                    <tr data-href="{{ route('billing.invoices.show', $invoice['id']) }}" tabindex="0" role="link" aria-label="Open invoice {{ $invoice['number'] }}">
+                        <td class="num" style="font-weight:500"><a class="cbx-link" href="{{ route('billing.invoices.show', $invoice['id']) }}">{{ $invoice['number'] }}</a></td>
                         <td class="mut">{{ $invoice['period'] }}</td>
                         <td class="num">{{ $invoice['total'] }}</td>
                         <td>@if ($invoice['paid'])<span class="cbx-pill cbx-pill--success"><span class="dot"></span>paid</span>@else<span class="cbx-pill cbx-pill--warning"><span class="dot"></span>open</span>@endif</td>

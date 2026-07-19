@@ -44,9 +44,12 @@
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Bill to</h2></header>
             <dl style="margin:0;padding:2px 20px 6px">
-                <div class="cbx-kv" style="padding:9px 0"><dt>Customer</dt><dd><span style="display:flex;align-items:center;gap:8px"><span class="avatar-sm" style="width:20px;height:20px;font-size:8px">{{ Initials::of($invoice->organization->name) }}</span>{{ $invoice->organization->name }}</span></dd></div>
+                <div class="cbx-kv" style="padding:9px 0"><dt>Customer</dt><dd><a class="cbx-link" href="{{ route('billing.customers.show', $invoice->organization->id) }}" style="display:flex;align-items:center;gap:8px"><span class="avatar-sm" style="width:20px;height:20px;font-size:8px">{{ Initials::of($invoice->organization->name) }}</span>{{ $invoice->organization->name }}</a></dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Email</dt><dd>{{ $invoice->organization->billing_email ?? '—' }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Country</dt><dd>{{ $invoice->organization->billing_country ?? '—' }}</dd></div>
+                @if ($invoice->subscription_id)
+                    <div class="cbx-kv" style="padding:9px 0"><dt>Subscription</dt><dd><a class="cbx-link num" href="{{ route('billing.subscriptions.show', $invoice->subscription_id) }}">#{{ $invoice->subscription_id }}</a></dd></div>
+                @endif
             </dl>
         </section>
         <section class="cbx-panel">

@@ -33,6 +33,12 @@
 
     @include('partials.flash')
 
+    <div class="cbx-grid-3" style="margin-bottom:16px">
+        <div class="cbx-panel" style="padding:16px 20px"><div class="mut" style="font-size:12px">Deliveries shown</div><div class="num" style="font-size:22px;font-weight:600">{{ $deliveries->count() }}</div></div>
+        <div class="cbx-panel" style="padding:16px 20px"><div class="mut" style="font-size:12px">Delivered</div><div class="num" style="font-size:22px;font-weight:600">{{ $deliveries->where('status.value', 'delivered')->count() }}</div></div>
+        <div class="cbx-panel" style="padding:16px 20px"><div class="mut" style="font-size:12px">Failed / dead</div><div class="num" style="font-size:22px;font-weight:600">{{ $deliveries->whereIn('status.value', ['failed', 'dead'])->count() }}</div></div>
+    </div>
+
     <section class="cbx-panel">
         <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Recent deliveries</h2></header>
         @if ($deliveries->isEmpty())
@@ -55,7 +61,12 @@
                             <tr style="border-top:1px solid var(--border)">
                                 <td style="padding:9px 20px">
                                     <div class="num">{{ $delivery->event_type }}</div>
-                                    <div class="mut num" style="font-size:11px">{{ $delivery->event_id }}</div>
+                                    @php ($subject = $delivery->subjectLink())
+                                    @if ($subject !== null)
+                                        <a class="cbx-link num" style="font-size:11px" href="{{ route($subject['route'], $subject['param']) }}">{{ $subject['label'] }}</a>
+                                    @else
+                                        <div class="mut num" style="font-size:11px">{{ $delivery->event_id }}</div>
+                                    @endif
                                 </td>
                                 <td style="padding:9px 12px"><span class="cbx-pill {{ $pill[$delivery->status->value] ?? 'cbx-pill--muted' }}">{{ $delivery->status->label() }}</span></td>
                                 <td style="padding:9px 12px" class="num">{{ $delivery->response_code ?? '—' }}</td>

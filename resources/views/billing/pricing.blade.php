@@ -35,7 +35,7 @@
                     <th style="width:200px">Feature</th>
                     @foreach ($plans as $plan)
                         <th class="right">
-                            {{ $plan['name'] }}
+                            @if (!empty($plan['id']))<a class="cbx-link" href="{{ route('billing.plans.show', $plan['id']) }}">{{ $plan['name'] }}</a>@else{{ $plan['name'] }}@endif
                             @if ($plan['legacy'])<span class="cbx-pill cbx-pill--muted" style="margin-left:4px">legacy</span>@endif
                         </th>
                     @endforeach

@@ -41,7 +41,7 @@
         <table class="tbl">
             <thead><tr><th>Legal name</th><th>Establishment</th><th>Reg. number</th><th>Currency</th><th>Prefix</th><th style="width:280px"></th></tr></thead>
             <tbody>
-                @foreach ($sellers as $seller)
+                @forelse ($sellers as $seller)
                     <tr style="{{ $seller['archived'] ? 'opacity:.55' : '' }}">
                         <td style="font-weight:500">{{ $seller['legal_name'] }}
                             @if($seller['is_default'])<span class="cbx-pill cbx-pill--info" style="margin-left:6px">default</span>@endif
@@ -77,7 +77,9 @@
                             @endif
                         </td>
                     </tr>
-                @endforeach
+                @empty
+                    <tr><td colspan="6" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'building', 'size' => 18, 'sw' => 1.7])</div><h3>No selling entities yet.</h3><p>Add the legal entity that issues your invoices to start billing.</p></div></td></tr>
+                @endforelse
             </tbody>
         </table>
     </section>

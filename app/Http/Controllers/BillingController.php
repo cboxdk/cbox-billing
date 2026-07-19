@@ -236,6 +236,7 @@ class BillingController extends Controller
             'events' => $audit->forOrganization($organization->id),
             'payment' => $paymentMethods->forOrganization($organization),
             'accessGrants' => $accessGrants->forOrganization($organization->id),
+            'redemptions' => $report->redemptions($organization->id),
         ]);
     }
 

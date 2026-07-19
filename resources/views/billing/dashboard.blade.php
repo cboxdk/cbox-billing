@@ -95,7 +95,7 @@
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Payment gateways</h2></header>
             @foreach ($gateways as $gateway)
-                <a class="cbx-row" style="padding:11px 20px" href="{{ route('billing.settings') }}">
+                <a class="cbx-row" style="padding:11px 20px" href="{{ route('billing.settings.gateways') }}">
                     <span style="flex:1;font-size:13px;font-weight:500">{{ $gateway['name'] }}</span>
                     @if ($gateway['connected'])
                         <span class="cbx-pill cbx-pill--success"><span class="dot"></span>connected</span>

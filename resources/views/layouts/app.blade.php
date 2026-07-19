@@ -159,15 +159,20 @@
         <p>Navigate</p>
         <a class="cmd sel" href="{{ route('billing.dashboard') }}">@include('partials.icon', ['name' => 'home', 'size' => 15, 'sw' => 1.7])Go to Dashboard<kbd class="k">G D</kbd></a>
         <a class="cmd" href="{{ route('billing.subscriptions') }}">@include('partials.icon', ['name' => 'repeat', 'size' => 15, 'sw' => 1.7])Go to Subscriptions<kbd class="k">G S</kbd></a>
+        <a class="cmd" href="{{ route('analytics.revenue') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Analytics · Revenue</a>
+        <a class="cmd" href="{{ route('analytics.retention') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Analytics · Retention</a>
         <a class="cmd" href="{{ route('billing.invoices') }}">@include('partials.icon', ['name' => 'invoice', 'size' => 15, 'sw' => 1.7])Go to Invoices<kbd class="k">G I</kbd></a>
         <a class="cmd" href="{{ route('billing.customers') }}">@include('partials.icon', ['name' => 'building', 'size' => 15, 'sw' => 1.7])Go to Customers</a>
         <a class="cmd" href="{{ route('billing.access-grants') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Access grants</a>
         <a class="cmd" href="{{ route('billing.usage') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Usage</a>
         <a class="cmd" href="{{ route('billing.credit-notes') }}">@include('partials.icon', ['name' => 'invoice', 'size' => 15, 'sw' => 1.7])Go to Credit notes</a>
         <a class="cmd" href="{{ route('billing.catalog') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Catalog</a>
+        <a class="cmd" href="{{ route('billing.pricing') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Plans &amp; pricing</a>
         <a class="cmd" href="{{ route('billing.products') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Products</a>
         <a class="cmd" href="{{ route('billing.coupons') }}">@include('partials.icon', ['name' => 'receipt', 'size' => 15, 'sw' => 1.7])Go to Coupons</a>
         <a class="cmd" href="{{ route('billing.meters') }}">@include('partials.icon', ['name' => 'gauge', 'size' => 15, 'sw' => 1.7])Go to Meters</a>
+        <a class="cmd" href="{{ route('billing.licenses') }}">@include('partials.icon', ['name' => 'key', 'size' => 15, 'sw' => 1.7])Go to Licenses</a>
+        <a class="cmd" href="{{ route('billing.test-mode.clocks') }}">@include('partials.icon', ['name' => 'rotate', 'size' => 15, 'sw' => 1.7])Go to Test clocks</a>
         <a class="cmd" href="{{ route('billing.settings') }}">@include('partials.icon', ['name' => 'settings', 'size' => 15, 'sw' => 1.7])Go to Settings</a>
         <a class="cmd" href="{{ route('billing.settings.webhooks') }}">@include('partials.icon', ['name' => 'arrow-up-right', 'size' => 15, 'sw' => 1.7])Go to Webhooks</a>
         <a class="cmd" href="{{ route('billing.settings.emails') }}">@include('partials.icon', ['name' => 'bell', 'size' => 15, 'sw' => 1.7])Go to Email templates</a>

@@ -11,6 +11,7 @@
     use App\Billing\Support\MoneyFormatter;
     $statusPill = ['active' => 'success', 'trialing' => 'info', 'past_due' => 'warning', 'paused' => 'muted', 'non_renewing' => 'warning', 'canceled' => 'muted'];
     $statusLabel = ['active' => 'active', 'trialing' => 'trial', 'past_due' => 'past due', 'paused' => 'paused', 'non_renewing' => 'non-renewing', 'canceled' => 'canceled'];
+    $invStatusPill = ['paid' => 'success', 'open' => 'warning', 'void' => 'muted', 'draft' => 'muted', 'uncollectible' => 'destructive'];
     $s = $subscription;
     $overagePill = ['bill' => 'info', 'block' => 'muted'];
     $retryPill = ['retrying' => 'warning', 'recovered' => 'success', 'exhausted' => 'destructive'];
@@ -91,19 +92,22 @@
         <section class="cbx-panel">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Plan &amp; period</h2></header>
             <dl style="margin:0;padding:2px 20px 6px">
-                <div class="cbx-kv" style="padding:9px 0"><dt>Plan</dt><dd>{{ $s['plan'] }} · {{ $s['interval'] }}ly</dd></div>
+                <div class="cbx-kv" style="padding:9px 0"><dt>Plan</dt><dd>@if (!empty($s['plan_id']))<a class="cbx-link" href="{{ route('billing.plans.show', $s['plan_id']) }}">{{ $s['plan'] }}</a>@else{{ $s['plan'] }}@endif · {{ $s['interval'] }}ly</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>MRR</dt><dd class="num">{{ MoneyFormatter::minor($s['minor'], $s['currency']) }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Seats</dt><dd class="num">{{ $s['seats'] }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Current period</dt><dd class="num">{{ $s['period_start'] }} → {{ $s['period_end'] }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Renewal</dt><dd class="num">{{ $s['renews'] }}</dd></div>
                 @if (!empty($s['coupon']))
                     <div class="cbx-kv" style="padding:9px 0"><dt>Coupon</dt><dd>
-                        <span class="num">{{ $s['coupon']['label'] }}</span>
+                        @if (!empty($s['coupon']['id']))<a class="cbx-link num" href="{{ route('billing.coupons.show', $s['coupon']['id']) }}">{{ $s['coupon']['label'] }}</a>@else<span class="num">{{ $s['coupon']['label'] }}</span>@endif
                         <span class="cbx-pill {{ $s['coupon']['applies_now'] ? 'cbx-pill--success' : 'cbx-pill--muted' }}" style="margin-left:6px">{{ $s['coupon']['duration'] }}</span>
                         @if ($s['coupon']['remaining_periods'] !== null)
                             <span class="mut" style="font-size:11px">· {{ $s['coupon']['remaining_periods'] }} period(s) left</span>
                         @endif
                     </dd></div>
+                @endif
+                @if (!empty($s['test_clock']))
+                    <div class="cbx-kv" style="padding:9px 0"><dt>Test clock</dt><dd><a class="cbx-link" href="{{ route('billing.test-mode.clocks.show', $s['test_clock']['id']) }}">{{ $s['test_clock']['name'] }}</a></dd></div>
                 @endif
             </dl>
         </section>
@@ -121,6 +125,27 @@
             </table>
         </section>
     </div>
+
+    {{-- This subscription's own invoices — cross-linked to the invoice detail. --}}
+    <section class="cbx-panel">
+        <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Invoices</h2><span class="mut num" style="font-size:12px">{{ count($s['invoices']) }}</span></header>
+        <table class="tbl">
+            <thead><tr><th style="width:180px">Invoice</th><th style="width:120px">Issued</th><th class="right" style="width:150px">Amount</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
+            <tbody>
+                @forelse ($s['invoices'] as $inv)
+                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" role="link" aria-label="Open invoice {{ $inv['number'] }}">
+                        <td class="num">{{ $inv['number'] }}</td>
+                        <td class="num mut">{{ $inv['issued'] }}</td>
+                        <td class="right num">{{ MoneyFormatter::minor($inv['total_minor'], $inv['currency']) }}</td>
+                        <td><span class="cbx-pill cbx-pill--{{ $invStatusPill[$inv['status']] ?? 'muted' }}">{{ $inv['status'] }}</span></td>
+                        <td class="rowchev">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'invoice', 'size' => 18, 'sw' => 1.7])</div><h3>No invoices yet.</h3><p>Invoices raised for this subscription will appear here.</p></div></td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </section>
 
     {{-- Seats (purchased + explicitly-assigned). Purchased Full seats ARE the billed quantity;
          Light members are eligible-but-unassigned and never billed. --}}

@@ -43,7 +43,7 @@
             <thead><tr><th>Name</th><th>Virtual time</th><th>Charge outcome</th><th>Bound subs</th><th style="width:90px"></th></tr></thead>
             <tbody>
                 @forelse ($clocks as $clock)
-                    <tr>
+                    <tr data-href="{{ route('billing.test-mode.clocks.show', $clock['id']) }}" tabindex="0" role="link" aria-label="Open {{ $clock['name'] }}">
                         <td style="font-weight:500">{{ $clock['name'] }}</td>
                         <td class="num mut">{{ $clock['now_at'] }}</td>
                         <td>

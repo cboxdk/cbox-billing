@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use App\Billing\Seats\Enums\SeatSource;
+use App\Billing\Support\SubscriptionStanding;
 use App\Billing\Wallet\WalletProvisioner;
 use App\Models\CboxIdAccessGrant;
 use App\Models\Invoice;
@@ -110,7 +111,7 @@ class OrganizationSeeder extends Seeder
             }
 
             foreach ($definition['invoices'] as $invoice) {
-                $this->seedInvoice($organization->id, $plan, $invoice);
+                $this->seedInvoice($organization->id, $subscription->id, $plan, $invoice);
             }
 
             // A past-due account is chased by the smart-retry schedule: open a real
@@ -145,6 +146,15 @@ class OrganizationSeeder extends Seeder
         }
 
         $this->seedMrrMovements();
+
+        // Model events are muted during seeding (DatabaseSeeder uses WithoutModelEvents), so
+        // the observer that materializes the console display-standing column (PERF-3) never
+        // fires. Backfill it directly — the Subscriptions counts, status tabs and the nav
+        // badge all GROUP BY / filter on this column, so a null leaves every tally at zero.
+        Subscription::query()
+            ->with('organization.invoices')
+            ->get()
+            ->each(static fn (Subscription $subscription) => SubscriptionStanding::refreshFor($subscription));
     }
 
     /**
@@ -243,7 +253,7 @@ class OrganizationSeeder extends Seeder
     /**
      * @param  array{month: string, status: string, due_days?: int}  $spec
      */
-    private function seedInvoice(string $organizationId, Plan $plan, array $spec): void
+    private function seedInvoice(string $organizationId, int $subscriptionId, Plan $plan, array $spec): void
     {
         $number = sprintf('%s-2026-%04d', self::PREFIX, ++$this->invoiceSeq);
         $total = $plan->priceFor(self::CURRENCY)->minor();
@@ -255,6 +265,7 @@ class OrganizationSeeder extends Seeder
             ['seller' => self::SELLER, 'number' => $number],
             [
                 'organization_id' => $organizationId,
+                'subscription_id' => $subscriptionId,
                 'currency' => self::CURRENCY,
                 'subtotal_minor' => $total,
                 'tax_minor' => 0,

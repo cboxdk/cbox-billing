@@ -8,6 +8,8 @@ use App\Billing\Support\Initials;
 use App\Billing\Support\MoneyFormatter;
 use App\Billing\Support\SubscriptionRevenue;
 use App\Billing\Support\SubscriptionStanding;
+use App\Models\Coupon;
+use App\Models\CouponRedemption;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Subscription;
@@ -108,6 +110,33 @@ readonly class CustomerReport
     }
 
     /**
+     * The coupons this organization has redeemed (newest first), each cross-linking to the
+     * authored coupon and the subscription it was applied to.
+     *
+     * @return list<array{coupon_id: int, code: string, name: string, subscription_id: int|null, redeemed_at: string}>
+     */
+    public function redemptions(string $organizationId): array
+    {
+        return array_values(CouponRedemption::query()
+            ->with('coupon')
+            ->where('organization_id', $organizationId)
+            ->orderByDesc('redeemed_at')
+            ->get()
+            ->map(static function (CouponRedemption $redemption): array {
+                $coupon = $redemption->coupon;
+
+                return [
+                    'coupon_id' => $redemption->coupon_id,
+                    'code' => $coupon instanceof Coupon ? $coupon->code : '—',
+                    'name' => $coupon instanceof Coupon ? ($coupon->name ?? '—') : '—',
+                    'subscription_id' => $redemption->subscription_id,
+                    'redeemed_at' => $redemption->redeemed_at->format('Y-m-d'),
+                ];
+            })
+            ->all());
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function row(Organization $organization): array
@@ -131,6 +160,8 @@ readonly class CustomerReport
             'currency' => $currency,
             'country' => $organization->billing_country ?? '—',
             'plan' => $subscription instanceof Subscription ? $subscription->plan?->name : null,
+            // The subscription the plan/status panel describes, so the detail page can link to it.
+            'subscription_id' => $subscription instanceof Subscription ? $subscription->id : null,
             'status' => $subscription instanceof Subscription
                 ? SubscriptionStanding::of($subscription)
                 : 'none',

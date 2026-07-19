@@ -93,6 +93,7 @@ readonly class PricingReport
 
         return [
             'key' => $plan->key,
+            'id' => $plan->id,
             'name' => $plan->name,
             'interval' => $plan->interval,
             'legacy' => ! $plan->active,

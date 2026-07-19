@@ -14,6 +14,8 @@
 
 @section('screen')
 <div class="page">
+    <x-back-button :href="route('billing.settings').'#tokens'" label="Back to settings" />
+
     <header class="cbx-page-header">
         <div>
             <h1 class="cbx-page-title" style="font-size:20px">New API token</h1>

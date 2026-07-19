@@ -99,9 +99,11 @@
         </section>
     @empty
         <section class="cbx-panel">
-            <div style="padding:28px 20px;text-align:center">
-                <p class="cbx-page-desc" style="font-size:13px;margin:0 0 12px">No webhook endpoints yet. Register one to start receiving signed billing events.</p>
-                <a href="{{ route('billing.settings.webhooks.create') }}" class="cbx-btn cbx-btn--primary">Register endpoint</a>
+            <div class="cbx-empty">
+                <div class="cbx-empty-icon">@include('partials.icon', ['name' => 'arrow-up-right', 'size' => 18, 'sw' => 1.7])</div>
+                <h3>No webhook endpoints yet.</h3>
+                <p>Register one to start receiving signed billing events, then watch its delivery log here.</p>
+                <a href="{{ route('billing.settings.webhooks.create') }}" class="cbx-btn cbx-btn--primary" style="margin-top:12px">Register endpoint</a>
             </div>
         </section>
     @endforelse

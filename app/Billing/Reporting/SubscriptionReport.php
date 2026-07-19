@@ -15,6 +15,7 @@ use App\Models\PlanEntitlement;
 use App\Models\Subscription;
 use App\Models\SubscriptionAddOn;
 use App\Models\SubscriptionCancellation;
+use App\Models\SubscriptionCoupon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -90,7 +91,7 @@ readonly class SubscriptionReport
     public function find(int $id): ?array
     {
         $subscription = Subscription::query()
-            ->with(['organization.invoices', 'plan.prices', 'plan.entitlements.meter', 'plan.creditGrants', 'pendingPlan', 'addOns'])
+            ->with(['organization.invoices', 'plan.prices', 'plan.entitlements.meter', 'plan.creditGrants', 'pendingPlan', 'addOns', 'coupon'])
             ->find($id);
 
         if ($subscription === null) {
@@ -134,6 +135,7 @@ readonly class SubscriptionReport
             ]
             : null;
         $row['serving'] = $subscription->isServing();
+        $row['coupon'] = $this->couponFor($subscription);
 
         if ($plan === null) {
             return $row;
@@ -310,6 +312,29 @@ readonly class SubscriptionReport
         }
 
         return $subscription->current_period_end?->format('Y-m-d') ?? '—';
+    }
+
+    /**
+     * The coupon bound to this subscription — its code, discount label, duration, and the
+     * periods still to be discounted (null = forever) — or null when none is bound.
+     *
+     * @return array{code: string, label: string, duration: string, remaining_periods: int|null, applies_now: bool}|null
+     */
+    private function couponFor(Subscription $subscription): ?array
+    {
+        $binding = $subscription->coupon;
+
+        if (! $binding instanceof SubscriptionCoupon) {
+            return null;
+        }
+
+        return [
+            'code' => $binding->code,
+            'label' => $binding->label(),
+            'duration' => $binding->durationKind()->label(),
+            'remaining_periods' => $binding->remaining_periods,
+            'applies_now' => $binding->appliesNow(),
+        ];
     }
 
     /**

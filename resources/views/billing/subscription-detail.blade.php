@@ -96,6 +96,15 @@
                 <div class="cbx-kv" style="padding:9px 0"><dt>Seats</dt><dd class="num">{{ $s['seats'] }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Current period</dt><dd class="num">{{ $s['period_start'] }} → {{ $s['period_end'] }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Renewal</dt><dd class="num">{{ $s['renews'] }}</dd></div>
+                @if (!empty($s['coupon']))
+                    <div class="cbx-kv" style="padding:9px 0"><dt>Coupon</dt><dd>
+                        <span class="num">{{ $s['coupon']['label'] }}</span>
+                        <span class="cbx-pill {{ $s['coupon']['applies_now'] ? 'cbx-pill--success' : 'cbx-pill--muted' }}" style="margin-left:6px">{{ $s['coupon']['duration'] }}</span>
+                        @if ($s['coupon']['remaining_periods'] !== null)
+                            <span class="mut" style="font-size:11px">· {{ $s['coupon']['remaining_periods'] }} period(s) left</span>
+                        @endif
+                    </dd></div>
+                @endif
             </dl>
         </section>
         <section class="cbx-panel">

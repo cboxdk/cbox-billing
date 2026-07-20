@@ -140,6 +140,53 @@ class EnvironmentManagementApiTest extends TestCase
         $this->assertNotNull(Environment::query()->where('key', 'sbx-b')->first());
     }
 
+    public function test_env_bound_token_cannot_create_or_clone_another_environment(): void
+    {
+        // An env-bound CI token for its own sandbox …
+        $create = $this->postJson('/api/v1/environments', ['key' => 'sbx-ci'], $this->operatorAuth());
+        $create->assertCreated();
+        $ciToken = $create->json('token');
+        $this->assertIsString($ciToken);
+
+        // … may NOT provision a fresh plane …
+        $this->postJson('/api/v1/environments', ['key' => 'sbx-new'], $this->bearer($ciToken))
+            ->assertForbidden();
+
+        // … and above all may NOT clone production's config into a plane it would control.
+        $this->postJson('/api/v1/environments', ['key' => 'sbx-steal', 'clone_from' => 'production'], $this->bearer($ciToken))
+            ->assertForbidden();
+
+        // Neither environment was created — the refused calls changed nothing.
+        $this->assertNull(Environment::query()->where('key', 'sbx-new')->first());
+        $this->assertNull(Environment::query()->where('key', 'sbx-steal')->first());
+
+        // A production-bound (operator) token succeeds at both create and clone.
+        $this->postJson('/api/v1/environments', ['key' => 'sbx-ok'], $this->operatorAuth())->assertCreated();
+        $this->postJson('/api/v1/environments', ['key' => 'sbx-clone', 'clone_from' => 'production'], $this->operatorAuth())
+            ->assertCreated()
+            ->assertJsonPath('cloned', true);
+    }
+
+    public function test_env_bound_token_cannot_reseed_its_sandbox_from_another_environment(): void
+    {
+        $create = $this->postJson('/api/v1/environments', ['key' => 'sbx-reseed'], $this->operatorAuth());
+        $create->assertCreated();
+        $ciToken = $create->json('token');
+        $this->assertIsString($ciToken);
+
+        // A plain reset of its OWN plane is still allowed (no cross-environment copy) …
+        $this->postJson('/api/v1/environments/sbx-reseed/reset', [], $this->bearer($ciToken))->assertOk();
+
+        // … but reseeding it FROM production would pull production's config across the boundary — refused.
+        $this->postJson('/api/v1/environments/sbx-reseed/reset', ['reseed_from' => 'production'], $this->bearer($ciToken))
+            ->assertForbidden();
+
+        // The operator token may reseed from production.
+        $this->postJson('/api/v1/environments/sbx-reseed/reset', ['reseed_from' => 'production'], $this->operatorAuth())
+            ->assertOk()
+            ->assertJsonPath('reseeded', true);
+    }
+
     public function test_production_cannot_be_destroyed_or_reset_via_the_api(): void
     {
         $auth = $this->operatorAuth();

@@ -81,6 +81,16 @@ class EnvironmentController extends ApiController
             'with_token' => ['nullable', 'boolean'],
         ]);
 
+        // Creating (and, above all, CLONING) an environment deep-copies config into a plane the
+        // caller will control — a privileged, cross-environment action. Deny-by-default: only a
+        // production-bound (or static-operator) token may provision another plane; an env-bound CI
+        // token can never mint a new sandbox, nor clone `production` into one. The new key is passed
+        // as the "managed" plane so an env-bound token (bound to some existing plane, never the new
+        // key nor production) is refused, exactly like show/reset/destroy.
+        if ($denied = $this->denyUnlessMayManage($request, $request->string('key')->toString())) {
+            return $denied;
+        }
+
         $cloneFrom = null;
 
         if ($request->filled('clone_from')) {
@@ -166,7 +176,17 @@ class EnvironmentController extends ApiController
         $reseedFrom = null;
 
         if ($request->filled('reseed_from')) {
-            $reseedFrom = $this->registry->find($request->string('reseed_from')->toString());
+            $reseedFromKey = $request->string('reseed_from')->toString();
+
+            // A reseed deep-copies the SOURCE plane's config into this one, so the token must be
+            // allowed to manage the source too — otherwise an env-bound token could reset its own
+            // sandbox `reseed_from: production` and pull production's config across the boundary
+            // (the same cross-environment leak the create/clone guard closes).
+            if ($denied = $this->denyUnlessMayManage($request, $reseedFromKey)) {
+                return $denied;
+            }
+
+            $reseedFrom = $this->registry->find($reseedFromKey);
 
             if ($reseedFrom === null || ! $reseedFrom->exists) {
                 return new JsonResponse(['error' => 'Unknown reseed_from environment.'], Response::HTTP_UNPROCESSABLE_ENTITY);

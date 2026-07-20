@@ -103,7 +103,16 @@ class PaymentMethodController extends ApiController
             return new JsonResponse(['error' => 'Unknown organization.'], Response::HTTP_NOT_FOUND);
         }
 
-        $gateway->detachPaymentMethod($customers->resolve($organization), $id);
+        $account = $customers->resolve($organization);
+
+        // Org-scoped detach: some gateways vault a method globally by `pm_` id and remove it
+        // regardless of which account asks, so assert the id is one of THIS org's vaulted methods
+        // before detaching (deny-by-default 404) — a token for org A cannot detach org B's method.
+        if (! $this->ownsMethod($gateway, $account, $id)) {
+            return new JsonResponse(['error' => 'Unknown payment method.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $gateway->detachPaymentMethod($account, $id);
 
         // The console detach is audited by the central console-audit middleware; the token API
         // has none, so record the fact here (actor resolves to the token identity). No secret:
@@ -116,6 +125,18 @@ class PaymentMethodController extends ApiController
         );
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /** Whether `$id` is one of `$account`'s own vaulted methods (deny-by-default). */
+    private function ownsMethod(PaymentGateway $gateway, string $account, string $id): bool
+    {
+        foreach ($gateway->paymentMethods($account) as $method) {
+            if ($method->id === $id) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

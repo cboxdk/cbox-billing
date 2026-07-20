@@ -165,6 +165,29 @@ class EmbeddedIntentApiTest extends TestCase
             ->assertJsonPath('data.0.id', 'pm_two');
     }
 
+    public function test_detach_is_scoped_to_the_orgs_own_vaulted_methods(): void
+    {
+        $gateway = $this->bindGateway();
+        [$orgA, $auth] = $this->orgWithToken('org_pm_a');
+        [$orgB] = $this->orgWithToken('org_pm_b');
+
+        $accountA = app(ResolvesGatewayCustomer::class)->resolve($orgA);
+        $accountB = app(ResolvesGatewayCustomer::class)->resolve($orgB);
+        $gateway->attachPaymentMethod($accountA, 'pm_mine');
+        $gateway->attachPaymentMethod($accountB, 'pm_theirs');
+
+        // org A's token acts for its OWN org path but names another org's method id: the gateway
+        // would detach it globally, so we refuse it (deny-by-default 404) before reaching detach.
+        $this->deleteJson('/api/v1/payment-methods/org_pm_a/pm_theirs', [], $auth)->assertNotFound();
+
+        // org B's method survives untouched.
+        $survivors = array_map(static fn ($m): string => $m->id, $gateway->paymentMethods($accountB));
+        $this->assertContains('pm_theirs', $survivors);
+
+        // The org's own method still detaches normally.
+        $this->deleteJson('/api/v1/payment-methods/org_pm_a/pm_mine', [], $auth)->assertNoContent();
+    }
+
     public function test_payment_methods_list_is_cursor_paginated(): void
     {
         $gateway = $this->bindGateway();

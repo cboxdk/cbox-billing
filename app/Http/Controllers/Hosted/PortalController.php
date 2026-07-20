@@ -378,15 +378,37 @@ class PortalController extends HostedController
     /**
      * `POST` {payment_method} — detach a vaulted method from the account. The customer keeps
      * whatever methods remain; the gateway owns the vault, so this is a gateway detach.
+     *
+     * Org-scoped: some gateways vault a method globally by `pm_` id and detach it outright
+     * regardless of which account asks, so before detaching we assert the id belongs to THIS
+     * session's org (deny-by-default 404) — a portal token for org A can never remove org B's method.
      */
     public function removeMethod(Request $request, string $token): JsonResponse
     {
         $request->validate(['payment_method' => ['required', 'string']]);
 
         $session = $this->require($token, SessionType::Portal);
-        $this->gateway->detachPaymentMethod($session->organization_id, $request->string('payment_method')->toString());
+        $paymentMethodId = $request->string('payment_method')->toString();
+
+        if (! $this->ownsMethod($session->organization_id, $paymentMethodId)) {
+            return new JsonResponse(['error' => 'Unknown payment method.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $this->gateway->detachPaymentMethod($session->organization_id, $paymentMethodId);
 
         return new JsonResponse(['methods' => $this->methodsFor($session->organization_id)]);
+    }
+
+    /** Whether `$paymentMethodId` is one of the account's own vaulted methods (deny-by-default). */
+    private function ownsMethod(string $organizationId, string $paymentMethodId): bool
+    {
+        foreach ($this->gateway->paymentMethods($organizationId) as $method) {
+            if ($method->id === $paymentMethodId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

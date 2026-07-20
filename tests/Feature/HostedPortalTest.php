@@ -166,4 +166,25 @@ class HostedPortalTest extends TestCase
         $this->assertNotContains('pm_a', $remaining);
         $this->assertContains('pm_b', $remaining);
     }
+
+    public function test_a_portal_token_cannot_detach_another_orgs_payment_method(): void
+    {
+        $gateway = new FakePaymentGateway(PaymentResult::succeeded('gw_ref'));
+        $this->app->instance(PaymentGateway::class, $gateway);
+
+        $this->subscribedOrg('org_own');
+        $gateway->attachPaymentMethod('org_own', 'pm_own');
+        // Another org's vaulted method — the gateway would detach it globally by id.
+        $gateway->attachPaymentMethod('org_foreign', 'pm_foreign');
+
+        $session = $this->portalSession('org_own');
+
+        // org_own's portal token asks to remove org_foreign's method → deny-by-default 404.
+        $this->postJson('/billing/portal/'.$session->token.'/payment-method/remove', ['payment_method' => 'pm_foreign'])
+            ->assertNotFound();
+
+        // The foreign method survives; the cross-tenant detach never reached the gateway.
+        $foreign = array_map(static fn ($m): string => $m->id, $gateway->paymentMethods('org_foreign'));
+        $this->assertContains('pm_foreign', $foreign);
+    }
 }

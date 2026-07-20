@@ -73,6 +73,7 @@ use App\Billing\Payments\ManualWebhookVerifier;
 use App\Billing\Payments\NullCardUpdateVerifier;
 use App\Billing\Payments\PaymentRetryService;
 use App\Billing\Payments\PaymentService;
+use App\Billing\Payments\PlaneAwareWebhookIngest;
 use App\Billing\Payments\StripeCardUpdateVerifier;
 use App\Billing\Refunds\DatabaseRefundRepository;
 use App\Billing\Reporting\Consolidated\ConsolidatedRevenueReport;
@@ -138,6 +139,7 @@ use Cbox\Billing\Payment\Contracts\InvoicePaymentApplier;
 use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Cbox\Billing\Payment\Contracts\ProcessedEventStore;
 use Cbox\Billing\Payment\Contracts\SettledPaymentStore;
+use Cbox\Billing\Payment\Contracts\WebhookIngest;
 use Cbox\Billing\Payment\Contracts\WebhookVerifier;
 use Cbox\Billing\Payment\Dunning\Contracts\DunningStateStore;
 use Cbox\Billing\Payment\Gateways\ManualPaymentGateway;
@@ -152,6 +154,7 @@ use Cbox\Billing\Subscription\PlanChange\FamilyTransitionPolicy;
 use Cbox\Billing\Subscription\PlanChange\ValueObjects\TransitionEdge;
 use Cbox\Billing\Wallet\Contracts\Wallet;
 use Illuminate\Contracts\Config\Repository as Config;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\Client\Factory as HttpFactory;
@@ -389,6 +392,7 @@ class BillingServiceProvider extends ServiceProvider
         $this->app->singleton(RefundRepository::class, static fn (Application $app): DatabaseRefundRepository => new DatabaseRefundRepository(
             $app->make('db')->connection(),
             $app->make(SellerCatalog::class),
+            $app->make(BillingContext::class),
         ));
     }
 
@@ -406,6 +410,7 @@ class BillingServiceProvider extends ServiceProvider
 
         $this->app->singleton(AccountStanding::class, static fn (Application $app): DatabaseAccountStanding => new DatabaseAccountStanding(
             $app->make('db')->connection(),
+            $app->make(BillingContext::class),
         ));
 
         // The meter-policy resolver is the app's subscription→plan→entitlement decision
@@ -495,6 +500,7 @@ class BillingServiceProvider extends ServiceProvider
         $this->app->singleton(AllowanceLeaseSource::class, static fn (Application $app): CentralAllowanceLeaseSource => new CentralAllowanceLeaseSource(
             $app->make('db')->connection(),
             $app->make(MeterPolicyResolver::class),
+            $app->make(BillingContext::class),
         ));
 
         $this->app->singleton(UsageBuffer::class, static fn (Application $app): EventLogUsageBuffer => new EventLogUsageBuffer(
@@ -594,14 +600,29 @@ class BillingServiceProvider extends ServiceProvider
 
         $this->app->singleton(ProcessedEventStore::class, static fn (Application $app): DatabaseProcessedEventStore => new DatabaseProcessedEventStore(
             $app->make('db')->connection(),
+            $app->make(BillingContext::class),
         ));
 
         $this->app->singleton(SettledPaymentStore::class, static fn (Application $app): DatabaseSettledPaymentStore => new DatabaseSettledPaymentStore(
             $app->make('db')->connection(),
+            $app->make(BillingContext::class),
+        ));
+
+        // Override the engine's DefaultWebhookIngest with the app's plane-aware, rejection-aware
+        // ingest: it bootstraps the request plane from the reference's owning plane before any
+        // mode-scoped read (HP1), and aborts before the dedup guards when the applier refuses a
+        // settlement, so a corrected retry still applies.
+        $this->app->singleton(WebhookIngest::class, static fn (Application $app): PlaneAwareWebhookIngest => new PlaneAwareWebhookIngest(
+            $app->make(ProcessedEventStore::class),
+            $app->make(SettledPaymentStore::class),
+            $app->make(InvoicePaymentApplier::class),
+            $app->make(BillingContext::class),
+            $app->make(Dispatcher::class),
         ));
 
         $this->app->singleton(DunningStateStore::class, static fn (Application $app): DatabaseDunningStateStore => new DatabaseDunningStateStore(
             $app->make('db')->connection(),
+            $app->make(BillingContext::class),
         ));
 
         // The manual HMAC verifier backs the manual gateway's settlement webhook. When the

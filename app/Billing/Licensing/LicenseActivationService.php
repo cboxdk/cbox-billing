@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Billing\Licensing;
 
 use App\Billing\Licensing\ValueObjects\ActivationBundle;
+use App\Billing\Mode\BillingContext;
+use App\Billing\Mode\BillingMode;
 use Cbox\Billing\Licensing\Contracts\IssuedLicenseStore;
 use Cbox\Billing\Licensing\RevocationPublisher;
 use Illuminate\Contracts\Config\Repository as Config;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
 
 /**
@@ -27,9 +30,20 @@ readonly class LicenseActivationService
         private IssuedLicenseStore $store,
         private RevocationPublisher $publisher,
         private Config $config,
+        private BillingContext $context,
+        private ConnectionInterface $db,
     ) {}
 
     public function refresh(string $deploymentId): ?ActivationBundle
+    {
+        // HP1: the activation heartbeat carries no credential to set the plane, so resolve the
+        // deployment's OWNING plane UNSCOPED first (the issued-license store scopes to the ambient
+        // — LIVE by default — plane, so a test deployment would otherwise 404), then run the whole
+        // refresh in that plane so the license lookup AND the revocation list are cut per plane.
+        return $this->context->runInMode($this->planeFor($deploymentId), fn (): ?ActivationBundle => $this->refreshInPlane($deploymentId));
+    }
+
+    private function refreshInPlane(string $deploymentId): ?ActivationBundle
     {
         $license = $this->store->forDeployment($deploymentId);
 
@@ -47,5 +61,24 @@ readonly class LicenseActivationService
             revocationList: $this->publisher->currentList(Carbon::now()->toDateTimeImmutable()),
             publicKey: is_string($publicKey) ? $publicKey : '',
         );
+    }
+
+    /**
+     * The plane the deployment's current license lives in, resolved WITHOUT the plane scope. The
+     * newest (longest-valid) issued license for the deployment names the plane; an unknown
+     * deployment falls back to the ambient plane (the lookup will simply find nothing there too).
+     */
+    private function planeFor(string $deploymentId): BillingMode
+    {
+        $livemode = $this->db->table('issued_licenses')
+            ->where('deployment_id', $deploymentId)
+            ->orderByDesc('expires_at')
+            ->orderByDesc('issued_at')
+            ->orderByDesc('created_at')
+            ->value('livemode');
+
+        return $livemode === null
+            ? $this->context->mode()
+            : BillingMode::fromLivemode((bool) $livemode);
     }
 }

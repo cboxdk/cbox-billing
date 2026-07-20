@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
+use App\Billing\Mode\BillingContext;
+use App\Billing\Mode\BillingMode;
 use App\Billing\Notifications\Branding\BrandingResolver;
 use App\Billing\Storefront\PaywallPresenter;
 use App\Billing\Storefront\ReturnUrlPolicy;
@@ -40,6 +42,7 @@ class PaywallController extends Controller
         ReturnUrlPolicy $returnUrls,
         BrandingResolver $branding,
         ManagesBillingSessions $sessions,
+        BillingContext $context,
     ): Response {
         $sellerBranding = $branding->forSeller(null);
 
@@ -59,7 +62,10 @@ class PaywallController extends Controller
         ]);
 
         $org = $request->string('org')->toString();
-        $checkoutUrl = $this->existingCheckoutUrl($request, $sessions);
+        // HP1: bootstrap the plane from the (unscoped) checkout session token BEFORE the presenter
+        // reaches any mode-scoped org / subscription / entitlement data — a test session must never
+        // render live upgrade state. The org is verified against the token, deny-by-default.
+        $checkoutUrl = $this->existingCheckoutUrl($request, $sessions, $context, $org);
 
         $paywall = $request->filled('meter')
             ? $presenter->forMeter($org, $request->string('meter')->toString(), $checkoutUrl)
@@ -77,21 +83,28 @@ class PaywallController extends Controller
 
     /**
      * The deep-link for the CTA: an EXISTING, still-usable checkout session the caller already
-     * holds (possession of the token is its authorization) — resolved, never minted. Null when no
-     * token is supplied or it does not resolve to a usable checkout session.
+     * holds (possession of the token is its authorization) — resolved UNSCOPED, never minted. When
+     * it resolves and belongs to the requested org, its `livemode` sets the request's plane so the
+     * presenter renders that plane's upgrade state; the returned URL is the checkout deep-link.
+     * Null (and no plane change — the public default LIVE plane stands) when no token is supplied,
+     * it does not resolve to a usable session, or it belongs to a different org (deny-by-default).
      */
-    private function existingCheckoutUrl(Request $request, ManagesBillingSessions $sessions): ?string
+    private function existingCheckoutUrl(Request $request, ManagesBillingSessions $sessions, BillingContext $context, string $org): ?string
     {
         if (! $request->filled('session')) {
             return null;
         }
 
         $token = $request->string('session')->toString();
+        // `locate()` resolves unscoped (the token names its own plane); the session must exist, be
+        // usable, and belong to the org the paywall is being rendered for.
         $session = $sessions->locate($token, SessionType::Checkout);
 
-        if (! $session instanceof BillingSession || ! $session->isUsable()) {
+        if (! $session instanceof BillingSession || ! $session->isUsable() || $session->organization_id !== $org) {
             return null;
         }
+
+        $context->setMode(BillingMode::fromLivemode($session->livemode));
 
         return route('hosted.checkout.show', $token);
     }

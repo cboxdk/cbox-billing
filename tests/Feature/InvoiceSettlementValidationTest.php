@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Invoicing\Enums\InvoiceStatus;
+use App\Billing\Payments\Exceptions\SettlementRejected;
 use App\Billing\Seams\EloquentInvoicePaymentApplier;
 use App\Models\Invoice;
 use App\Models\OperatorAuditEvent;
@@ -18,8 +19,9 @@ use Tests\TestCase;
 /**
  * Money integrity (re-review remediation): a settled webhook only marks an invoice paid when its
  * amount AND currency match the invoice gross exactly. A settlement for the wrong amount (a signed
- * webhook claiming 1 minor against a 362.50 invoice) or the wrong currency is REFUSED and flagged
- * in the audit log for ops — never marked paid. An exact match settles.
+ * webhook claiming 1 minor against a 362.50 invoice) or the wrong currency is REFUSED, flagged in
+ * the audit log for ops, and signalled with {@see SettlementRejected} so the ingest aborts before
+ * the dedup guard — never marked paid. An exact match settles.
  */
 class InvoiceSettlementValidationTest extends TestCase
 {
@@ -49,7 +51,12 @@ class InvoiceSettlementValidationTest extends TestCase
     {
         $invoice = $this->openInvoice();
 
-        $this->applier()->markPaid('INV-SET-1', Money::ofMinor(1, 'DKK'), PaymentResult::succeeded('gw_1'));
+        try {
+            $this->applier()->markPaid('INV-SET-1', Money::ofMinor(1, 'DKK'), PaymentResult::succeeded('gw_1'));
+            $this->fail('A wrong-amount settlement must throw SettlementRejected.');
+        } catch (SettlementRejected $e) {
+            $this->assertSame('INV-SET-1', $e->reference);
+        }
 
         $this->assertFalse($invoice->refresh()->isPaid());
         $this->assertSame(InvoiceStatus::Open, $invoice->status);
@@ -61,7 +68,12 @@ class InvoiceSettlementValidationTest extends TestCase
         $invoice = $this->openInvoice('INV-SET-2');
 
         // Exact minor units but the wrong currency — still not a valid settlement.
-        $this->applier()->markPaid('INV-SET-2', Money::ofMinor(36_250, 'EUR'), PaymentResult::succeeded('gw_2'));
+        try {
+            $this->applier()->markPaid('INV-SET-2', Money::ofMinor(36_250, 'EUR'), PaymentResult::succeeded('gw_2'));
+            $this->fail('A wrong-currency settlement must throw SettlementRejected.');
+        } catch (SettlementRejected) {
+            // expected
+        }
 
         $this->assertFalse($invoice->refresh()->isPaid());
         $this->assertDatabaseHas('operator_audit_events', ['action' => 'invoice.settlement_rejected']);

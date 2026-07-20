@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Payments;
 
+use App\Billing\Mode\BillingContext;
 use Cbox\Billing\Payment\Dunning\Contracts\DunningStateStore;
 use Cbox\Billing\Payment\Dunning\ValueObjects\DunningState;
 use Illuminate\Database\ConnectionInterface;
@@ -19,11 +20,17 @@ readonly class DatabaseDunningStateStore implements DunningStateStore
 {
     private const TABLE = 'dunning_states';
 
-    public function __construct(private ConnectionInterface $db) {}
+    public function __construct(
+        private ConnectionInterface $db,
+        private BillingContext $context,
+    ) {}
 
     public function load(string $account): DunningState
     {
-        $row = $this->db->table(self::TABLE)->where('account', $account)->first();
+        $row = $this->db->table(self::TABLE)
+            ->where('account', $account)
+            ->where('livemode', $this->context->livemode())
+            ->first();
 
         if ($row === null) {
             return DunningState::fresh();
@@ -39,8 +46,10 @@ readonly class DatabaseDunningStateStore implements DunningStateStore
 
     public function save(string $account, DunningState $state): void
     {
+        // The plane is part of the dunning key: the SAME org id dunned in test has an independent
+        // notice cadence from live, so a test run never advances (or suppresses) live suspension.
         $this->db->table(self::TABLE)->updateOrInsert(
-            ['account' => $account],
+            ['account' => $account, 'livemode' => $this->context->livemode()],
             [
                 'notices_sent' => $state->noticesSent,
                 'last_notice_at' => $state->lastNoticeAt?->format('Y-m-d H:i:s'),

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Payments;
 
+use App\Billing\Mode\BillingContext;
+use App\Billing\Mode\BillingMode;
+use App\Billing\Mode\LivemodeScope;
 use App\Billing\Payments\Contracts\RetriesPayments;
 use App\Billing\Payments\Contracts\UpdatesCards;
 use App\Billing\Payments\Dunning\CardUpdate;
@@ -40,9 +43,31 @@ readonly class DunningCardUpdater implements UpdatesCards
         private RetriesPayments $retries,
         private PaymentGateway $gateway,
         private LoggerInterface $log,
+        private BillingContext $context,
     ) {}
 
     public function apply(CardUpdate $update): CardUpdateResult
+    {
+        // HP1: the card-updater webhook carries no credential to set the plane, so resolve the
+        // gateway customer UNSCOPED by (gateway, customer id) and adopt ITS plane before any of the
+        // mode-scoped lookups below (org mapping, in-dunning retries, the vaulted default) run — a
+        // test card-update then recovers only test-plane charges, and vice-versa. With no gateway
+        // customer (the manual/host gateway keys the vault by org id directly) there is no plane
+        // signal, so we stay in the ambient plane.
+        $customer = GatewayCustomer::query()
+            ->withoutGlobalScope(LivemodeScope::class)
+            ->where('gateway', $update->gateway)
+            ->where('gateway_customer_id', $update->account)
+            ->first();
+
+        $plane = $customer instanceof GatewayCustomer
+            ? BillingMode::fromLivemode($customer->livemode)
+            : $this->context->mode();
+
+        return $this->context->runInMode($plane, fn (): CardUpdateResult => $this->applyInPlane($update));
+    }
+
+    private function applyInPlane(CardUpdate $update): CardUpdateResult
     {
         $organizationId = $this->resolveOrganization($update);
 

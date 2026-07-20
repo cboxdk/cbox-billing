@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Seams;
 
+use App\Billing\Mode\BillingContext;
 use Cbox\Billing\Account\Contracts\AccountStanding;
 use Cbox\Billing\Account\Enums\AccountStandingState;
 use Illuminate\Database\ConnectionInterface;
@@ -22,11 +23,17 @@ readonly class DatabaseAccountStanding implements AccountStanding
 {
     private const TABLE = 'account_standings';
 
-    public function __construct(private ConnectionInterface $db) {}
+    public function __construct(
+        private ConnectionInterface $db,
+        private BillingContext $context,
+    ) {}
 
     public function standingOf(string $account): AccountStandingState
     {
-        $row = $this->db->table(self::TABLE)->where('account', $account)->first();
+        $row = $this->db->table(self::TABLE)
+            ->where('account', $account)
+            ->where('livemode', $this->context->livemode())
+            ->first();
 
         if ($row instanceof stdClass && is_string($row->state)) {
             return AccountStandingState::tryFrom($row->state) ?? AccountStandingState::Good;
@@ -37,21 +44,31 @@ readonly class DatabaseAccountStanding implements AccountStanding
 
     public function flag(string $account, AccountStandingState $state, string $reason): void
     {
+        // The plane is part of the standing key: the SAME org id carries an independent standing
+        // per plane, so a test chargeback never flags the live account and vice-versa.
         $now = $this->db->raw('CURRENT_TIMESTAMP');
-        $existing = $this->db->table(self::TABLE)->where('account', $account)->exists();
+        $livemode = $this->context->livemode();
+        $existing = $this->db->table(self::TABLE)
+            ->where('account', $account)
+            ->where('livemode', $livemode)
+            ->exists();
 
         if ($existing) {
-            $this->db->table(self::TABLE)->where('account', $account)->update([
-                'state' => $state->value,
-                'reason' => $reason,
-                'updated_at' => $now,
-            ]);
+            $this->db->table(self::TABLE)
+                ->where('account', $account)
+                ->where('livemode', $livemode)
+                ->update([
+                    'state' => $state->value,
+                    'reason' => $reason,
+                    'updated_at' => $now,
+                ]);
 
             return;
         }
 
         $this->db->table(self::TABLE)->insert([
             'account' => $account,
+            'livemode' => $livemode,
             'state' => $state->value,
             'reason' => $reason,
             'created_at' => $now,

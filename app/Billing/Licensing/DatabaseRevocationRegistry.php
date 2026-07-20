@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Licensing;
 
 use App\Billing\Licensing\Contracts\LicenseRevocationRegistry;
+use App\Billing\Mode\BillingContext;
 use App\Billing\Webhooks\Events\LicenseRevoked as LicenseRevokedEvent;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
@@ -15,11 +16,17 @@ use Illuminate\Support\Carbon;
  * engine's in-memory default, so revocations survive a restart and are shared across
  * issuer nodes. Revoking is idempotent: it upserts on the `license_id` primary key, so a
  * repeat revoke keeps the original `revoked_at` rather than duplicating the id.
+ *
+ * Plane-aware: a revocation carries the request's `livemode` and every read is confined to the
+ * current plane, so a test-plane revocation never appears on the live signed revocation list (and
+ * a live revocation never leaks into a test deployment's activation refresh) — the published list
+ * is cut per plane.
  */
 readonly class DatabaseRevocationRegistry implements LicenseRevocationRegistry
 {
     public function __construct(
         private ConnectionInterface $db,
+        private BillingContext $context,
     ) {}
 
     public function revoke(string $licenseId, ?string $reason = null): void
@@ -30,6 +37,7 @@ readonly class DatabaseRevocationRegistry implements LicenseRevocationRegistry
 
         $this->table()->insert([
             'license_id' => $licenseId,
+            'livemode' => $this->context->livemode(),
             'revoked_at' => Carbon::now(),
             'reason' => $reason,
         ]);
@@ -41,7 +49,7 @@ readonly class DatabaseRevocationRegistry implements LicenseRevocationRegistry
 
     public function isRevoked(string $licenseId): bool
     {
-        return $this->table()->where('license_id', $licenseId)->exists();
+        return $this->scoped()->where('license_id', $licenseId)->exists();
     }
 
     /**
@@ -49,7 +57,7 @@ readonly class DatabaseRevocationRegistry implements LicenseRevocationRegistry
      */
     public function revokedIds(): array
     {
-        return array_values($this->table()
+        return array_values($this->scoped()
             ->orderBy('license_id')
             ->pluck('license_id')
             ->map(static fn (mixed $id): string => is_scalar($id) ? (string) $id : '')
@@ -59,5 +67,11 @@ readonly class DatabaseRevocationRegistry implements LicenseRevocationRegistry
     private function table(): Builder
     {
         return $this->db->table('license_revocations');
+    }
+
+    /** The revocation table constrained to the current plane. */
+    private function scoped(): Builder
+    {
+        return $this->table()->where('livemode', $this->context->livemode());
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Enforcement;
 
+use App\Billing\Mode\BillingContext;
 use Cbox\Billing\Metering\Contracts\AllowanceLeaseSource;
 use Cbox\Billing\Metering\Contracts\MeterPolicyResolver;
 use Cbox\Billing\Metering\Enums\OverageBehaviour;
@@ -30,6 +31,7 @@ readonly class CentralAllowanceLeaseSource implements AllowanceLeaseSource
     public function __construct(
         private ConnectionInterface $db,
         private MeterPolicyResolver $policies,
+        private BillingContext $context,
     ) {}
 
     public function lease(string $org, string $meter, int $want): AllowanceLease
@@ -86,7 +88,10 @@ readonly class CentralAllowanceLeaseSource implements AllowanceLeaseSource
 
     private function outstanding(string $org, string $meter, bool $lock = false): int
     {
-        $query = $this->db->table(self::TABLE)->where('org', $org)->where('meter', $meter);
+        $query = $this->db->table(self::TABLE)
+            ->where('org', $org)
+            ->where('meter', $meter)
+            ->where('livemode', $this->context->livemode());
 
         if ($lock) {
             $query->lockForUpdate();
@@ -99,8 +104,10 @@ readonly class CentralAllowanceLeaseSource implements AllowanceLeaseSource
 
     private function store(string $org, string $meter, int $outstanding): void
     {
+        // The plane is part of the lease key: a test lease and a live lease for the same
+        // (org, meter) are separate rows, so test metering never draws on the live allowance.
         $this->db->table(self::TABLE)->updateOrInsert(
-            ['org' => $org, 'meter' => $meter],
+            ['org' => $org, 'meter' => $meter, 'livemode' => $this->context->livemode()],
             ['outstanding' => $outstanding, 'updated_at' => $this->db->raw('CURRENT_TIMESTAMP')],
         );
     }

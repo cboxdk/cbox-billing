@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Refunds;
 
+use App\Billing\Mode\BillingContext;
 use App\Billing\Seller\SellerCatalog;
 use Cbox\Billing\Events\CreditNoteIssued;
 use Cbox\Billing\Invoice\ValueObjects\CreditNote;
@@ -36,11 +37,15 @@ readonly class DatabaseRefundRepository implements RefundRepository
     public function __construct(
         private ConnectionInterface $db,
         private SellerCatalog $sellers,
+        private BillingContext $context,
     ) {}
 
     public function forId(string $refundId): ?Refund
     {
-        $row = $this->db->table(self::TABLE)->where('refund_id', $refundId)->first();
+        $row = $this->db->table(self::TABLE)
+            ->where('refund_id', $refundId)
+            ->where('livemode', $this->context->livemode())
+            ->first();
 
         if ($row === null) {
             return null;
@@ -87,6 +92,7 @@ readonly class DatabaseRefundRepository implements RefundRepository
         $sum = $this->db->table(self::TABLE)
             ->where('invoice_number', $invoiceNumber)
             ->where('currency', $currency)
+            ->where('livemode', $this->context->livemode())
             ->sum('gross_minor');
 
         return Money::ofMinor((int) $sum, $currency);
@@ -99,6 +105,7 @@ readonly class DatabaseRefundRepository implements RefundRepository
         $this->db->table(self::TABLE)->updateOrInsert(
             ['refund_id' => $refund->id],
             [
+                'livemode' => $this->context->livemode(),
                 'invoice_number' => $note->invoiceNumber,
                 'credit_note_number' => $note->number,
                 'account' => $refund->account,

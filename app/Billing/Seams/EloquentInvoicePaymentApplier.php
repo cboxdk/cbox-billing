@@ -8,6 +8,7 @@ use App\Billing\Audit\Contracts\RecordsAudit;
 use App\Billing\Audit\Enums\AuditAction;
 use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
+use App\Billing\Payments\Exceptions\SettlementRejected;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\Invoice;
 use Cbox\Billing\Money\Money;
@@ -25,8 +26,10 @@ use Cbox\Billing\Payment\ValueObjects\PaymentResult;
  * re-delivered settlement that no-ops the already-paid invoice sends no second receipt.
  *
  * Money integrity: the settled amount + currency MUST match the invoice gross. A mismatch
- * (a settlement claiming the wrong amount/currency) is REFUSED by {@see Invoice::markPaid()}
- * and flagged in the audit log for ops — never marked paid, never receipted.
+ * (a settlement claiming the wrong amount/currency) is REFUSED by {@see Invoice::markPaid()},
+ * flagged in the audit log for ops, and signalled to the ingest with a {@see SettlementRejected}
+ * so it aborts BEFORE committing the settle-once guard — never marked paid, never receipted, and
+ * crucially never consuming the dedup guard that a later CORRECT settlement retry needs.
  */
 readonly class EloquentInvoicePaymentApplier implements InvoicePaymentApplier
 {
@@ -35,6 +38,9 @@ readonly class EloquentInvoicePaymentApplier implements InvoicePaymentApplier
         private RecordsAudit $audit,
     ) {}
 
+    /**
+     * @throws SettlementRejected when the settled amount/currency does not match the invoice gross.
+     */
     public function markPaid(string $reference, Money $amount, PaymentResult $result): void
     {
         $invoice = Invoice::query()->where('number', $reference)->first();
@@ -66,7 +72,12 @@ readonly class EloquentInvoicePaymentApplier implements InvoicePaymentApplier
                 ],
             );
 
-            return;
+            // Signal the rejection so the ingest aborts before writing the settle-once / processed
+            // guards: a subsequent correct-amount settlement for this same invoice must still apply.
+            throw SettlementRejected::forReference($reference, sprintf(
+                'Settlement rejected for invoice %s: amount/currency did not match the invoice gross.',
+                $invoice->number,
+            ));
         }
 
         // Only a genuine unpaid → paid transition gets a receipt (exactly-once, riding the

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Payments;
 
+use App\Billing\Mode\BillingContext;
 use Cbox\Billing\Payment\Contracts\ProcessedEventStore;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
@@ -13,17 +14,26 @@ use Illuminate\Database\QueryException;
  * id. `remember()` is a UNIQUE insert: it returns true the first time an id is seen and
  * false on every re-delivery, so the event stream is deduplicated across process restarts
  * — not just within one process like the engine's in-memory default.
+ *
+ * Plane-aware: the dedup row carries the request's `livemode` so a test event stream and a live
+ * one are deduplicated independently and never suppress each other.
  */
 readonly class DatabaseProcessedEventStore implements ProcessedEventStore
 {
     private const TABLE = 'webhook_processed_events';
 
-    public function __construct(private ConnectionInterface $db) {}
+    public function __construct(
+        private ConnectionInterface $db,
+        private BillingContext $context,
+    ) {}
 
     public function remember(string $eventId): bool
     {
         try {
-            $this->db->table(self::TABLE)->insert(['event_id' => $eventId]);
+            $this->db->table(self::TABLE)->insert([
+                'event_id' => $eventId,
+                'livemode' => $this->context->livemode(),
+            ]);
 
             return true;
         } catch (QueryException) {

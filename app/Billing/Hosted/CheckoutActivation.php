@@ -15,6 +15,7 @@ use App\Billing\Hosted\Enums\SessionStatus;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\BillingMode;
 use App\Billing\Mode\LivemodeScope;
+use App\Billing\Payments\Exceptions\SettlementRejected;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\BillingSession;
@@ -102,7 +103,12 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
                 livemode: $session->livemode,
             );
 
-            return;
+            // Signal the rejection so the ingest aborts before writing the settle-once guard: a
+            // corrected settlement for this checkout reference must still be able to activate.
+            throw SettlementRejected::forReference($reference, sprintf(
+                'Checkout settlement rejected for %s: amount/currency did not match the stamped expectation.',
+                $session->organization_id,
+            ));
         }
 
         $this->context->runInMode(BillingMode::fromLivemode($session->livemode), function () use ($session): void {

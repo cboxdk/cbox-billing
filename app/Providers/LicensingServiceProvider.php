@@ -76,6 +76,7 @@ class LicensingServiceProvider extends ServiceProvider
 
         $this->app->singleton(LicenseRevocationRegistry::class, static fn (Application $app): DatabaseRevocationRegistry => new DatabaseRevocationRegistry(
             $app->make('db')->connection(),
+            $app->make(BillingContext::class),
         ));
 
         // The engine's RevocationPublisher reads the same durable registry.

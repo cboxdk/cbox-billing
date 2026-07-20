@@ -111,7 +111,7 @@ readonly class CheckoutPaymentFlow
         $currency = $this->currency($session);
 
         return $this->grossOf($this->organization($session), [
-            new LineInput($plan->name, 1, $plan->priceFor($currency)),
+            new LineInput($plan->name, 1, $plan->amountFor($currency, 1)),
         ]);
     }
 
@@ -137,7 +137,11 @@ readonly class CheckoutPaymentFlow
      */
     private function lines(BillingSession $session, Plan $plan, string $currency): array
     {
-        $full = $plan->priceFor($currency);
+        // The SEAT/TIER-aware figure the first invoice bills (a checkout subscribes one seat), NOT
+        // the base `price_minor` — which is often 0 for a graduated/volume plan, so a tiered plan
+        // must not check out "free" then get invoiced. amountFor(currency, 1) == the first-invoice
+        // charge, keeping checkout gross == first-invoice gross (preview == charge).
+        $full = $plan->amountFor($currency, 1);
         $lines = [new LineInput($plan->name, 1, $full)];
 
         $coupon = $this->coupon($session);

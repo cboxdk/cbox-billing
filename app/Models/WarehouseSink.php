@@ -7,18 +7,26 @@ namespace App\Models;
 use App\Billing\Export\Enums\ExportFormat;
 use App\Billing\Export\Enums\Warehouse;
 use App\Billing\Export\ValueObjects\WarehouseTarget;
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A configured warehouse destination: which object-store disk/prefix a dataset partition is
- * staged to, which format, which plane it exports, which datasets it delivers, and the
- * load-side coordinates the manifest generators phrase their `COPY`/`bq load`/DDL against. A
- * sink is operator configuration, not tenant state, so it is not plane-partitioned — the plane
- * it exports is one of its own fields.
+ * staged to, which format, which datasets it delivers, and the load-side coordinates the manifest
+ * generators phrase their `COPY`/`bq load`/DDL against.
+ *
+ * A sink is operator INFRASTRUCTURE of one billing ENVIRONMENT (via {@see BelongsToEnvironment}),
+ * so a sink configured while switched to a sandbox belongs to that plane: it is invisible in
+ * production and is torn down when the sandbox is destroyed (it survives a reset, as config). The
+ * `environment` it lives in is stamped from the ambient plane, never mass-assignable; the separate
+ * `livemode` field is the operator's choice of WHICH plane's data the export partitions on (the
+ * external warehouse data-contract), independent of where the sink config lives.
  */
 class WarehouseSink extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'key', 'name', 'warehouse', 'disk', 'prefix', 'format', 'livemode',
         'datasets', 'schedule', 'external_base', 'target_schema', 'target_stage',

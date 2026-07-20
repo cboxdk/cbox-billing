@@ -82,13 +82,11 @@ use App\Billing\Payments\DatabaseProcessedEventStore;
 use App\Billing\Payments\DatabaseSettledPaymentStore;
 use App\Billing\Payments\DeclineClassifier;
 use App\Billing\Payments\DunningCardUpdater;
-use App\Billing\Payments\ManualCardUpdateVerifier;
-use App\Billing\Payments\ManualWebhookVerifier;
-use App\Billing\Payments\NullCardUpdateVerifier;
+use App\Billing\Payments\EnvironmentAwareCardUpdateVerifier;
+use App\Billing\Payments\EnvironmentAwareWebhookVerifier;
 use App\Billing\Payments\PaymentRetryService;
 use App\Billing\Payments\PaymentService;
 use App\Billing\Payments\PlaneAwareWebhookIngest;
-use App\Billing\Payments\StripeCardUpdateVerifier;
 use App\Billing\Refunds\DatabaseRefundRepository;
 use App\Billing\Reporting\Consolidated\ConsolidatedRevenueReport;
 use App\Billing\Retention\BasicCancellationSurvey;
@@ -673,45 +671,44 @@ class BillingServiceProvider extends ServiceProvider
             $app->make(BillingContext::class),
         ));
 
-        // The manual HMAC verifier backs the manual gateway's settlement webhook. When the
-        // Stripe adapter is configured with a signing secret it binds its OWN verifier, so
-        // we only bind the manual one when Stripe's is not in play.
-        if (! $this->stripeWebhookConfigured($config)) {
-            $this->app->singleton(WebhookVerifier::class, static function (Application $app): ManualWebhookVerifier {
-                $config = $app->make(Config::class);
-                $secret = $config->get('billing.webhook.secret');
-                $header = $config->get('billing.webhook.signature_header', 'X-Cbox-Signature');
-
-                return new ManualWebhookVerifier(
-                    secret: is_string($secret) ? $secret : null,
-                    signatureHeader: is_string($header) ? $header : 'X-Cbox-Signature',
-                );
-            });
-        }
-
-        // The card / account-updater verifier — the seam the engine's settlement webhook does
-        // not model. Prefer the REAL Stripe verifier when its signing secret is set (it consumes
-        // `payment_method.automatically_updated` & friends the settlement adapter ignores);
-        // otherwise the manual HMAC verifier when a webhook secret is set; else deny-by-default.
-        $this->app->singleton(VerifiesCardUpdates::class, static function (Application $app): VerifiesCardUpdates {
+        // The settlement webhook verifier. Bound plane-aware (overriding both the Stripe adapter's
+        // global-secret binding and the manual fallback): it resolves the signing secret PER CALL
+        // from the current environment's DB gateway config first, then the global env-var Stripe
+        // secret, then the manual HMAC secret — so a DB-configured plane verifies its own Stripe
+        // webhooks while a single-plane env-var deploy behaves exactly as before.
+        $this->app->singleton(WebhookVerifier::class, static function (Application $app): EnvironmentAwareWebhookVerifier {
             $config = $app->make(Config::class);
             $stripeSecret = $config->get('billing-stripe.webhook_secret');
-
-            if (is_string($stripeSecret) && $stripeSecret !== '') {
-                return new StripeCardUpdateVerifier($stripeSecret);
-            }
-
-            $secret = $config->get('billing.webhook.secret');
+            $manualSecret = $config->get('billing.webhook.secret');
             $header = $config->get('billing.webhook.signature_header', 'X-Cbox-Signature');
 
-            if (is_string($secret) && $secret !== '') {
-                return new ManualCardUpdateVerifier(
-                    secret: $secret,
-                    signatureHeader: is_string($header) ? $header : 'X-Cbox-Signature',
-                );
-            }
+            return new EnvironmentAwareWebhookVerifier(
+                gateways: $app->make(EnvironmentGatewayStore::class),
+                context: $app->make(BillingContext::class),
+                globalStripeSecret: is_string($stripeSecret) ? $stripeSecret : null,
+                manualSecret: is_string($manualSecret) ? $manualSecret : null,
+                manualSignatureHeader: is_string($header) ? $header : 'X-Cbox-Signature',
+            );
+        });
 
-            return new NullCardUpdateVerifier;
+        // The card / account-updater verifier — the seam the engine's settlement webhook does
+        // not model. Plane-aware (like the settlement verifier): it resolves the Stripe signing
+        // secret PER CALL from the current environment's DB gateway config, then the global env-var
+        // Stripe secret (consuming `payment_method.automatically_updated` & friends the settlement
+        // adapter ignores), then the manual HMAC secret; else deny-by-default.
+        $this->app->singleton(VerifiesCardUpdates::class, static function (Application $app): EnvironmentAwareCardUpdateVerifier {
+            $config = $app->make(Config::class);
+            $stripeSecret = $config->get('billing-stripe.webhook_secret');
+            $manualSecret = $config->get('billing.webhook.secret');
+            $header = $config->get('billing.webhook.signature_header', 'X-Cbox-Signature');
+
+            return new EnvironmentAwareCardUpdateVerifier(
+                gateways: $app->make(EnvironmentGatewayStore::class),
+                context: $app->make(BillingContext::class),
+                globalStripeSecret: is_string($stripeSecret) ? $stripeSecret : null,
+                manualSecret: is_string($manualSecret) ? $manualSecret : null,
+                manualSignatureHeader: is_string($header) ? $header : 'X-Cbox-Signature',
+            );
         });
     }
 
@@ -719,14 +716,6 @@ class BillingServiceProvider extends ServiceProvider
     private function stripeGatewayConfigured(Config $config): bool
     {
         $secret = $config->get('billing-stripe.secret');
-
-        return is_string($secret) && $secret !== '';
-    }
-
-    /** Whether a Stripe webhook signing secret is configured (so Stripe binds its verifier). */
-    private function stripeWebhookConfigured(Config $config): bool
-    {
-        $secret = $config->get('billing-stripe.webhook_secret');
 
         return is_string($secret) && $secret !== '';
     }

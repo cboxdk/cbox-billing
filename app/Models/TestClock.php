@@ -8,6 +8,7 @@ use App\Billing\TestMode\Enums\TestChargeOutcome;
 use App\Billing\TestMode\TestClockAdvancer;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -23,8 +24,13 @@ use Illuminate\Support\Carbon;
  * its own — it is always `livemode = false` and reached only through the operator console or a
  * test-mode API token. Its bound {@see Subscription}s, by contrast, ARE plane-scoped.
  *
+ * `organization_id` optionally scopes the clock to one org: the programmatic advance asserts the
+ * caller may act for it, so an org-scoped test token cannot fast-forward another org's clock. A
+ * null org keeps a clock operator-only on the API (still reachable from the console).
+ *
  * @property int $id
  * @property string $name
+ * @property string|null $organization_id
  * @property Carbon $now_at
  * @property string $charge_outcome
  * @property bool $livemode
@@ -32,7 +38,7 @@ use Illuminate\Support\Carbon;
  */
 class TestClock extends Model
 {
-    protected $fillable = ['name', 'now_at', 'charge_outcome', 'created_by_sub'];
+    protected $fillable = ['name', 'organization_id', 'now_at', 'charge_outcome', 'created_by_sub'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -58,5 +64,11 @@ class TestClock extends Model
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);
+    }
+
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }

@@ -63,7 +63,25 @@ class TestClockApiTest extends TestCase
         ])->assertForbidden();
     }
 
-    private function sandboxClock(string $orgId): TestClock
+    public function test_an_org_scoped_test_token_cannot_advance_another_orgs_clock(): void
+    {
+        // Two org-scoped clocks; a test token for org A must not fast-forward org B's clock.
+        $clockA = $this->sandboxClock('org_tc_a', scopeToOrg: true);
+        $clockB = $this->sandboxClock('org_tc_b', scopeToOrg: true);
+
+        ['plaintext' => $token] = ApiToken::issue('a-sandbox', 'org_tc_a', null, null, BillingMode::Test);
+        $auth = ['Authorization' => 'Bearer '.$token];
+
+        // Cross-org advance is refused (403); the token may act only for its own org's clock.
+        $this->postJson("/api/v1/test/clocks/{$clockB->id}/advance", ['target' => '2026-02-15T00:00:00Z'], $auth)
+            ->assertForbidden();
+
+        // Its own org's clock still advances.
+        $this->postJson("/api/v1/test/clocks/{$clockA->id}/advance", ['target' => '2026-02-15T00:00:00Z'], $auth)
+            ->assertOk();
+    }
+
+    private function sandboxClock(string $orgId, bool $scopeToOrg = false): TestClock
     {
         $context = app(BillingContext::class);
         $context->setMode(BillingMode::Test);
@@ -79,6 +97,7 @@ class TestClockApiTest extends TestCase
 
         $clock = TestClock::query()->create([
             'name' => 'api-clock',
+            'organization_id' => $scopeToOrg ? $orgId : null,
             'now_at' => Carbon::parse('2026-01-01 00:00:00', 'UTC'),
         ]);
         $subscription->forceFill(['test_clock_id' => $clock->id])->save();

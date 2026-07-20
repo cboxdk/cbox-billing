@@ -19,7 +19,10 @@ use Illuminate\Http\Request;
  * counts of what fired. This is how an integrator scripts "simulate a year of renewals" from a
  * test suite or a CI job.
  *
- * Thin over the {@see TestClockAdvancer}; the whole advance runs in the test plane.
+ * Org-scoped: a clock bound to an organization may be advanced only by a token that may act for
+ * it (an org-scoped test token cannot fast-forward another org's clock); a clock with no org is
+ * operator-only on the API. Thin over the {@see TestClockAdvancer}; the whole advance runs in
+ * the test plane.
  */
 class TestClockController extends ApiController
 {
@@ -40,6 +43,17 @@ class TestClockController extends ApiController
 
         if (! $clock instanceof TestClock) {
             return new JsonResponse(['error' => 'Test clock not found.'], 404);
+        }
+
+        // Ownership: a clock bound to an org may be advanced only by a token that may act for it;
+        // an unbound clock is operator-only. This closes the hole where any test token could
+        // fast-forward any org's clock.
+        if ($clock->organization_id !== null) {
+            if ($denied = $this->denyUnlessMayActFor($request, $clock->organization_id)) {
+                return $denied;
+            }
+        } elseif ($denied = $this->denyUnlessOperator($request)) {
+            return $denied;
         }
 
         $result = $advancer->advance($clock, CarbonImmutable::parse($request->string('target')->toString()));

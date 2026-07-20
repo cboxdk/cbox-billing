@@ -93,6 +93,16 @@ class HostedCheckoutTest extends TestCase
         $this->get('/billing/checkout/not-a-real-token')->assertNotFound();
     }
 
+    public function test_hosted_pages_send_a_strict_referrer_policy(): void
+    {
+        $session = $this->openCheckout('org_referrer');
+
+        // no-referrer keeps the bearer-token URL out of the Referer sent to Stripe/3rd-parties.
+        $this->get('/billing/checkout/'.$session->token)
+            ->assertOk()
+            ->assertHeader('Referrer-Policy', 'no-referrer');
+    }
+
     public function test_intent_creation_returns_a_client_secret(): void
     {
         $this->fakeGateway();

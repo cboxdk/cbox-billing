@@ -55,6 +55,31 @@ class CouponConsoleTest extends TestCase
         $this->withSession($this->session)->get('/coupons')->assertOk()->assertSee('WELCOME10');
     }
 
+    public function test_times_redeemed_is_not_mass_assignable(): void
+    {
+        // The redemption counter is server-owned; a create/edit must never set it from input.
+        $this->withSession($this->session)->post('/coupons', [
+            'code' => 'counter',
+            'name' => 'Counter',
+            'discount_type' => 'percent',
+            'percent_off' => 10,
+            'duration' => 'once',
+            'applies_to' => 'all',
+            'active' => '1',
+            'times_redeemed' => 999,
+        ])->assertRedirect();
+
+        // Persisted at the schema default (0), never the injected 999.
+        $this->assertSame(0, Coupon::query()->where('code', 'COUNTER')->firstOrFail()->times_redeemed);
+
+        // Direct mass-assignment on the model is likewise ignored.
+        $coupon = Coupon::query()->create([
+            'code' => 'DIRECT', 'discount_type' => 'percent', 'percent_off' => 5,
+            'duration' => 'once', 'applies_to' => 'all', 'active' => true, 'times_redeemed' => 42,
+        ]);
+        $this->assertSame(0, $coupon->refresh()->times_redeemed);
+    }
+
     public function test_a_percent_over_100_is_refused(): void
     {
         $this->withSession($this->session)->post('/coupons', [

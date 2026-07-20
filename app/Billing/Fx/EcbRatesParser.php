@@ -43,8 +43,10 @@ class EcbRatesParser
             throw new RuntimeException('ECB rate feed was empty.');
         }
 
+        // LIBXML_NONET forbids network access during parse; LIBXML_NOENT is deliberately NOT set —
+        // it enables entity substitution (an XXE vector), and the ECB feed carries no entities.
         $document = new DOMDocument;
-        $loaded = @$document->loadXML($xml, LIBXML_NONET | LIBXML_NOENT);
+        $loaded = @$document->loadXML($xml, LIBXML_NONET);
 
         if ($loaded === false) {
             throw new RuntimeException('ECB rate feed is not well-formed XML.');

@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureAuthenticated;
 use App\Http\Middleware\EnsureOperator;
 use App\Http\Middleware\RecordsOperatorAudit;
 use App\Http\Middleware\ResolveConsoleMode;
+use App\Http\Middleware\SetsReferrerPolicy;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -42,8 +43,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->name('api.v1.')
                 ->group(__DIR__.'/../routes/licensing.php');
 
-            // Token-authorized hosted checkout + customer portal: /billing/*.
-            Route::middleware('web')
+            // Token-authorized hosted checkout + customer portal: /billing/*. A strict
+            // Referrer-Policy keeps the bearer-token URL from leaking to Stripe/3rd-parties.
+            Route::middleware(['web', SetsReferrerPolicy::class])
                 ->group(__DIR__.'/../routes/hosted.php');
 
             // Public, no-auth hosted order form: the CPQ /quote/{token} page a customer accepts

@@ -49,9 +49,11 @@ class Coupon extends Model
 {
     use BelongsToMode;
 
+    // `times_redeemed` is a server-owned counter (incremented only by the CouponRedeemer under a
+    // row lock), NOT mass-assignable — a coupon create/edit must never set it from request input.
     protected $fillable = [
         'code', 'name', 'discount_type', 'percent_off', 'amount_off_minor', 'currency',
-        'duration', 'duration_in_periods', 'max_redemptions', 'times_redeemed',
+        'duration', 'duration_in_periods', 'max_redemptions',
         'max_redemptions_per_customer', 'redeem_by', 'applies_to', 'applies_to_plans',
         'active', 'archived_at',
     ];

@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Billing\Cpq\Enums\QuoteStatus;
 use App\Billing\Cpq\QuoteCalculator;
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Cbox\Billing\Catalog\Enums\TermUnit;
 use Cbox\Billing\Catalog\ValueObjects\Term;
 use Cbox\Billing\Money\Money;
@@ -35,6 +36,7 @@ use Illuminate\Support\Carbon;
  * quote shows is exactly what the subscription will bill.
  *
  * @property int $id
+ * @property bool $livemode
  * @property string $number
  * @property string|null $organization_id
  * @property string|null $prospect_name
@@ -70,6 +72,8 @@ use Illuminate\Support\Carbon;
  */
 class Quote extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'number', 'organization_id', 'prospect_name', 'prospect_email', 'seller_entity_id',
         'currency', 'status', 'valid_until', 'owner_sub', 'owner_name', 'notes', 'coupon_id',

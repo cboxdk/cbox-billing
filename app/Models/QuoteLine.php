@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Billing\Cpq\Enums\QuoteDiscountKind;
 use App\Billing\Cpq\Enums\QuoteLineType;
 use App\Billing\Cpq\QuoteCalculator;
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * computed through the engine at render time by {@see QuoteCalculator}.
  *
  * @property int $id
+ * @property bool $livemode
  * @property int $quote_id
  * @property int $sort_order
  * @property QuoteLineType $type
@@ -31,6 +33,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class QuoteLine extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'quote_id', 'sort_order', 'type', 'plan_id', 'description', 'quantity',
         'unit_amount_minor', 'discount_kind', 'discount_value', 'recurring',

@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Billing\Hosted\Enums\SessionStatus;
 use App\Billing\Hosted\Enums\SessionType;
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,11 +29,13 @@ use Illuminate\Support\Carbon;
  * @property string $return_url
  * @property string|null $payment_reference
  * @property SessionStatus $status
+ * @property bool $livemode
  * @property Carbon $expires_at
  * @property Carbon|null $completed_at
  */
 class BillingSession extends Model
 {
+    use BelongsToMode;
     use HasUuids;
 
     protected $fillable = [

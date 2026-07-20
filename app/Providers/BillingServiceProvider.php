@@ -36,6 +36,7 @@ use App\Billing\Invoicing\InvoiceService;
 use App\Billing\Invoicing\PersistIssuedCreditNote;
 use App\Billing\Metering\EntitlementsView;
 use App\Billing\Metering\UsageSummaryView;
+use App\Billing\Mode\BillingContext;
 use App\Billing\Notifications\BillingNotifier;
 use App\Billing\Notifications\Contracts\ComposesTransactionalMail;
 use App\Billing\Notifications\Contracts\ManagesNotificationPreferences;
@@ -411,6 +412,7 @@ class BillingServiceProvider extends ServiceProvider
             $app->make(ManagesBillingSessions::class),
             $app->make(CouponRedeemer::class),
             $app->make(ConversionAttribution::class),
+            $app->make(BillingContext::class),
         ));
 
         $this->registerTransitionPolicy();

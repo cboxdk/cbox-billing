@@ -7,6 +7,7 @@ namespace App\Billing\Hosted;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionStatus;
 use App\Billing\Hosted\Enums\SessionType;
+use App\Billing\Mode\LivemodeScope;
 use App\Models\BillingSession;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -58,7 +59,13 @@ readonly class BillingSessionService implements ManagesBillingSessions
 
     public function locate(string $token, SessionType $type): ?BillingSession
     {
+        // The token is globally unique and is the whole authorization, so this bootstrap
+        // lookup runs WITHOUT the plane scope — the ambient mode on a public hosted route is
+        // still the LIVE default here. The caller reads the resolved session's `livemode` and
+        // sets the request's plane from it before any org/plan/gateway query (the session row
+        // is the source of truth for the request's plane).
         $session = BillingSession::query()
+            ->withoutGlobalScope(LivemodeScope::class)
             ->where('token', $token)
             ->where('type', $type->value)
             ->first();

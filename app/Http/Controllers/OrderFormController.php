@@ -9,6 +9,9 @@ use App\Billing\Cpq\Exceptions\SignatureRejected;
 use App\Billing\Cpq\OrderFormPresenter;
 use App\Billing\Cpq\QuoteAcceptanceService;
 use App\Billing\Cpq\ValueObjects\SignatureRequest;
+use App\Billing\Mode\BillingContext;
+use App\Billing\Mode\BillingMode;
+use App\Billing\Mode\LivemodeScope;
 use App\Models\Quote;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,6 +31,8 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
  */
 class OrderFormController extends Controller
 {
+    public function __construct(private readonly BillingContext $context) {}
+
     public function show(string $token, OrderFormPresenter $presenter): Response
     {
         $quote = $this->resolve($token);
@@ -78,14 +83,28 @@ class OrderFormController extends Controller
         return redirect()->route('quote.show', $token)->with('status', 'declined');
     }
 
-    /** Resolve a quote by its opaque order-form token; an unknown token 404s (cross-quote isolation). */
+    /**
+     * Resolve a quote by its opaque order-form token; an unknown token 404s (cross-quote
+     * isolation). The token is globally unique and is the whole authorization, so this
+     * bootstrap lookup runs WITHOUT the plane scope (a public route carries no credential to
+     * set the mode). The resolved quote's `livemode` is then the SOURCE OF TRUTH for the
+     * request's plane (HP1): the ambient {@see BillingContext} is set from it before the
+     * presenter reads lines or acceptance provisions a subscription — so a test-plane quote
+     * token resolves and acts on ONLY test data, and cannot touch a same-id live org.
+     */
     private function resolve(string $token): Quote
     {
-        $quote = Quote::query()->where('token', $token)->whereNotNull('token')->first();
+        $quote = Quote::query()
+            ->withoutGlobalScope(LivemodeScope::class)
+            ->where('token', $token)
+            ->whereNotNull('token')
+            ->first();
 
         if (! $quote instanceof Quote) {
             abort(SymfonyResponse::HTTP_NOT_FOUND);
         }
+
+        $this->context->setMode(BillingMode::fromLivemode($quote->livemode));
 
         return $quote;
     }

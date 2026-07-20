@@ -57,6 +57,30 @@ class BillingContext implements BillingClock
     }
 
     /**
+     * Run `$callback` in `$mode`, restoring the prior mode afterwards (even on throw). Used
+     * where the request carries no credential to set the plane but a resolved row names it —
+     * e.g. a settlement webhook activating a hosted checkout must subscribe the org in the
+     * checkout session's OWN plane, not the ambient default, then restore so the rest of the
+     * webhook is unaffected.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function runInMode(BillingMode $mode, Closure $callback): mixed
+    {
+        $previousMode = $this->mode;
+        $this->mode = $mode;
+
+        try {
+            return $callback();
+        } finally {
+            $this->mode = $previousMode;
+        }
+    }
+
+    /**
      * Run `$callback` as if it were TEST mode at exactly `$virtualNow`, restoring the prior
      * mode and virtual time afterwards (even on throw). This is how the test-clock advancer
      * steps the world to each due instant: the due-logic run inside sees `now()` = the step

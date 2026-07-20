@@ -12,6 +12,7 @@ use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
 use App\Billing\Hosted\PortalBillingHistory;
 use App\Billing\Invoicing\InvoicePdfRenderer;
+use App\Billing\Mode\BillingContext;
 use App\Billing\Notifications\Contracts\ManagesNotificationPreferences;
 use App\Billing\Notifications\MailEventType;
 use App\Billing\Reporting\UsageReport;
@@ -67,6 +68,7 @@ class PortalController extends HostedController
 {
     public function __construct(
         ManagesBillingSessions $sessions,
+        BillingContext $context,
         private readonly SubscribesOrganizations $subscriptions,
         private readonly PaymentGateway $gateway,
         private readonly ResolvesAccountCurrency $currencies,
@@ -82,7 +84,7 @@ class PortalController extends HostedController
         private readonly ManagesNotificationPreferences $notifications,
         private readonly ExemptionCertificateService $exemptionCertificates,
     ) {
-        parent::__construct($sessions);
+        parent::__construct($sessions, $context);
     }
 
     /** The portal page: current subscription, upgrade/downgrade options, invoices, methods. */

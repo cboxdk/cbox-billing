@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -17,6 +18,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property string $organization_id
+ * @property bool $livemode
  * @property string $gateway
  * @property string $gateway_customer_id
  * @property Carbon|null $created_at
@@ -24,6 +26,8 @@ use Illuminate\Support\Carbon;
  */
 class GatewayCustomer extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'organization_id', 'gateway', 'gateway_customer_id',
     ];

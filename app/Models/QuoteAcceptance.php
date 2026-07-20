@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Billing\Cpq\Contracts\CapturesSignature;
+use App\Billing\Mode\Concerns\BelongsToMode;
 use Cbox\Billing\Money\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,7 @@ use Illuminate\Support\Carbon;
  * later moves. One row per accepted quote.
  *
  * @property int $id
+ * @property bool $livemode
  * @property int $quote_id
  * @property string $signer_name
  * @property string|null $signer_email
@@ -35,6 +37,8 @@ use Illuminate\Support\Carbon;
  */
 class QuoteAcceptance extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'quote_id', 'signer_name', 'signer_email', 'agreed', 'signature_provider',
         'signature_reference', 'ip', 'user_agent', 'currency',

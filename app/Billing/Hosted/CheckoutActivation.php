@@ -9,6 +9,9 @@ use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Experiments\ConversionAttribution;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionStatus;
+use App\Billing\Mode\BillingContext;
+use App\Billing\Mode\BillingMode;
+use App\Billing\Mode\LivemodeScope;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\BillingSession;
 use App\Models\Coupon;
@@ -42,6 +45,7 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
         private ManagesBillingSessions $sessions,
         private CouponRedeemer $coupons,
         private ConversionAttribution $attribution,
+        private BillingContext $context,
     ) {}
 
     public function markPaid(string $reference, Money $amount, PaymentResult $result): void
@@ -54,7 +58,12 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
 
     private function activateCheckout(string $reference): void
     {
+        // The reference is globally unique, so the lookup runs WITHOUT the plane scope — the
+        // webhook route carries no credential to set the mode. The matched session's own
+        // `livemode` names the plane the org must be subscribed in (HP1): a test checkout
+        // activates a test subscription and completes a test session, never crossing into live.
         $session = BillingSession::query()
+            ->withoutGlobalScope(LivemodeScope::class)
             ->where('payment_reference', $reference)
             ->where('type', 'checkout')
             ->where('status', SessionStatus::Pending->value)
@@ -64,21 +73,23 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
             return;
         }
 
-        $organization = Organization::query()->find($session->organization_id);
-        $plan = Plan::query()->with(['prices', 'product'])->where('key', $session->plan_key)->first();
+        $this->context->runInMode(BillingMode::fromLivemode($session->livemode), function () use ($session): void {
+            $organization = Organization::query()->find($session->organization_id);
+            $plan = Plan::query()->with(['prices', 'product'])->where('key', $session->plan_key)->first();
 
-        if (! $organization instanceof Organization || ! $plan instanceof Plan) {
-            return;
-        }
+            if (! $organization instanceof Organization || ! $plan instanceof Plan) {
+                return;
+            }
 
-        $subscription = $this->subscriptions->subscribe($organization, $plan, 1, $session->currency);
-        $this->redeemCoupon($session, $subscription);
-        $this->sessions->complete($session);
+            $subscription = $this->subscriptions->subscribe($organization, $plan, 1, $session->currency);
+            $this->redeemCoupon($session, $subscription);
+            $this->sessions->complete($session);
 
-        // Attribute a checkout-completed conversion to the A/B variant this session carried (if
-        // any). Idempotent — inherited from the ingest's settle-once guard AND the unique
-        // conversion index — so a re-delivered settlement never double-counts.
-        $this->attribution->recordSettlement($session);
+            // Attribute a checkout-completed conversion to the A/B variant this session carried
+            // (if any). Idempotent — inherited from the ingest's settle-once guard AND the
+            // unique conversion index — so a re-delivered settlement never double-counts.
+            $this->attribution->recordSettlement($session);
+        });
     }
 
     /**

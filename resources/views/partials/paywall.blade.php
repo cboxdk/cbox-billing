@@ -1,9 +1,17 @@
 {{--
-    Drop-in paywall PANEL (#57) — the richer sibling of `partials.upgrade-gate`, for an integrator
-    who already holds the UpgradeGate's output and wants to render the full "upgrade to unlock"
-    card inline (in the console, the portal, or their own app) rather than redirecting to the
-    hosted `/paywall` page. It RE-USES the gate output verbatim — it never recomputes the upgrade
-    logic — and renders on the shared `cbx-*` design tokens.
+    Drop-in paywall PANEL (#57) — the richer sibling of `partials.upgrade-gate`, for rendering the
+    full "upgrade to unlock" card inline. It RE-USES the UpgradeGate's output verbatim (it never
+    recomputes the upgrade logic).
+
+    INTERNAL CONSOLE / PORTAL ONLY. This partial is styled with the shared `cbx-*` design tokens
+    from `public/cbox/styles.css`, so it only renders correctly on a surface that already loads
+    that stylesheet — the operator console and the hosted portal. It is NOT self-contained and
+    will render unstyled if dropped into an integrator's own app.
+
+    For embedding in YOUR OWN app, use the self-contained, seller-branded, CSP-safe hosted pages
+    instead — they inline all their CSS and depend on no internal stylesheet:
+      • Paywall page:   route('storefront.paywall')  → GET /paywall
+      • Pricing table:  route('storefront.show', key) → GET /pricing/{key}  (+ /embed, /embed.js)
 
         @include('partials.paywall', [
             'upgrade' => ['required_plan' => 'team', 'checkout_url' => '/billing/checkout/…'], // UpgradeGate output
@@ -28,7 +36,7 @@
 @endphp
 
 @if ($requiredPlan)
-    <div class="cbx-paywall" role="dialog" aria-label="Upgrade required"
+    <div class="cbx-paywall" role="region" aria-label="Upgrade required"
          style="max-width:420px;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:var(--shadow-card);overflow:hidden">
         <div style="padding:22px 22px 0;text-align:center">
             <span style="display:inline-flex;width:42px;height:42px;border-radius:11px;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--primary);margin-bottom:12px">

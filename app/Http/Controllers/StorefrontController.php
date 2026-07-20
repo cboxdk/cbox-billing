@@ -130,6 +130,8 @@ class StorefrontController extends Controller
         (function () {
           var src = {$url};
           var key = {$tableKey};
+          var expectedOrigin = null;
+          try { expectedOrigin = new URL(src, window.location.href).origin; } catch (e) {}
           var current = document.currentScript;
           var frame = document.createElement('iframe');
           frame.src = src;
@@ -145,6 +147,10 @@ class StorefrontController extends Controller
             document.body.appendChild(frame);
           }
           window.addEventListener('message', function (event) {
+            // Only trust height messages from OUR embed iframe: verify the sending window and its
+            // origin before acting, so another frame/tab can't resize this one (or spoof its key).
+            if (event.source !== frame.contentWindow) return;
+            if (expectedOrigin && event.origin !== expectedOrigin) return;
             var data = event.data;
             if (!data || data.type !== 'cbox-pricing-height' || data.key !== key) return;
             if (typeof data.height === 'number' && data.height > 0) {

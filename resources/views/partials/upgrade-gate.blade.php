@@ -1,7 +1,13 @@
 {{--
     Soft "upgrade to unlock" gate (ADR-0009/#52). Renders the CTA an enforcement denial
-    carries so the console/portal can bridge a refusal to the checkout, rather than a dead
-    end. Usable anywhere an upgrade offer is in hand:
+    carries so the console/portal can bridge a refusal to the checkout, rather than a dead end.
+
+    INTERNAL CONSOLE / PORTAL ONLY. Styled with the shared `cbx-*` design tokens from
+    `public/cbox/styles.css`, so it only renders correctly on a surface that already loads that
+    stylesheet (the operator console + hosted portal) — it is not self-contained. To surface an
+    upgrade offer inside YOUR OWN app, redirect to the self-contained hosted paywall
+    (route('storefront.paywall') → GET /paywall) or the hosted pricing table
+    (route('storefront.show', key) → GET /pricing/{key}).
 
         @include('partials.upgrade-gate', [
             'upgrade' => ['required_plan' => 'team', 'checkout_url' => '/billing/checkout/…'],

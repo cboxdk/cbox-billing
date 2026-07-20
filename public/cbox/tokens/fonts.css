@@ -1,8 +1,22 @@
 /* Cbox webfonts.
- * Product UI: Plus Jakarta Sans + JetBrains Mono (cbox-ui BRAND.md).
- * Marketing (cbox.dk): Clash Display + Satoshi (Fontshare) + Geist Mono.
- * Hverdag: Instrument Sans.
- * NOTE: loaded from Google Fonts / Fontshare CDN — no font binaries were
- * found in the repos. Replace with self-hosted @font-face when files exist. */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
-@import url('https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&f[]=satoshi@400,500,700&display=swap');
+ *
+ * SELF-HOSTED / OFFLINE BY DESIGN — no external font host.
+ *
+ * The hosted billing surfaces (portal, checkout, order form, storefront, paywall)
+ * and the operator console must be fully self-contained and CSP-safe: they may not
+ * reach out to fonts.googleapis.com / api.fontshare.com at render time (a third-party
+ * request on every page load is a privacy + availability + CSP liability, and it
+ * blocks first paint on the font host).
+ *
+ * No brand font *binaries* ship in this repo, so we deliberately do NOT @import them
+ * from a CDN. Instead every `--font-*` token (see tokens/typography.css and the
+ * per-brand theme-*.css files) already lists the brand family FIRST followed by a
+ * robust native fallback stack (ui-sans-serif / system-ui / -apple-system / …). With
+ * the CDN import removed the surfaces render in the native stack — no layout shift,
+ * no external request — and if an operator has the brand family installed locally it
+ * is still picked up.
+ *
+ * To upgrade to the real brand faces later: drop the WOFF2 files into
+ * public/cbox/assets/fonts/ and add local `@font-face` rules here (self-hosted only,
+ * `font-display: swap`). Do not reintroduce a remote @import.
+ */

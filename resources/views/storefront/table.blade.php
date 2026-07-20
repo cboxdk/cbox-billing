@@ -12,13 +12,38 @@
     /** @var \App\Billing\Storefront\ValueObjects\RenderedPricingTable $table */
     $b = $table->branding;
     $accent = $b->brandColor;
+    $onAccent = $b->onBrandColor();
     $isEmbed = ($mode ?? 'page') === 'embed';
     $cur = $table->defaultCurrency;
     $int = $table->defaultInterval;
 
+    // Real yearly saving, per currency: the best genuine discount of a plan's yearly price
+    // against 12× its monthly price. Only a positive, real saving is ever advertised — no
+    // fabricated "Save with yearly" when yearly is not actually cheaper (accuracy over hype).
+    $yearlySavings = [];
+    if ($table->hasIntervalToggle && in_array('month', $table->intervals, true) && in_array('year', $table->intervals, true)) {
+        foreach ($table->currencies as $c) {
+            $best = 0;
+            foreach ($table->columns as $col) {
+                $m = $col->offer($c, 'month');
+                $y = $col->offer($c, 'year');
+                if ($m === null || $y === null || ! $m->available || ! $y->available) {
+                    continue;
+                }
+                $annualized = $m->minor * 12;
+                if ($annualized <= 0 || $y->minor >= $annualized) {
+                    continue;
+                }
+                $pct = (int) round(($annualized - $y->minor) / $annualized * 100);
+                $best = max($best, $pct);
+            }
+            $yearlySavings[$c] = $best;
+        }
+    }
+
     // The client toggle model — a serialization boundary (JS payload), so an array is correct
     // here. Every (plan, currency, interval) offer is precomputed so no server call is needed.
-    $client = ['key' => $table->key, 'default' => ['currency' => $cur, 'interval' => $int], 'columns' => []];
+    $client = ['key' => $table->key, 'default' => ['currency' => $cur, 'interval' => $int], 'columns' => [], 'save' => $yearlySavings];
     foreach ($table->columns as $col) {
         $offers = [];
         foreach ($table->currencies as $c) {
@@ -34,6 +59,7 @@
     $clientJson = str_replace('</', '<\/', (string) json_encode($client, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
     $intervalLabel = fn (string $i) => $i === 'year' ? 'Yearly' : 'Monthly';
+    $defaultSaving = $yearlySavings[$cur] ?? 0;
 @endphp
 <!doctype html>
 <html lang="en">
@@ -44,6 +70,7 @@
 <style>
 :root {
   --pt-accent: {{ $accent }};
+  --pt-on-accent: {{ $onAccent }};
   --pt-bg: #ffffff; --pt-fg: #14161c; --pt-muted: #626b7a; --pt-line: #e6e8ee;
   --pt-card: #ffffff; --pt-soft: #f6f7f9; --pt-shadow: 0 1px 2px rgba(16,20,30,.06), 0 8px 24px rgba(16,20,30,.06);
   --pt-ok: #12854a; --pt-off: #b6bcc7; --pt-radius: 16px;
@@ -84,7 +111,7 @@ body {
 .pt-col { position: relative; display: flex; flex-direction: column; background: var(--pt-card); border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius); padding: 24px 22px; box-shadow: var(--pt-shadow); }
 .pt-col--featured { border-color: var(--pt-accent); box-shadow: 0 0 0 1px var(--pt-accent), var(--pt-shadow); }
-.pt-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); background: var(--pt-accent); color: #fff;
+.pt-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); background: var(--pt-accent); color: var(--pt-on-accent);
   font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 4px 12px; border-radius: 999px; white-space: nowrap; }
 .pt-name { font-size: 18px; font-weight: 700; margin: 4px 0 0; }
 .pt-highlight { color: var(--pt-muted); font-size: 13px; margin: 6px 0 0; min-height: 18px; }
@@ -92,14 +119,15 @@ body {
 .pt-amount { font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
 .pt-per { color: var(--pt-muted); font-size: 14px; font-weight: 500; }
 .pt-cta { margin: 18px 0 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  background: var(--pt-accent); color: #fff; text-decoration: none; font-weight: 650; font-size: 14px;
+  background: var(--pt-accent); color: var(--pt-on-accent); text-decoration: none; font-weight: 650; font-size: 14px;
   padding: 12px 16px; border-radius: 10px; transition: filter .15s, transform .05s; }
-.pt-col--featured .pt-cta, .pt-cta { }
 .pt-cta:hover { filter: brightness(1.06); }
 .pt-cta:active { transform: translateY(1px); }
 .pt-cta.is-off { pointer-events: none; opacity: .45; }
-.pt-col:not(.pt-col--featured) .pt-cta { background: var(--pt-fg); }
-.pt-col--featured .pt-cta { background: var(--pt-accent); }
+/* Non-featured CTAs paint on the foreground colour, so their text must be the background
+   colour to stay legible in BOTH themes (white-on-near-white broke in dark mode). */
+.pt-col:not(.pt-col--featured) .pt-cta { background: var(--pt-fg); color: var(--pt-bg); }
+.pt-col--featured .pt-cta { background: var(--pt-accent); color: var(--pt-on-accent); }
 .pt-allow { list-style: none; margin: 20px 0 0; padding: 18px 0 0; border-top: 1px solid var(--pt-line);
   display: flex; flex-direction: column; gap: 9px; flex: 1; }
 .pt-allow li { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; color: var(--pt-fg); }
@@ -144,7 +172,7 @@ body {
               <button type="button" role="tab" data-interval="{{ $iv }}" class="{{ $iv === $int ? 'is-on' : '' }}" aria-selected="{{ $iv === $int ? 'true' : 'false' }}">{{ $intervalLabel($iv) }}</button>
             @endforeach
           </div>
-          <span class="pt-save">Save with yearly</span>
+          <span class="pt-save" data-cbox-save @if ($defaultSaving <= 0) hidden @endif>Save up to {{ $defaultSaving }}%</span>
         @endif
         @if (count($table->currencies) > 1)
           <label>
@@ -158,6 +186,8 @@ body {
         @endif
       </div>
     @endif
+    {{-- Announce currency/interval switches to assistive tech (prices update silently otherwise). --}}
+    <p data-cbox-status role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap"></p>
   </header>
 
   @if (! $table->hasColumns())
@@ -168,13 +198,14 @@ body {
         @php $o = $col->offer($cur, $int); @endphp
         <article class="pt-col {{ $col->featured ? 'pt-col--featured' : '' }}">
           @if ($col->badge)<span class="pt-badge">{{ $col->badge }}</span>@endif
-          <h3 class="pt-name">{{ $col->name }}</h3>
+          <h2 class="pt-name">{{ $col->name }}</h2>
           <p class="pt-highlight">{{ $col->highlight }}</p>
           <div class="pt-price">
             <span class="pt-amount" data-plan-amount="{{ $col->planKey }}">{{ $o?->formatted ?? '—' }}</span>
             <span class="pt-per" data-plan-per="{{ $col->planKey }}">{{ $o?->per ?? '' }}</span>
           </div>
-          <a class="pt-cta {{ ($o?->available ?? false) ? '' : 'is-off' }}" data-plan-cta="{{ $col->planKey }}" href="{{ $o?->ctaUrl ?: '#' }}">
+          @php $ctaAvailable = $o?->available ?? false; @endphp
+          <a class="pt-cta {{ $ctaAvailable ? '' : 'is-off' }}" data-plan-cta="{{ $col->planKey }}" href="{{ $o?->ctaUrl ?: '#' }}" @unless ($ctaAvailable) aria-disabled="true" tabindex="-1" @endunless>
             {{ $table->ctaLabel }}
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
@@ -264,14 +295,41 @@ body {
       if (amount) amount.textContent = offer.f;
       if (per) per.textContent = offer.per;
       if (cta) {
-        if (offer.a && offer.cta) { cta.setAttribute('href', offer.cta); cta.classList.remove('is-off'); }
-        else { cta.setAttribute('href', '#'); cta.classList.add('is-off'); }
+        if (offer.a && offer.cta) {
+          cta.setAttribute('href', offer.cta);
+          cta.classList.remove('is-off');
+          cta.removeAttribute('aria-disabled');
+          cta.removeAttribute('tabindex');
+        } else {
+          cta.setAttribute('href', '#');
+          cta.classList.add('is-off');
+          cta.setAttribute('aria-disabled', 'true');
+          cta.setAttribute('tabindex', '-1');
+        }
       }
     });
+    applySave();
+  }
+
+  // The "Save up to N%" nudge is a real, per-currency figure (or hidden when yearly is not
+  // actually cheaper). Keep it truthful as the currency changes.
+  var saveEl = root.querySelector('[data-cbox-save]');
+  function applySave() {
+    if (!saveEl) return;
+    var pct = (model.save && model.save[state.currency]) || 0;
+    if (pct > 0) { saveEl.textContent = 'Save up to ' + pct + '%'; saveEl.hidden = false; }
+    else { saveEl.hidden = true; }
+  }
+
+  var statusEl = root.querySelector('[data-cbox-status]');
+  function announce() {
+    if (!statusEl) return;
+    var iv = state.interval === 'year' ? 'yearly' : 'monthly';
+    statusEl.textContent = 'Prices updated — ' + iv + ' billing in ' + state.currency + '.';
   }
 
   var currency = root.querySelector('[data-cbox-currency]');
-  if (currency) currency.addEventListener('change', function () { state.currency = this.value; apply(); });
+  if (currency) currency.addEventListener('change', function () { state.currency = this.value; apply(); announce(); });
 
   var seg = root.querySelector('[data-cbox-interval]');
   if (seg) {
@@ -285,6 +343,7 @@ body {
         b.setAttribute('aria-selected', on ? 'true' : 'false');
       });
       apply();
+      announce();
     });
   }
 

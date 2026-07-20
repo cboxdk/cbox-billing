@@ -10,6 +10,7 @@
     /** @var \App\Billing\Storefront\ValueObjects\RenderedPaywall $paywall */
     $b = $paywall->branding;
     $accent = $b->brandColor;
+    $onAccent = $b->onBrandColor();
     $kindLabel = $paywall->gatedKind === 'usage' ? 'usage limit' : 'feature';
 @endphp
 <!doctype html>
@@ -21,6 +22,7 @@
 <style>
 :root {
   --pw-accent: {{ $accent }};
+  --pw-on-accent: {{ $onAccent }};
   --pw-bg: #f4f5f8; --pw-fg: #14161c; --pw-muted: #626b7a; --pw-line: #e6e8ee;
   --pw-card: #ffffff; --pw-soft: #f6f7f9; --pw-shadow: 0 1px 2px rgba(16,20,30,.06), 0 18px 48px rgba(16,20,30,.12);
 }
@@ -55,7 +57,7 @@ body { min-height: 100vh; display: flex; align-items: center; justify-content: c
 .pw-offer .pw-amt { font-size: 20px; font-weight: 800; text-align: right; white-space: nowrap; }
 .pw-offer .pw-amt small { color: var(--pw-muted); font-weight: 500; font-size: 12px; }
 .pw-cta { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; text-decoration: none;
-  background: var(--pw-accent); color: #fff; font-weight: 650; font-size: 15px; padding: 13px 16px; border-radius: 11px; transition: filter .15s; }
+  background: var(--pw-accent); color: var(--pw-on-accent); font-weight: 650; font-size: 15px; padding: 13px 16px; border-radius: 11px; transition: filter .15s; }
 .pw-cta:hover { filter: brightness(1.06); }
 .pw-later { display: block; text-align: center; margin-top: 14px; color: var(--pw-muted); font-size: 13px; text-decoration: none; }
 .pw-later:hover { color: var(--pw-fg); }
@@ -64,7 +66,7 @@ body { min-height: 100vh; display: flex; align-items: center; justify-content: c
 </style>
 </head>
 <body>
-<main class="pw-card" role="dialog" aria-labelledby="pw-title">
+<main class="pw-card" aria-labelledby="pw-title">
   <div class="pw-top">
     <div class="pw-brand">
       @if ($b->logoUrl)<img src="{{ $b->logoUrl }}" alt="{{ $b->legalName }}">@else<span class="pw-word">{{ $b->productName }}</span>@endif
@@ -99,9 +101,22 @@ body { min-height: 100vh; display: flex; align-items: center; justify-content: c
         </a>
       @else
         <p class="pw-none">Sign in to your account to upgrade to {{ $paywall->requiredPlanName }}.</p>
+        @if ($b->supportUrl)
+          <a class="pw-cta" href="{{ $b->supportUrl }}">Contact {{ $b->productName }}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+        @endif
       @endif
     @else
-      <p class="pw-none">This capability isn’t available on any plan we currently offer. Please contact us if you need it.</p>
+      <p class="pw-none">This capability isn’t available on any plan we currently offer.</p>
+      {{-- Not a dead end: point at the seller's support channel when they have one. --}}
+      @if ($b->supportUrl)
+        <a class="pw-cta" href="{{ $b->supportUrl }}">Contact {{ $b->productName }}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+      @elseif ($b->supportEmail)
+        <a class="pw-cta" href="mailto:{{ $b->supportEmail }}">Contact {{ $b->productName }}</a>
+      @endif
     @endif
     @if ($returnUrl)
       <a class="pw-later" href="{{ $returnUrl }}">Maybe later</a>

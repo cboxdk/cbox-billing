@@ -1,6 +1,6 @@
 ---
 title: The paywall
-description: The drop-in paywall — a hosted page an app redirects blocked users to, and an embeddable partial an integrator drops in — both reusing the UpgradeGate's required plan and hosted-checkout deep-link rather than recomputing the upgrade logic.
+description: The drop-in paywall — a self-contained hosted page an app redirects blocked users to, plus an internal console/portal panel partial — both reusing the UpgradeGate's required plan and hosted-checkout deep-link rather than recomputing the upgrade logic.
 weight: 30
 ---
 
@@ -32,11 +32,11 @@ Because the paywall already knows the org, its CTA links **directly** to the hos
 unlike a public pricing table, which is pre-customer and can only hand off (see
 [the checkout deep-link contract](checkout-deep-link.md)).
 
-## Embeddable partial
+## Inline panel partial (console / portal only)
 
-An integrator who already holds the gate's output (e.g. from a `/reserve` or
-`/entitlements/{org}/features` response) can render the panel inline instead of redirecting,
-using the shared design-system partial:
+Inside the **operator console or the hosted portal** — surfaces that already load the shared
+`cbx-*` design-system stylesheet (`public/cbox/styles.css`) — you can render the panel inline
+instead of redirecting, reusing the gate's output:
 
 ```blade
 @include('partials.paywall', [
@@ -51,3 +51,8 @@ using the shared design-system partial:
 
 Given no upgrade (a null/empty offer), the partial renders nothing — deny-by-default. For a
 compact inline nudge rather than a full panel, `partials.upgrade-gate` is the lighter sibling.
+
+> **This partial is not self-contained.** It depends on the internal `cbx-*` design tokens, so it
+> renders unstyled outside those surfaces. To surface a paywall inside **your own app**, redirect
+> to the self-contained **hosted `/paywall` page** above (or embed the hosted pricing table) —
+> don't reach for this partial there.

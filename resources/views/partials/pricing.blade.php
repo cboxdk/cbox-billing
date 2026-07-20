@@ -1,6 +1,15 @@
 {{--
-    Public-style pricing partial (#55). Renders catalog-driven plan cards for a single
-    currency — the same shape a public marketing page would use, embeddable anywhere.
+    Public-style pricing partial (#55). Renders catalog-driven plan cards for a single currency.
+
+    INTERNAL CONSOLE / PORTAL ONLY. Styled with the shared `cbx-*` design tokens from
+    `public/cbox/styles.css` (cards, buttons, pills, icons), so it only renders correctly on a
+    surface that already loads that stylesheet — the operator console and the hosted portal. It
+    is NOT self-contained and renders unstyled elsewhere. For a public marketing page or an
+    embed in YOUR OWN app, use the self-contained hosted pricing table instead — it inlines all
+    its CSS and is seller-branded + CSP-safe:
+      • route('storefront.show', key)  → GET /pricing/{key}
+      • route('storefront.embed', key) → GET /pricing/{key}/embed        (iframe body)
+      • route('storefront.loader', key) → GET /pricing/{key}/embed.js    (drop-in <script> loader)
 
         @include('partials.pricing', [
             'plans'    => $plans,     // list of plan arrays (PricingReport comparison shape)

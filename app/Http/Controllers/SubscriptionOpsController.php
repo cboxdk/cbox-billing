@@ -8,6 +8,7 @@ use App\Billing\Coupons\CouponRedeemer;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Subscriptions\Exceptions\StaleAddOnPreview;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\Coupon;
@@ -191,6 +192,10 @@ class SubscriptionOpsController extends Controller
                 'key' => $data['key'], 'price_minor' => (string) $data['price_minor'], 'currency' => $data['currency'],
                 'alignment' => $data['alignment'], 'credit_allotment' => (string) $data['credit_allotment'],
                 'interval' => $data['interval'] ?? '',
+                // Thread the previewed GROSS "due now" through the confirm so the apply rejects a
+                // drifted charge (a period boundary crossed between preview and confirm) rather than
+                // silently mischarging — the same guard the API path threads via expected_due_minor.
+                'expected_due_minor' => (string) $preview->grossDueNow->minor(),
             ],
             'stats' => [
                 // The tax-aware GROSS the apply will collect (preview == charge), not bare net.
@@ -205,7 +210,17 @@ class SubscriptionOpsController extends Controller
     {
         $data = $this->validatedAddOn($request);
         $subscription->loadMissing(['plan', 'organization']);
-        $depth->addAddOn($subscription, $this->addOnRequest($data));
+
+        try {
+            $depth->addAddOn($subscription, $this->addOnRequest($data));
+        } catch (StaleAddOnPreview $e) {
+            // The previewed "due now" drifted before the operator confirmed (a period boundary
+            // crossed / the clock advanced): reject rather than charge a different amount than was
+            // shown. Bounce back to the subscription with the guidance to re-preview — the same
+            // rejection the API path surfaces as a 409, here as a back-with-error for the console.
+            return redirect()->route('billing.subscriptions.show', $subscription->id)
+                ->with('error', $e->getMessage());
+        }
 
         return redirect()->route('billing.subscriptions.show', $subscription->id)
             ->with('status', sprintf('Add-on “%s” attached.', $data['key']));
@@ -265,7 +280,7 @@ class SubscriptionOpsController extends Controller
     }
 
     /**
-     * @return array{key: string, price_minor: int, currency: string, alignment: string, credit_allotment: int, interval: string|null}
+     * @return array{key: string, price_minor: int, currency: string, alignment: string, credit_allotment: int, interval: string|null, expected_due_minor: int|null}
      */
     private function validatedAddOn(Request $request): array
     {
@@ -276,6 +291,9 @@ class SubscriptionOpsController extends Controller
             'alignment' => ['required', 'in:aligned,independent'],
             'credit_allotment' => ['nullable', 'integer', 'min:0'],
             'interval' => ['nullable', 'in:monthly,yearly'],
+            // Present only on the CONFIRM step (carried from the preview's hidden field); absent on
+            // the preview step, where there is nothing to guard against yet.
+            'expected_due_minor' => ['nullable', 'integer', 'min:0'],
         ]);
 
         return [
@@ -285,11 +303,12 @@ class SubscriptionOpsController extends Controller
             'alignment' => $request->string('alignment')->toString(),
             'credit_allotment' => $request->integer('credit_allotment', 0),
             'interval' => $request->filled('interval') ? $request->string('interval')->toString() : null,
+            'expected_due_minor' => $request->filled('expected_due_minor') ? $request->integer('expected_due_minor') : null,
         ];
     }
 
     /**
-     * @param  array{key: string, price_minor: int, currency: string, alignment: string, credit_allotment: int, interval: string|null}  $data
+     * @param  array{key: string, price_minor: int, currency: string, alignment: string, credit_allotment: int, interval: string|null, expected_due_minor: int|null}  $data
      */
     private function addOnRequest(array $data): AddOnRequest
     {
@@ -300,6 +319,7 @@ class SubscriptionOpsController extends Controller
             alignment: AddOnAlignment::from($data['alignment']),
             creditAllotment: $data['credit_allotment'],
             interval: $data['interval'] !== null ? BillingInterval::from($data['interval']) : null,
+            expectedGrossDueMinor: $data['expected_due_minor'],
         );
     }
 

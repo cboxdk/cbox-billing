@@ -59,10 +59,15 @@ return new class extends Migration
 
     public function up(): void
     {
-        // A. plain column + index, backfilled from livemode.
+        // A. plain column + index, backfilled from livemode. `operator_audit_events` is append-only
+        // at the DB layer (BEFORE UPDATE trigger), so its column is added WITHOUT the generic
+        // backfill UPDATE here — that would abort on a deploy that already holds sandbox audit rows.
+        // Its `environment` is backfilled separately, with the update guard momentarily lifted.
         foreach ($this->columnTables as $table) {
-            $this->addEnvironmentColumn($table);
+            $this->addEnvironmentColumn($table, backfill: $table !== 'operator_audit_events');
         }
+
+        $this->backfillAuditEnvironment();
 
         // A. test_clocks — always sandbox: default the column to sandbox.
         $this->addEnvironmentColumn('test_clocks', default: 'sandbox');
@@ -176,7 +181,7 @@ return new class extends Migration
      * Add + backfill the `environment` column on a plain group-A/B table. Defaults to
      * 'production' (mirroring `livemode`'s default true), then flips the sandbox rows.
      */
-    private function addEnvironmentColumn(string $table, string $default = 'production', bool $index = true): void
+    private function addEnvironmentColumn(string $table, string $default = 'production', bool $index = true, bool $backfill = true): void
     {
         if (! Schema::hasTable($table) || Schema::hasColumn($table, 'environment')) {
             return;
@@ -191,7 +196,67 @@ return new class extends Migration
         });
 
         // Backfill from the livemode mirror: false → sandbox (true rows already default production).
-        DB::table($table)->where('livemode', false)->update(['environment' => 'sandbox']);
+        if ($backfill) {
+            DB::table($table)->where('livemode', false)->update(['environment' => 'sandbox']);
+        }
+    }
+
+    /**
+     * Backfill `operator_audit_events.environment` from its `livemode` mirror WITHOUT tripping the
+     * append-only guard. The table carries a BEFORE UPDATE trigger that aborts any row mutation
+     * (tamper-evidence), so on a deploy that already holds sandbox audit rows the generic backfill
+     * UPDATE would fail. `environment` is a NEW mirror column, not part of the hash-chained payload,
+     * so its one-time backfill is safe to run with the UPDATE guard momentarily lifted: drop the
+     * update trigger, flip the sandbox rows, then restore the trigger identically. The DELETE guard
+     * is never touched, and INSERTs are never blocked, so the trail stays append-only throughout.
+     */
+    private function backfillAuditEnvironment(): void
+    {
+        if (! Schema::hasTable('operator_audit_events')) {
+            return;
+        }
+
+        $driver = DB::connection()->getDriverName();
+
+        $this->dropAuditUpdateGuard($driver);
+
+        try {
+            DB::table('operator_audit_events')->where('livemode', false)->update(['environment' => 'sandbox']);
+        } finally {
+            $this->restoreAuditUpdateGuard($driver);
+        }
+    }
+
+    /** Drop ONLY the BEFORE UPDATE guard on the audit trail (the DELETE guard is left in place). */
+    private function dropAuditUpdateGuard(string $driver): void
+    {
+        match ($driver) {
+            'pgsql' => DB::unprepared('DROP TRIGGER IF EXISTS operator_audit_events_block_update ON operator_audit_events;'),
+            'sqlite', 'mysql', 'mariadb' => DB::unprepared('DROP TRIGGER IF EXISTS operator_audit_events_block_update;'),
+            default => null,
+        };
+    }
+
+    /** Recreate the BEFORE UPDATE guard identically to the audit-table migration, per driver. */
+    private function restoreAuditUpdateGuard(string $driver): void
+    {
+        $message = "'operator_audit_events is append-only (tamper-evident audit trail)'";
+
+        match ($driver) {
+            'sqlite' => DB::unprepared(
+                'CREATE TRIGGER operator_audit_events_block_update BEFORE UPDATE ON operator_audit_events '
+                .'BEGIN SELECT RAISE(ABORT, '.$message.'); END;',
+            ),
+            'pgsql' => DB::unprepared(
+                'CREATE TRIGGER operator_audit_events_block_update BEFORE UPDATE ON operator_audit_events '
+                .'FOR EACH ROW EXECUTE FUNCTION operator_audit_events_immutable();',
+            ),
+            'mysql', 'mariadb' => DB::unprepared(
+                'CREATE TRIGGER operator_audit_events_block_update BEFORE UPDATE ON operator_audit_events '
+                .'FOR EACH ROW SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = '.$message.';',
+            ),
+            default => null,
+        };
     }
 
     /** The SQL expression that derives the environment key from the legacy livemode column. */

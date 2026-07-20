@@ -210,3 +210,16 @@ kbd.k { font-family: var(--font-mono); font-size: 10px; font-weight: 500; border
     .cbx-search { width: auto !important; }
     .cbx-search .label, .cbx-search kbd { display: none; }
 }
+@media (max-width: 375px) {
+    /* Keep the topbar usable on the smallest phones: the crumb collapses to just the org
+     * switcher (the page title already lives in the page header), the org name truncates
+     * instead of pushing the actions off-screen, and the action cluster never compresses. */
+    .tb { gap: 8px; padding: 0 8px; }
+    .tb .crumb { flex: 1 1 auto; min-width: 0; }
+    .tb .crumb > :not(:first-child) { display: none !important; }
+    .tb #orgname { display: inline-block; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+    .tb > div:last-child { flex-shrink: 0; gap: 2px; }
+    .tb .cbx-btn { white-space: nowrap; }
+    /* Drop the non-essential cross-app launcher; search, theme, notifications + test-mode stay. */
+    .tb .iconbtn[title="Cbox apps"] { display: none; }
+}

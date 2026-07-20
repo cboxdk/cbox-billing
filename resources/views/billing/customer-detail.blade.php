@@ -355,6 +355,74 @@
         @endif
     </section>
 
+    {{-- Feature entitlements (boolean/config product gating): resolved granted-vs-not with the
+         plan/override source, plus the org-level override action (grant/revoke), audit-logged. --}}
+    <section class="cbx-panel">
+        <header class="cbx-panel-header" style="padding:12px 20px">
+            <h2 class="cbx-panel-title" style="font-size:14px">Feature entitlements</h2>
+            <p class="cbx-panel-desc" style="font-size:12px">Resolved from the serving plan's grants; an org-level override wins over the plan.</p>
+        </header>
+
+        @if ($features['has_features'])
+            <table class="tbl">
+                <thead><tr><th>Feature</th><th style="width:100px">Type</th><th style="width:110px">Status</th><th style="width:120px">Value</th><th style="width:110px">Source</th><th style="width:150px"></th></tr></thead>
+                <tbody>
+                    @foreach ($features['resolved'] as $ft)
+                        <tr style="cursor:default">
+                            <td><span style="display:block;font-weight:500">{{ $ft['name'] }}</span><span class="num mut" style="font-size:11px">{{ $ft['key'] }}</span></td>
+                            <td><span class="cbx-pill cbx-pill--{{ $ft['type'] === 'config' ? 'info' : 'muted' }}">{{ $ft['type'] }}</span></td>
+                            <td>@if($ft['enabled'])<span class="cbx-pill cbx-pill--success"><span class="dot"></span>granted</span>@else<span class="cbx-pill cbx-pill--muted">not granted</span>@endif</td>
+                            <td class="num">{{ $ft['value'] ?? '—' }}</td>
+                            <td>
+                                @if($ft['source'] === 'override')<span class="cbx-pill cbx-pill--warning">override</span>
+                                @elseif($ft['source'] === 'plan')<span class="cbx-pill cbx-pill--info">plan</span>
+                                @else<span class="mut">default</span>@endif
+                            </td>
+                            <td class="right">
+                                @if ($ft['overridden'])
+                                    <form method="POST" action="{{ route('billing.customers.features.clear', $organization->id) }}" style="margin:0"
+                                          data-confirm="Clear the {{ $ft['key'] }} override for {{ $c['org'] }}? The plan-resolved value applies." data-confirm-title="Clear override?" data-confirm-label="Clear" data-confirm-variant="primary">
+                                        @csrf
+                                        <input type="hidden" name="feature_id" value="{{ $ft['id'] }}">
+                                        <button type="submit" class="cbx-btn cbx-btn--sm">Clear override</button>
+                                    </form>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @else
+            <div style="padding:16px 20px" class="mut">No features in the catalog yet.</div>
+        @endif
+
+        {{-- Org-level override: grant a feature the plan doesn't, or revoke one it does. Audit-logged. --}}
+        @if (!empty($features['catalog']))
+            <div style="padding:16px 20px;border-top:1px solid var(--border)">
+                <form method="POST" action="{{ route('billing.customers.features.override', $organization->id) }}" class="cbx-grid-3" style="gap:10px;align-items:end"
+                      data-confirm="Apply this feature override for {{ $c['org'] }}?" data-confirm-title="Override feature?" data-confirm-label="Apply" data-confirm-variant="primary">
+                    @csrf
+                    <label style="{{ $labelStyle }}">Feature
+                        <select name="feature_id" style="{{ $inputStyle }}">
+                            @foreach ($features['catalog'] as $cat)
+                                <option value="{{ $cat['id'] }}">{{ $cat['name'] }} ({{ $cat['key'] }})</option>
+                            @endforeach
+                        </select></label>
+                    <label style="{{ $labelStyle }}">Action
+                        <select name="direction" style="{{ $inputStyle }}">
+                            <option value="grant">Grant</option>
+                            <option value="revoke">Revoke</option>
+                        </select></label>
+                    <label style="{{ $labelStyle }}">Config value <span class="mut" style="font-weight:400">(config only)</span>
+                        <input name="value" maxlength="255" placeholder="10" style="{{ $inputStyle }}"></label>
+                    <label style="{{ $labelStyle }};grid-column:1 / -1">Reason <span class="mut" style="font-weight:400">(optional)</span>
+                        <input name="reason" maxlength="255" placeholder="Enterprise pilot" style="{{ $inputStyle }}"></label>
+                    <div><button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Apply override</button></div>
+                </form>
+            </div>
+        @endif
+    </section>
+
     {{-- Access & roles — the RBAC mirror the provisioning webhooks maintain (read-only). --}}
     <section class="cbx-panel">
         <header class="cbx-panel-header" style="padding:12px 20px;display:flex;align-items:center;justify-content:space-between">

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Billing\Reporting;
 
+use App\Models\Feature;
 use App\Models\Meter;
 use App\Models\Plan;
 use App\Models\PlanCreditGrant;
 use App\Models\PlanEntitlement;
+use App\Models\PlanFeature;
 use App\Models\PlanPrice;
 use App\Models\PlanPriceTier;
 use App\Models\Subscription;
@@ -30,6 +32,7 @@ readonly class PlanReport
                 'product',
                 'prices.tiers',
                 'entitlements.meter',
+                'features.feature',
                 'creditGrants',
                 'defaultSuccessor',
             ])
@@ -83,6 +86,22 @@ readonly class PlanReport
                         'overage' => $entitlement->overage->value,
                     ];
                 })->values()->all(),
+            'features' => $plan->features
+                ->map(static function (PlanFeature $grant): array {
+                    $feature = $grant->feature;
+
+                    return [
+                        'id' => $grant->id,
+                        'feature' => $feature instanceof Feature ? $feature->name : '—',
+                        'feature_key' => $feature instanceof Feature ? $feature->key : '',
+                        'type' => $feature instanceof Feature ? $feature->type->value : '',
+                        'enabled' => $grant->enabled,
+                        'value' => $grant->value,
+                    ];
+                })
+                ->sortBy('feature_key')
+                ->values()
+                ->all(),
             'credit_grants' => $plan->creditGrants
                 ->sortBy('id')
                 ->map(static fn (PlanCreditGrant $grant): array => [

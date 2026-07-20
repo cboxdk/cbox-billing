@@ -11,6 +11,7 @@ use App\Billing\Support\SubscriptionStanding;
 use App\Models\CboxIdAccessGrant;
 use App\Models\Coupon;
 use App\Models\CreditNote;
+use App\Models\Feature;
 use App\Models\FxRate;
 use App\Models\Meter;
 use App\Models\Organization;
@@ -142,6 +143,7 @@ readonly class NavigationComposer
                 'products' => Product::query()->count(),
                 'coupons' => Coupon::query()->count(),
                 'plans' => Plan::query()->count(),
+                'features' => Feature::query()->count(),
             ],
             'customers' => [
                 'organizations' => Organization::query()->count(),

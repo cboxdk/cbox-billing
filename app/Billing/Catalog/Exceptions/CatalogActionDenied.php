@@ -85,4 +85,19 @@ class CatalogActionDenied extends RuntimeException
     {
         return new self(sprintf('Meter [%d] does not exist.', $meterId));
     }
+
+    public static function featureReferenced(string $name, int $references): self
+    {
+        return new self(sprintf(
+            '%s is referenced by %d plan grant%s. Archive it instead — archiving keeps existing grants resolving.',
+            $name,
+            $references,
+            $references === 1 ? '' : 's',
+        ));
+    }
+
+    public static function unknownFeature(int $featureId): self
+    {
+        return new self(sprintf('Feature [%d] does not exist.', $featureId));
+    }
 }

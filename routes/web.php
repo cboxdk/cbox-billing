@@ -17,14 +17,17 @@ use App\Http\Controllers\DunningController;
 use App\Http\Controllers\DunningStrategyController;
 use App\Http\Controllers\ExemptionCertificateController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\FxRateController;
 use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MailTemplateController;
 use App\Http\Controllers\MeterController;
+use App\Http\Controllers\OrganizationFeatureOverrideController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PlanCreditGrantController;
 use App\Http\Controllers\PlanEntitlementController;
+use App\Http\Controllers\PlanFeatureController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RetentionController;
 use App\Http\Controllers\SeatController;
@@ -229,7 +232,27 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
         Route::get('/catalog/plans/{plan}/credit-grants/{credit_grant}/edit', [PlanCreditGrantController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.plans.credit-grants.edit');
         Route::put('/catalog/plans/{plan}/credit-grants/{credit_grant}', [PlanCreditGrantController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.plans.credit-grants.update');
         Route::delete('/catalog/plans/{plan}/credit-grants/{credit_grant}', [PlanCreditGrantController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.plans.credit-grants.destroy');
+
+        // Plan feature grants (boolean/config product gating) — which features the plan grants,
+        // authored on the plan detail hub alongside the metered entitlements + credit grants.
+        Route::get('/catalog/plans/{plan}/features/new', [PlanFeatureController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.plans.features.create');
+        Route::post('/catalog/plans/{plan}/features', [PlanFeatureController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.plans.features.store');
+        Route::get('/catalog/plans/{plan}/features/{feature}/edit', [PlanFeatureController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.plans.features.edit');
+        Route::put('/catalog/plans/{plan}/features/{feature}', [PlanFeatureController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.plans.features.update');
+        Route::delete('/catalog/plans/{plan}/features/{feature}', [PlanFeatureController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.plans.features.destroy');
     });
+
+    // Features — boolean/config product-gating catalog, full CRUD. The boolean/config peer of the
+    // Meters catalog above; a referenced feature is archived (grants keep resolving), never deleted.
+    Route::get('/features', [FeatureController::class, 'index'])->middleware('billing.permission:catalog:read')->name('billing.features');
+    Route::get('/features/new', [FeatureController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.features.create');
+    Route::post('/features', [FeatureController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.features.store');
+    Route::get('/features/{feature}', [FeatureController::class, 'show'])->middleware('billing.permission:catalog:read')->name('billing.features.show');
+    Route::get('/features/{feature}/edit', [FeatureController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.features.edit');
+    Route::put('/features/{feature}', [FeatureController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.features.update');
+    Route::post('/features/{feature}/archive', [FeatureController::class, 'archive'])->middleware('billing.permission:catalog:manage')->name('billing.features.archive');
+    Route::post('/features/{feature}/unarchive', [FeatureController::class, 'unarchive'])->middleware('billing.permission:catalog:manage')->name('billing.features.unarchive');
+    Route::delete('/features/{feature}', [FeatureController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.features.destroy');
 
     // Plan retirement authoring (ADR-0016): mark a plan retiring / un-retire it.
     Route::post('/catalog/plans/{plan}/retire', [CatalogController::class, 'retire'])->middleware('billing.permission:catalog:manage')->name('billing.catalog.plans.retire');
@@ -281,6 +304,12 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     // or correcting debit) through the engine wallet with an audit row. Gated on the dedicated
     // `wallet:manage` slug (Wave 4 split from `customers:manage`).
     Route::post('/customers/{organization}/wallet/adjust', [WalletController::class, 'adjust'])->middleware('billing.permission:wallet:manage')->name('billing.customers.wallet.adjust');
+
+    // Org-level feature overrides: grant/revoke a boolean/config feature for one customer (wins
+    // over the plan resolution), or clear the override to restore the plan-resolved value. Every
+    // write is audit-logged by the service. Gated `customers:manage`.
+    Route::post('/customers/{organization}/features/override', [OrganizationFeatureOverrideController::class, 'override'])->middleware('billing.permission:customers:manage')->name('billing.customers.features.override');
+    Route::post('/customers/{organization}/features/clear', [OrganizationFeatureOverrideController::class, 'clear'])->middleware('billing.permission:customers:manage')->name('billing.customers.features.clear');
 
     // --- On-prem licensing (issuer console) ---
     // Gated on the `licenses` console-kit feature (presence gate): the routes 404 when

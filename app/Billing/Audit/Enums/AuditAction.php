@@ -35,6 +35,7 @@ enum AuditAction: string
     case CustomerUpdated = 'customer.updated';
     case CustomerPaymentMethodDefaulted = 'customer.payment_method_defaulted';
     case CustomerPaymentMethodRemoved = 'customer.payment_method_removed';
+    case OrganizationFeatureOverridden = 'customer.feature_overridden';
 
     // Tax exemption certificates
     case ExemptionSubmitted = 'exemption.submitted';
@@ -73,6 +74,7 @@ enum AuditAction: string
     case PlanUnretired = 'plan.unretired';
     case PlanEntitlementChanged = 'plan.entitlement_changed';
     case PlanCreditGrantChanged = 'plan.credit_grant_changed';
+    case PlanFeatureChanged = 'plan.feature_changed';
 
     // Catalog: prices / products / meters / coupons
     case PriceCreated = 'price.created';
@@ -88,6 +90,11 @@ enum AuditAction: string
     case MeterArchived = 'meter.archived';
     case MeterUnarchived = 'meter.unarchived';
     case MeterDeleted = 'meter.deleted';
+    case FeatureCreated = 'feature.created';
+    case FeatureUpdated = 'feature.updated';
+    case FeatureArchived = 'feature.archived';
+    case FeatureUnarchived = 'feature.unarchived';
+    case FeatureDeleted = 'feature.deleted';
     case CouponCreated = 'coupon.created';
     case CouponUpdated = 'coupon.updated';
     case CouponArchived = 'coupon.archived';
@@ -222,6 +229,9 @@ enum AuditAction: string
             'billing.plans.credit-grants.store' => self::PlanCreditGrantChanged,
             'billing.plans.credit-grants.update' => self::PlanCreditGrantChanged,
             'billing.plans.credit-grants.destroy' => self::PlanCreditGrantChanged,
+            'billing.plans.features.store' => self::PlanFeatureChanged,
+            'billing.plans.features.update' => self::PlanFeatureChanged,
+            'billing.plans.features.destroy' => self::PlanFeatureChanged,
 
             'billing.catalog.prices.store' => self::PriceCreated,
             'billing.catalog.prices.update' => self::PriceUpdated,
@@ -238,6 +248,15 @@ enum AuditAction: string
             'billing.meters.archive' => self::MeterArchived,
             'billing.meters.unarchive' => self::MeterUnarchived,
             'billing.meters.destroy' => self::MeterDeleted,
+
+            'billing.features.store' => self::FeatureCreated,
+            'billing.features.update' => self::FeatureUpdated,
+            'billing.features.archive' => self::FeatureArchived,
+            'billing.features.unarchive' => self::FeatureUnarchived,
+            'billing.features.destroy' => self::FeatureDeleted,
+
+            'billing.customers.features.override' => self::OrganizationFeatureOverridden,
+            'billing.customers.features.clear' => self::OrganizationFeatureOverridden,
 
             'billing.coupons.store' => self::CouponCreated,
             'billing.coupons.update' => self::CouponUpdated,

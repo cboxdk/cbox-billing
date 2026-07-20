@@ -8,6 +8,7 @@ use App\Billing\Invoicing\InvoicePdfRenderer;
 use App\Billing\Reporting\AccessGrantReport;
 use App\Billing\Reporting\CatalogReport;
 use App\Billing\Reporting\CustomerAuditLog;
+use App\Billing\Reporting\CustomerFeatureReport;
 use App\Billing\Reporting\CustomerPaymentMethods;
 use App\Billing\Reporting\CustomerReport;
 use App\Billing\Reporting\InvoiceReport;
@@ -234,6 +235,7 @@ class BillingController extends Controller
         CustomerAuditLog $audit,
         CustomerPaymentMethods $paymentMethods,
         AccessGrantReport $accessGrants,
+        CustomerFeatureReport $features,
     ): View {
         return view('billing.customer-detail', [
             'activeArea' => 'customers',
@@ -244,6 +246,7 @@ class BillingController extends Controller
             'events' => $audit->forOrganization($organization->id),
             'payment' => $paymentMethods->forOrganization($organization),
             'accessGrants' => $accessGrants->forOrganization($organization->id),
+            'features' => $features->forOrganization($organization->id),
             'redemptions' => $report->redemptions($organization->id),
             // Tax exemption certificates (newest first) and the options the upload form needs.
             'exemptions' => $organization->taxExemptionCertificates()->orderByDesc('created_at')->get(),

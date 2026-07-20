@@ -136,6 +136,39 @@
         </table>
     </section>
 
+    {{-- Feature grants (boolean / config product gating) --}}
+    <section class="cbx-panel">
+        <header class="cbx-panel-header" style="padding:12px 20px">
+            <h2 class="cbx-panel-title" style="font-size:14px">Features</h2>
+            <a href="{{ route('billing.plans.features.create', $pl['id']) }}" class="cbx-btn cbx-btn--sm">@include('partials.icon', ['name' => 'plus', 'size' => 13, 'sw' => 1.7])Add feature grant</a>
+        </header>
+        <table class="tbl">
+            <thead><tr><th>Feature</th><th style="width:110px">Type</th><th style="width:130px">Grant</th><th style="width:120px">Value</th><th style="width:150px"></th></tr></thead>
+            <tbody>
+                @forelse ($pl['features'] as $ft)
+                    <tr>
+                        <td><span style="display:block;font-weight:500">{{ $ft['feature'] }}</span><span class="num mut" style="font-size:11px">{{ $ft['feature_key'] }}</span></td>
+                        <td><span class="cbx-pill cbx-pill--{{ $ft['type'] === 'config' ? 'info' : 'muted' }}">{{ $ft['type'] }}</span></td>
+                        <td>@if($ft['enabled'])<span class="cbx-pill cbx-pill--success"><span class="dot"></span>granted</span>@else<span class="cbx-pill cbx-pill--muted">off</span>@endif</td>
+                        <td class="num">{{ $ft['value'] ?? '—' }}</td>
+                        <td class="right">
+                            <span style="display:inline-flex;gap:6px;align-items:center;justify-content:flex-end">
+                                <a href="{{ route('billing.plans.features.edit', [$pl['id'], $ft['id']]) }}" class="cbx-btn cbx-btn--sm">Edit</a>
+                                <form method="POST" action="{{ route('billing.plans.features.destroy', [$pl['id'], $ft['id']]) }}" style="margin:0"
+                                      data-confirm="Remove the {{ $ft['feature'] }} grant? The feature reverts to deny-by-default for this plan." data-confirm-title="Remove feature grant?" data-confirm-label="Remove" data-confirm-variant="destructive">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Remove</button>
+                                </form>
+                            </span>
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div><h3>No feature grants yet.</h3><p>Grant a boolean/config feature with this plan. <a href="{{ route('billing.plans.features.create', $pl['id']) }}" style="color:var(--primary)">Add feature grant</a>.</p></div></td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </section>
+
     {{-- Credit grants --}}
     <section class="cbx-panel">
         <header class="cbx-panel-header" style="padding:12px 20px">

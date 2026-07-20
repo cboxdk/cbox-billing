@@ -1,0 +1,46 @@
+{
+    "products": [
+        { "id": "prod_basic", "name": "Basic", "description": "The basic plan", "created": 1704067200 }
+    ],
+    "prices": [
+        { "id": "price_basic_m", "product": "prod_basic", "nickname": "basic-monthly", "unit_amount": 1500, "currency": "usd", "recurring": { "interval": "month" }, "created": 1704067200 }
+    ],
+    "coupons": [
+        { "id": "WELCOME10", "name": "Welcome 10%", "percent_off": 10, "duration": "once", "created": 1704067200 }
+    ],
+    "customers": [
+        { "id": "cus_ann", "name": "Ann Acme", "email": "ann@acme.test", "currency": "usd", "address": { "country": "US" }, "created": 1704153600 }
+    ],
+    "subscriptions": [
+        {
+            "id": "sub_ann",
+            "customer": "cus_ann",
+            "status": "active",
+            "quantity": 1,
+            "currency": "usd",
+            "items": { "data": [ { "price": { "id": "price_basic_m" }, "quantity": 1 } ] },
+            "current_period_start": 1719792000,
+            "current_period_end": 1722470400,
+            "created": 1704153600,
+            "discount": { "coupon": { "id": "WELCOME10" } }
+        }
+    ],
+    "invoices": [
+        {
+            "id": "in_ann_1",
+            "customer": "cus_ann",
+            "subscription": "sub_ann",
+            "number": "INV-0001",
+            "currency": "usd",
+            "subtotal": 1500,
+            "tax": 0,
+            "total": 1500,
+            "status": "paid",
+            "created": 1704153600,
+            "period_start": 1704153600,
+            "period_end": 1706832000,
+            "status_transitions": { "finalized_at": 1704153600 },
+            "lines": { "data": [ { "description": "Basic monthly", "quantity": 1, "price": { "unit_amount": 1500 }, "amount": 1500 } ] }
+        }
+    ]
+}

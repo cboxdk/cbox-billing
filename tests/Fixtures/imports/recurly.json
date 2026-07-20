@@ -1,0 +1,41 @@
+{
+    "plans": [
+        { "code": "enterprise", "name": "Enterprise", "interval_unit": "months", "interval_length": 1, "currencies": [ { "currency": "USD", "unit_amount": 49.00 } ], "created_at": "2024-01-01T00:00:00Z" }
+    ],
+    "coupons": [
+        { "code": "LOYAL", "name": "Loyalty", "discount_type": "percent", "discount_percent": 15, "duration": "single_use", "created_at": "2024-01-01T00:00:00Z" }
+    ],
+    "accounts": [
+        { "code": "acct_cara", "email": "cara@corp.test", "first_name": "Cara", "last_name": "Cole", "address": { "country": "GB" }, "created_at": "2024-01-02T00:00:00Z" }
+    ],
+    "subscriptions": [
+        {
+            "uuid": "rsub_cara",
+            "account": { "code": "acct_cara" },
+            "plan": { "code": "enterprise" },
+            "quantity": 1,
+            "state": "active",
+            "currency": "USD",
+            "current_period_started_at": "2024-07-01T00:00:00Z",
+            "current_period_ends_at": "2024-08-01T00:00:00Z",
+            "created_at": "2024-01-02T00:00:00Z",
+            "coupon_redemptions": [ { "coupon": { "code": "LOYAL" } } ]
+        }
+    ],
+    "invoices": [
+        {
+            "number": "1001",
+            "account": { "code": "acct_cara" },
+            "subscription": { "uuid": "rsub_cara" },
+            "currency": "USD",
+            "subtotal": 49.00,
+            "tax": 0.00,
+            "total": 49.00,
+            "state": "paid",
+            "created_at": "2024-07-01T00:00:00Z",
+            "line_items": [
+                { "description": "Enterprise", "quantity": 1, "unit_amount": 49.00, "amount": 49.00, "start_date": "2024-07-01T00:00:00Z", "end_date": "2024-08-01T00:00:00Z" }
+            ]
+        }
+    ]
+}

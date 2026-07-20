@@ -52,6 +52,7 @@ class ConsoleNav
             'pages' => [
                 ['route' => 'billing.exports', 'label' => 'Exports', 'key' => 'exports', 'params' => [], 'feature' => null, 'order' => 10],
                 ['route' => 'billing.exports.warehouse', 'label' => 'Warehouse sinks', 'key' => 'warehouse', 'params' => [], 'feature' => null, 'order' => 20],
+                ['route' => 'billing.import', 'label' => 'Import', 'key' => 'import', 'params' => [], 'feature' => null, 'order' => 30],
             ],
         ],
         'subscriptions' => [

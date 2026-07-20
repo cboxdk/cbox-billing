@@ -1,0 +1,44 @@
+{
+    "item_families": [
+        { "id": "fam_pro", "name": "Pro", "description": "Pro family", "created_at": 1704067200 }
+    ],
+    "plans": [
+        { "id": "pro-monthly", "name": "Pro Monthly", "price": 2500, "period_unit": "month", "currency_code": "EUR", "item_family_id": "fam_pro", "created_at": 1704067200 }
+    ],
+    "coupons": [
+        { "id": "SUMMER", "name": "Summer sale", "discount_type": "percentage", "discount_percentage": 20, "duration_type": "one_time", "created_at": 1704067200 }
+    ],
+    "customers": [
+        { "id": "cb_bob", "first_name": "Bob", "last_name": "Builder", "email": "bob@build.test", "preferred_currency_code": "EUR", "billing_address": { "country": "DE" }, "vat_number": "DE123456789", "created_at": 1704153600 }
+    ],
+    "subscriptions": [
+        {
+            "id": "cbsub_bob",
+            "customer_id": "cb_bob",
+            "plan_id": "pro-monthly",
+            "plan_quantity": 2,
+            "status": "active",
+            "currency_code": "EUR",
+            "current_term_start": 1719792000,
+            "current_term_end": 1722470400,
+            "created_at": 1704153600,
+            "coupon_id": "SUMMER"
+        }
+    ],
+    "invoices": [
+        {
+            "id": "cbinv_1",
+            "customer_id": "cb_bob",
+            "subscription_id": "cbsub_bob",
+            "currency_code": "EUR",
+            "sub_total": 5000,
+            "tax": 950,
+            "total": 5950,
+            "status": "paid",
+            "date": 1704153600,
+            "line_items": [
+                { "description": "Pro monthly x2", "quantity": 2, "unit_amount": 2500, "amount": 5000, "date_from": 1704153600, "date_to": 1706832000 }
+            ]
+        }
+    ]
+}

@@ -19,6 +19,7 @@ use App\Http\Controllers\ExemptionCertificateController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\FxRateController;
+use App\Http\Controllers\ImportController;
 use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MailTemplateController;
@@ -130,6 +131,17 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     Route::post('/exports/warehouse/{warehouseSink}/run', [WarehouseSinkController::class, 'run'])->middleware('billing.permission:settings:manage')->name('billing.exports.warehouse.run');
     Route::delete('/exports/warehouse/{warehouseSink}', [WarehouseSinkController::class, 'destroy'])->middleware('billing.permission:settings:manage')->name('billing.exports.warehouse.destroy');
     Route::get('/exports/warehouse/{warehouseSink}/manifest/{dataset}', [WarehouseSinkController::class, 'manifest'])->middleware('billing.permission:settings:read')->name('billing.exports.warehouse.manifest');
+
+    // --- Import / migration (Data area). Bring a seller's catalog, customers, subscriptions and
+    // historical invoices over from Stripe / Chargebee / Recurly by uploading their export file(s):
+    // a dry-run report (counts + conflicts + the proposed plan mapping) precedes an idempotent,
+    // audit-logged commit (queued for large sets). The preview writes nothing; the commit + run
+    // views carry `settings:manage`. The preview is a POST but writes no domain data — only a
+    // planned run row — so it is named `.preview` to stay out of the audit trail.
+    Route::get('/import', [ImportController::class, 'index'])->middleware('billing.permission:settings:manage')->name('billing.import');
+    Route::post('/import/preview', [ImportController::class, 'preview'])->middleware('billing.permission:settings:manage')->name('billing.import.preview');
+    Route::post('/import/{importRun}/commit', [ImportController::class, 'commit'])->middleware('billing.permission:settings:manage')->name('billing.import.commit');
+    Route::get('/import/runs/{importRun}', [ImportController::class, 'show'])->middleware('billing.permission:settings:manage')->name('billing.import.runs.show');
 
     // --- Tamper-evident operator audit log + GDPR/DSAR tooling. The trail is read (searchable,
     // paginated, filterable) and exported under `settings:read`; the DSAR access export reads a

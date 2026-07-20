@@ -83,6 +83,9 @@ The app is organized around a few load-bearing ideas:
 - **[Data export & warehouse sinks](data-export/_index.md)** — stream any dataset to
   CSV/NDJSON, and stage partitioned files plus copy-paste `COPY`/`bq load`/DDL load
   manifests to Snowflake, BigQuery and Redshift, with incremental, cursor-driven sync.
+- **[Import & migration](import-migration/_index.md)** — bring a seller's catalog, customers,
+  subscriptions and historical invoices over from Stripe, Chargebee or Recurly by uploading
+  their export files: idempotent, dry-run-first, conflict-aware, with historical dates preserved.
 - **[Consolidated reporting & FX](reporting/_index.md)** — multi-entity, multi-currency
   consolidated MRR/ARR normalized to one reporting currency with real ECB reference rates
   (plus operator overrides), the as-of/rounding policy, and auditable breakdowns.

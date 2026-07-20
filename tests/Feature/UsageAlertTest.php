@@ -62,6 +62,20 @@ class UsageAlertTest extends TestCase
         ]);
     }
 
+    public function test_an_unresolvable_period_does_not_alert_or_record(): void
+    {
+        Mail::fake();
+        // No resolvable billing period (empty period_start → empty period_key): there is no stable
+        // idempotency key, so the crossing must neither email nor write a dispatch row.
+        $this->fakeUsage($this->report(periodStart: ''));
+        $org = $this->org();
+
+        $this->assertSame(0, app(UsageAlertEmitter::class)->forOrganization($org));
+
+        Mail::assertNothingQueued();
+        $this->assertSame(0, UsageAlertDispatch::query()->count());
+    }
+
     public function test_crossing_a_threshold_queues_exactly_one_alert_and_is_idempotent(): void
     {
         Mail::fake();

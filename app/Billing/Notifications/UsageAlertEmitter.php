@@ -10,7 +10,7 @@ use App\Mail\UsageAlertMail;
 use App\Models\Organization;
 use App\Models\UsageAlertDispatch;
 use Illuminate\Contracts\Config\Repository as Config;
-use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * Emits the optional usage/overage alert (feature gap #2): for an org it reads the SAME
@@ -120,6 +120,12 @@ readonly class UsageAlertEmitter
      */
     private function recordOnce(string $organizationId, string $meterKey, string $periodKey, int $threshold): bool
     {
+        // No resolvable billing period → no stable idempotency key, so do not record (and do not
+        // email): an empty period_key would collapse distinct periods onto one ledger row.
+        if ($periodKey === '' || $meterKey === '') {
+            return false;
+        }
+
         try {
             UsageAlertDispatch::query()->create([
                 'organization_id' => $organizationId,
@@ -129,8 +135,10 @@ readonly class UsageAlertEmitter
             ]);
 
             return true;
-        } catch (QueryException) {
-            // The unique key rejected the duplicate — already dispatched this period.
+        } catch (UniqueConstraintViolationException) {
+            // The unique key rejected the duplicate — already dispatched this period. Only a
+            // uniqueness violation is swallowed; any other query failure (a real DB fault)
+            // propagates rather than being silently treated as "already sent".
             return false;
         }
     }

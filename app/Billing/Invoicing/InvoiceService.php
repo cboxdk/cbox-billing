@@ -8,6 +8,7 @@ use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Coupons\Contracts\DiscountsAmounts;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Invoicing\Enums\InvoiceStatus;
+use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Seller\SellerCatalog;
 use App\Billing\Support\WeightedAllocator;
@@ -59,6 +60,7 @@ readonly class InvoiceService implements GeneratesInvoices
         private NotifiesCustomers $notifier,
         private DiscountsAmounts $coupons,
         private ExemptionContext $exemptions,
+        private BillingClock $clock,
     ) {}
 
     public function quoteFor(Subscription $subscription): Quote
@@ -353,8 +355,13 @@ readonly class InvoiceService implements GeneratesInvoices
         return sprintf('%s – %s', $start->format('Y-m-d'), $end->format('Y-m-d'));
     }
 
+    /**
+     * The instant an invoice is issued — read from the {@see BillingClock} so a test-clock pass
+     * (virtual time) dates the invoice, its 14-day due date, and the coupon-window check at the
+     * advanced instant, not real wall-clock now.
+     */
     private function issuedAt(): DateTimeImmutable
     {
-        return Carbon::now()->toDateTimeImmutable();
+        return $this->clock->now()->toDateTimeImmutable();
     }
 }

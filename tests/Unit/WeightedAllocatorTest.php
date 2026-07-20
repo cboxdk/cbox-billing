@@ -52,6 +52,25 @@ class WeightedAllocatorTest extends TestCase
         $this->assertSame([317, 683], $discountSplit);
     }
 
+    public function test_negative_weights_are_clamped_and_sum_preservation_holds(): void
+    {
+        // A negative weight (e.g. a future 3+-line invoice whose reconstruction includes a negated
+        // discount line) is clamped to zero — it gets nothing — and the shares still sum EXACTLY to
+        // the total, split across the non-negative weights by largest remainder.
+        $shares = WeightedAllocator::allocate(100, [3, -5, 1]);
+
+        $this->assertSame(100, array_sum($shares));
+        $this->assertSame(0, $shares[1]);          // the negative weight gets nothing
+        // Weights clamp to [3, 0, 1] (sum 4): bases [75, 0, 25], no remainder.
+        $this->assertSame([75, 0, 25], $shares);
+    }
+
+    public function test_all_negative_weights_allocate_nothing(): void
+    {
+        // Every weight non-positive after clamping → the deny-nothing degenerate case (all zeros).
+        $this->assertSame([0, 0], WeightedAllocator::allocate(500, [-1, -9]));
+    }
+
     public function test_unit_minor_divides_net_across_quantity(): void
     {
         $this->assertSame(250, WeightedAllocator::unitMinor(1000, 4));

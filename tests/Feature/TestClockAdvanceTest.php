@@ -65,6 +65,15 @@ class TestClockAdvanceTest extends TestCase
         $this->assertDatabaseHas('invoices', ['subscription_id' => $subscription->id, 'livemode' => false]);
         $this->assertSame('2026-02-15', $clock->refresh()->now_at->format('Y-m-d'));
 
+        // The renewal invoice is dated by the VIRTUAL clock (within the advance window), not real
+        // wall-clock now — InvoiceService::issuedAt() reads the BillingClock (P3 fix). Before the
+        // fix it was stamped at the real run instant (months away), not the sandbox's virtual time.
+        $invoice = Invoice::query()->where('subscription_id', $subscription->id)->latest('id')->firstOrFail();
+        $issuedAt = $invoice->issued_at;
+        $this->assertNotNull($issuedAt);
+        $this->assertSame(2026, $issuedAt->year);
+        $this->assertLessThanOrEqual(2, $issuedAt->month, 'Invoice dated by the virtual clock, not wall-clock now.');
+
         // Idempotent: re-advancing to the same instant does nothing and raises no new invoice.
         $again = $this->advance($clock, '2026-02-15');
         $this->assertSame(0, $again->renewals);

@@ -200,9 +200,10 @@ readonly class InvoiceOperations implements RunsInvoiceOperations
 
     /**
      * Project the durable invoice into the engine's {@see IssuedInvoice} value object the
-     * refunder reverses. The header net/tax/gross are exact; each stored line's tax is
-     * reconstructed proportional to its gross, with the rounding remainder assigned to the
-     * last line so the lines reconcile exactly to the header.
+     * refunder reverses. The header net/tax/gross are exact; each stored line's net and tax are
+     * reconstructed proportional to its gross via the shared largest-remainder
+     * {@see WeightedAllocator}, so the lines reconcile exactly to the header (the leftover units
+     * go to the largest fractional parts, not the last line).
      */
     private function toEngineInvoice(Invoice $invoice): IssuedInvoice
     {

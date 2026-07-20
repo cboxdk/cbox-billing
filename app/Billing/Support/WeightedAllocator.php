@@ -26,6 +26,11 @@ class WeightedAllocator
      */
     public static function allocate(int $total, array $weights): array
     {
+        // Clamp negative weights to zero: the largest-remainder split is only well-defined for
+        // non-negative weights (a negative weight yields a negative fractional part and can break
+        // sum-preservation). A future 3+-line-with-discount invoice whose reconstruction weights
+        // include a negated line therefore allocates it nothing rather than corrupting the split.
+        $weights = array_map(static fn (int $weight): int => max(0, $weight), $weights);
         $sum = array_sum($weights);
 
         if ($sum <= 0) {

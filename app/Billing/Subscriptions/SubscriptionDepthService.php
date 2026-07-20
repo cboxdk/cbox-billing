@@ -35,7 +35,6 @@ use Cbox\Billing\Wallet\ValueObjects\CreditGrant;
 use Cbox\Billing\Wallet\ValueObjects\Denomination;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionInterface;
-use Illuminate\Support\Carbon;
 use RuntimeException;
 
 /**
@@ -71,7 +70,7 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
             $subscription->loadMissing('plan', 'organization');
             $previousMrr = $this->movements->contributing($subscription);
 
-            $subscription->forceFill(['paused_at' => Carbon::now()])->save();
+            $subscription->forceFill(['paused_at' => $this->clock->now()])->save();
 
             // Pausing suspends billing: contributing MRR moves amount → 0 (recorded as churn,
             // the recoverable counterpart to the reactivation recorded when it resumes).

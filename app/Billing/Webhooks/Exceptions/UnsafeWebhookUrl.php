@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks\Exceptions;
+namespace App\Billing\Webhooks\Exceptions;
 
 use RuntimeException;
 

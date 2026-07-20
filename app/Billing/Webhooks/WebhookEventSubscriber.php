@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks;
+namespace App\Billing\Webhooks;
 
 /**
  * The single listener bound to every source domain event (engine + app). It resolves the event to

@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use App\Webhooks\Events;
-use App\Webhooks\Events\CouponRedeemed;
-use App\Webhooks\Events\DunningExhausted;
-use App\Webhooks\Events\LicenseRevoked;
-use App\Webhooks\Events\PaymentFailed;
-use App\Webhooks\Events\SubscriptionCanceled;
-use App\Webhooks\Events\SubscriptionCreated;
-use App\Webhooks\WebhookDispatcher;
-use App\Webhooks\WebhookEventSubscriber;
+use App\Billing\Webhooks\Events;
+use App\Billing\Webhooks\Events\CouponRedeemed;
+use App\Billing\Webhooks\Events\DunningExhausted;
+use App\Billing\Webhooks\Events\LicenseRevoked;
+use App\Billing\Webhooks\Events\PaymentFailed;
+use App\Billing\Webhooks\Events\SubscriptionCanceled;
+use App\Billing\Webhooks\Events\SubscriptionCreated;
+use App\Billing\Webhooks\WebhookDispatcher;
+use App\Billing\Webhooks\WebhookEventSubscriber;
 use Cbox\Billing\Events\CreditNoteIssued;
 use Cbox\Billing\Events\InvoiceIssued;
 use Cbox\Billing\Events\LicenseIssued;
@@ -59,7 +59,7 @@ class WebhookServiceProvider extends ServiceProvider
     {
         Event::listen(self::SOURCE_EVENTS, [WebhookEventSubscriber::class, 'handle']);
 
-        if (config('cbox-billing.webhooks.schedule_retries', true) !== false) {
+        if (config('billing.webhooks.schedule_retries', true) !== false) {
             $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
                 $schedule->call(fn () => $this->app->make(WebhookDispatcher::class)->retryPending())
                     ->everyMinute()

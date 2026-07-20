@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Billing\Webhooks\WebhookDispatcher;
 use App\Providers\WebhookServiceProvider;
-use App\Webhooks\WebhookDispatcher;
 use Illuminate\Console\Command;
 
 /**

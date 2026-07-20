@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks\Support;
+namespace App\Billing\Webhooks\Support;
 
 use App\Billing\Payments\ManualWebhookVerifier;
 

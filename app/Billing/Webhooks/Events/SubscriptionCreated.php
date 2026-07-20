@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks\Events;
+namespace App\Billing\Webhooks\Events;
 
 use App\Billing\Subscriptions\SubscriptionService;
 use App\Models\Subscription;

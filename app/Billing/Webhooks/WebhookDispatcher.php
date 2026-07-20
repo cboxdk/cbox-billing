@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks;
+namespace App\Billing\Webhooks;
 
+use App\Billing\Webhooks\Delivery\WebhookDeliverer;
+use App\Billing\Webhooks\Enums\DeliveryStatus;
+use App\Billing\Webhooks\Jobs\DeliverWebhook;
+use App\Billing\Webhooks\ValueObjects\ResolvedEvent;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookEndpoint;
-use App\Webhooks\Delivery\WebhookDeliverer;
-use App\Webhooks\Enums\DeliveryStatus;
-use App\Webhooks\Jobs\DeliverWebhook;
-use App\Webhooks\ValueObjects\ResolvedEvent;
 
 /**
  * Fans a resolved event out to every active, subscribed endpoint by writing an idempotent delivery

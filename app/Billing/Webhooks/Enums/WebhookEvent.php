@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks\Enums;
+namespace App\Billing\Webhooks\Enums;
 
-use App\Webhooks\WebhookEventSubscriber;
+use App\Billing\Webhooks\WebhookEventSubscriber;
 
 /**
  * The canonical outbound event catalog — the closed set of `type` strings an integrator may
@@ -15,7 +15,7 @@ use App\Webhooks\WebhookEventSubscriber;
  * There are NO placeholder types — every case is backed by a genuine source event, listed in its
  * {@see source()}. Engine events come from `Cbox\Billing\Events\*`; the app-level lifecycle
  * moments the engine does not model as events (created/canceled/payment-failed/dunning/coupon/
- * revoke) are dispatched by first-party `App\Webhooks\Events\*` events raised at the real trigger
+ * revoke) are dispatched by first-party `App\Billing\Webhooks\Events\*` events raised at the real trigger
  * point in the owning service.
  */
 enum WebhookEvent: string
@@ -75,17 +75,17 @@ enum WebhookEvent: string
         return match ($this) {
             self::InvoiceIssued => 'Cbox\Billing\Events\InvoiceIssued',
             self::PaymentSettled => 'Cbox\Billing\Events\PaymentSettled',
-            self::PaymentFailed => 'App\Webhooks\Events\PaymentFailed',
+            self::PaymentFailed => 'App\Billing\Webhooks\Events\PaymentFailed',
             self::CreditNoteIssued => 'Cbox\Billing\Events\CreditNoteIssued',
-            self::SubscriptionCreated => 'App\Webhooks\Events\SubscriptionCreated',
+            self::SubscriptionCreated => 'App\Billing\Webhooks\Events\SubscriptionCreated',
             self::SubscriptionChanged => 'Cbox\Billing\Events\SubscriptionChanged',
             self::SubscriptionRenewed => 'Cbox\Billing\Events\SubscriptionRenewed',
-            self::SubscriptionCanceled => 'App\Webhooks\Events\SubscriptionCanceled',
+            self::SubscriptionCanceled => 'App\Billing\Webhooks\Events\SubscriptionCanceled',
             self::SubscriptionCancellationRequested => 'Cbox\Billing\Retention\Events\SubscriptionCancellationRequested',
             self::LicenseIssued => 'Cbox\Billing\Events\LicenseIssued',
-            self::LicenseRevoked => 'App\Webhooks\Events\LicenseRevoked',
-            self::CouponRedeemed => 'App\Webhooks\Events\CouponRedeemed',
-            self::DunningExhausted => 'App\Webhooks\Events\DunningExhausted',
+            self::LicenseRevoked => 'App\Billing\Webhooks\Events\LicenseRevoked',
+            self::CouponRedeemed => 'App\Billing\Webhooks\Events\CouponRedeemed',
+            self::DunningExhausted => 'App\Billing\Webhooks\Events\DunningExhausted',
         };
     }
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Billing\Mode\Concerns\BelongsToMode;
-use App\Webhooks\Enums\WebhookEvent;
+use App\Billing\Webhooks\Enums\WebhookEvent;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;

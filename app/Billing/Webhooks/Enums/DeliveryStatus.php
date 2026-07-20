@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks\Enums;
+namespace App\Billing\Webhooks\Enums;
 
 use App\Models\WebhookDelivery;
 

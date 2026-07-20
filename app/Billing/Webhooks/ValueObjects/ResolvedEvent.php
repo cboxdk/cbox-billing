@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks\ValueObjects;
+namespace App\Billing\Webhooks\ValueObjects;
 
-use App\Webhooks\Enums\WebhookEvent;
-use App\Webhooks\EventPayloadMapper;
+use App\Billing\Webhooks\Enums\WebhookEvent;
+use App\Billing\Webhooks\EventPayloadMapper;
 
 /**
  * A source domain event resolved to its outbound shape: the catalog `type`, a stable `id` (the

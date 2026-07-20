@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks;
+namespace App\Billing\Webhooks;
 
+use App\Billing\Webhooks\Enums\DeliveryStatus;
+use App\Billing\Webhooks\Enums\WebhookEvent;
+use App\Billing\Webhooks\Exceptions\UnsafeWebhookUrl;
+use App\Billing\Webhooks\Jobs\DeliverWebhook;
+use App\Billing\Webhooks\Support\SafeWebhookUrl;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookEndpoint;
-use App\Webhooks\Enums\DeliveryStatus;
-use App\Webhooks\Enums\WebhookEvent;
-use App\Webhooks\Exceptions\UnsafeWebhookUrl;
-use App\Webhooks\Jobs\DeliverWebhook;
-use App\Webhooks\Support\SafeWebhookUrl;
 use Illuminate\Support\Str;
 
 /**

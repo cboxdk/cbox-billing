@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks\Support;
+namespace App\Billing\Webhooks\Support;
 
-use App\Webhooks\Exceptions\UnsafeWebhookUrl;
+use App\Billing\Webhooks\Exceptions\UnsafeWebhookUrl;
 use Cbox\Ssrf\Contracts\UrlGuard;
 use Cbox\Ssrf\Exceptions\BlockedUrl;
 
@@ -12,7 +12,7 @@ use Cbox\Ssrf\Exceptions\BlockedUrl;
  * SSRF gate for outbound webhook endpoint URLs. The actual guarding — scheme/credential checks,
  * dual-stack DNS resolution, private/reserved/loopback/link-local/cloud-metadata blocking, and
  * connection pinning — lives in the shared, independently-tested `cboxdk/laravel-ssrf` package.
- * This thin adapter keeps the app's own on/off toggle (`cbox-billing.webhooks.verify_url`) and
+ * This thin adapter keeps the app's own on/off toggle (`billing.webhooks.verify_url`) and
  * narrows the accepted schemes to `http`/`https` with no embedded credentials.
  *
  * Outbound delivery is a new SSRF sink this app did not previously have (all prior webhook code
@@ -78,6 +78,6 @@ class SafeWebhookUrl
 
     private static function enforced(): bool
     {
-        return config('cbox-billing.webhooks.verify_url', true) !== false;
+        return config('billing.webhooks.verify_url', true) !== false;
     }
 }

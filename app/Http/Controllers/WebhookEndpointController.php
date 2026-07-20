@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Auth\CurrentUser;
+use App\Billing\Webhooks\Enums\WebhookEvent;
+use App\Billing\Webhooks\Exceptions\UnsafeWebhookUrl;
+use App\Billing\Webhooks\WebhookEndpointRegistry;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookEndpoint;
-use App\Webhooks\Enums\WebhookEvent;
-use App\Webhooks\Exceptions\UnsafeWebhookUrl;
-use App\Webhooks\WebhookEndpointRegistry;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

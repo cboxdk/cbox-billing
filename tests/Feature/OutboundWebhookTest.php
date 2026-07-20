@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Billing\Webhooks\Delivery\WebhookDeliverer;
+use App\Billing\Webhooks\Enums\DeliveryStatus;
+use App\Billing\Webhooks\Enums\WebhookEvent;
+use App\Billing\Webhooks\Exceptions\UnsafeWebhookUrl;
+use App\Billing\Webhooks\Jobs\DeliverWebhook;
+use App\Billing\Webhooks\Support\WebhookSignature;
+use App\Billing\Webhooks\WebhookDispatcher;
+use App\Billing\Webhooks\WebhookEndpointRegistry;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookEndpoint;
-use App\Webhooks\Delivery\WebhookDeliverer;
-use App\Webhooks\Enums\DeliveryStatus;
-use App\Webhooks\Enums\WebhookEvent;
-use App\Webhooks\Exceptions\UnsafeWebhookUrl;
-use App\Webhooks\Jobs\DeliverWebhook;
-use App\Webhooks\Support\WebhookSignature;
-use App\Webhooks\WebhookDispatcher;
-use App\Webhooks\WebhookEndpointRegistry;
 use Cbox\Billing\Events\InvoiceIssued;
 use Cbox\Billing\Events\PaymentSettled;
 use Cbox\Billing\Invoice\ValueObjects\Invoice;
@@ -51,7 +51,7 @@ class OutboundWebhookTest extends TestCase
         parent::setUp();
         // Off by default so a real DNS resolution never runs in the delivery tests; the SSRF tests
         // turn it back on explicitly.
-        config(['cbox-billing.webhooks.verify_url' => false]);
+        config(['billing.webhooks.verify_url' => false]);
     }
 
     // ---- 1. Emission: the right endpoints, and only those, get exactly one delivery ----
@@ -178,7 +178,7 @@ class OutboundWebhookTest extends TestCase
     #[DataProvider('unsafeUrls')]
     public function test_registration_refuses_a_non_public_url(string $url): void
     {
-        config(['cbox-billing.webhooks.verify_url' => true]);
+        config(['billing.webhooks.verify_url' => true]);
 
         $this->expectException(UnsafeWebhookUrl::class);
         app(WebhookEndpointRegistry::class)->register($url, [WebhookEvent::PaymentSettled->value], null, null);
@@ -188,7 +188,7 @@ class OutboundWebhookTest extends TestCase
     {
         // TOCTOU: the row exists (as if the URL was public at registration) but now points at an
         // internal address. Enforcement is on, so the delivery is refused before any connect.
-        config(['cbox-billing.webhooks.verify_url' => true]);
+        config(['billing.webhooks.verify_url' => true]);
         Http::fake();
 
         $endpoint = new WebhookEndpoint;
@@ -211,7 +211,7 @@ class OutboundWebhookTest extends TestCase
 
     public function test_a_failed_post_is_retried_then_dead_lettered_and_the_delivery_id_is_stable(): void
     {
-        config(['cbox-billing.webhooks.max_attempts' => 2]);
+        config(['billing.webhooks.max_attempts' => 2]);
         Http::fake(['*' => Http::response('nope', 500)]);
         $endpoint = $this->endpoint([WebhookEvent::PaymentSettled->value]);
         $delivery = $this->pendingDelivery($endpoint, WebhookEvent::PaymentSettled->value);
@@ -236,7 +236,7 @@ class OutboundWebhookTest extends TestCase
 
     public function test_redeliver_re_attempts_a_dead_delivery(): void
     {
-        config(['cbox-billing.webhooks.max_attempts' => 1]);
+        config(['billing.webhooks.max_attempts' => 1]);
         // First attempt fails (500), the receiver recovers for the redeliver (200).
         Http::fakeSequence()->push('nope', 500)->push('', 200);
         $endpoint = $this->endpoint([WebhookEvent::PaymentSettled->value]);
@@ -253,7 +253,7 @@ class OutboundWebhookTest extends TestCase
 
     public function test_the_retry_sweep_re_attempts_only_due_failed_deliveries(): void
     {
-        config(['cbox-billing.webhooks.max_attempts' => 5]);
+        config(['billing.webhooks.max_attempts' => 5]);
         Http::fakeSequence()->push('nope', 500)->push('', 200);
         $endpoint = $this->endpoint([WebhookEvent::PaymentSettled->value]);
         $delivery = $this->pendingDelivery($endpoint, WebhookEvent::PaymentSettled->value);
@@ -378,7 +378,7 @@ class OutboundWebhookTest extends TestCase
 
     public function test_the_console_refuses_registering_a_private_url(): void
     {
-        config(['cbox-billing.webhooks.verify_url' => true]);
+        config(['billing.webhooks.verify_url' => true]);
 
         $this->withSession($this->session)
             ->post('/settings/webhooks', ['url' => 'http://127.0.0.1/x', 'event_types' => [WebhookEvent::PaymentSettled->value]])

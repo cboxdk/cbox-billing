@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks\Delivery;
+namespace App\Billing\Webhooks\Delivery;
 
+use App\Billing\Webhooks\Enums\DeliveryStatus;
+use App\Billing\Webhooks\Exceptions\UnsafeWebhookUrl;
+use App\Billing\Webhooks\Jobs\DeliverWebhook;
+use App\Billing\Webhooks\Support\SafeWebhookUrl;
+use App\Billing\Webhooks\Support\WebhookSignature;
 use App\Models\WebhookDelivery;
-use App\Webhooks\Enums\DeliveryStatus;
-use App\Webhooks\Exceptions\UnsafeWebhookUrl;
-use App\Webhooks\Jobs\DeliverWebhook;
-use App\Webhooks\Support\SafeWebhookUrl;
-use App\Webhooks\Support\WebhookSignature;
 use Illuminate\Support\Facades\Http;
 use JsonException;
 use Throwable;
@@ -115,7 +115,7 @@ class WebhookDeliverer
 
     private function intConfig(string $key, int $default): int
     {
-        $value = config('cbox-billing.webhooks.'.$key, $default);
+        $value = config('billing.webhooks.'.$key, $default);
 
         return is_numeric($value) ? (int) $value : $default;
     }

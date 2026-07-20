@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks;
+namespace App\Billing\Webhooks;
 
-use App\Webhooks\Enums\WebhookEvent;
-use App\Webhooks\Events\CouponRedeemed;
-use App\Webhooks\Events\DunningExhausted;
-use App\Webhooks\Events\LicenseRevoked;
-use App\Webhooks\Events\PaymentFailed;
-use App\Webhooks\Events\SubscriptionCanceled;
-use App\Webhooks\Events\SubscriptionCreated;
-use App\Webhooks\ValueObjects\ResolvedEvent;
+use App\Billing\Webhooks\Enums\WebhookEvent;
+use App\Billing\Webhooks\Events\CouponRedeemed;
+use App\Billing\Webhooks\Events\DunningExhausted;
+use App\Billing\Webhooks\Events\LicenseRevoked;
+use App\Billing\Webhooks\Events\PaymentFailed;
+use App\Billing\Webhooks\Events\SubscriptionCanceled;
+use App\Billing\Webhooks\Events\SubscriptionCreated;
+use App\Billing\Webhooks\ValueObjects\ResolvedEvent;
 use Cbox\Billing\Events\CreditNoteIssued;
 use Cbox\Billing\Events\InvoiceIssued;
 use Cbox\Billing\Events\LicenseIssued;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Licensing;
 
 use App\Billing\Licensing\Contracts\LicenseRevocationRegistry;
-use App\Webhooks\Events\LicenseRevoked as LicenseRevokedEvent;
+use App\Billing\Webhooks\Events\LicenseRevoked as LicenseRevokedEvent;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;

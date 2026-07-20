@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Webhooks\Jobs;
+namespace App\Billing\Webhooks\Jobs;
 
+use App\Billing\Webhooks\Delivery\WebhookDeliverer;
 use App\Models\WebhookDelivery;
-use App\Webhooks\Delivery\WebhookDeliverer;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -21,7 +21,7 @@ class DeliverWebhook implements ShouldQueue
 
     public function __construct(public string $deliveryId)
     {
-        $queue = config('cbox-billing.webhooks.queue');
+        $queue = config('billing.webhooks.queue');
         $this->onQueue(is_string($queue) ? $queue : null);
     }
 

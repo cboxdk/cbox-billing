@@ -97,6 +97,9 @@ The app is organized around a few load-bearing ideas:
 - **[Storefront: pricing tables & paywall](storefront/_index.md)** — the embeddable,
   seller-branded, self-contained pricing table a marketing site drops in, the embed
   snippet (iframe vs script), the drop-in paywall, and the checkout deep-link contract.
+- **[CPQ: sales quoting & contracts](quotes/_index.md)** — the sales-led motion: a rep
+  authors a quote with line items and contract terms, it is threshold-routed for approval,
+  sent as a branded hosted order form, accepted by e-signature, and provisions a subscription.
 - **[Testing & sandbox](testing/_index.md)** — test mode's isolated `livemode` plane,
   the fake gateway with no real charges or emails, and fast-forwardable test clocks
   for simulating renewals, trials and dunning in seconds.

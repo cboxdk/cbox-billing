@@ -27,6 +27,7 @@
             @if ($note->invoice)
                 <a class="cbx-btn cbx-btn--secondary cbx-btn--sm" href="{{ route('billing.invoices.show', $note->invoice->id) }}">Invoice {{ $note->invoice_number }}</a>
             @endif
+            <a class="cbx-btn cbx-btn--secondary cbx-btn--sm" href="{{ route('billing.credit-notes.pdf', $note->id) }}">Download PDF</a>
             <a class="cbx-btn cbx-btn--secondary cbx-btn--sm" href="{{ route('billing.customers.show', $note->organization_id) }}">View customer</a>
         </div>
     </header>

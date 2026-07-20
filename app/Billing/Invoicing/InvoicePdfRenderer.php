@@ -80,27 +80,6 @@ readonly class InvoicePdfRenderer
      */
     private function seller(string $seller): array
     {
-        $entities = $this->config->get('billing.seller.entities', []);
-        $entity = is_array($entities) && is_array($entities[$seller] ?? null) ? $entities[$seller] : [];
-
-        $legalName = $entity['legal_name'] ?? null;
-        $registration = $entity['registration_number'] ?? null;
-        $establishment = $entity['establishment'] ?? null;
-
-        $registrations = [];
-
-        foreach (is_array($entity['tax_registrations'] ?? null) ? $entity['tax_registrations'] : [] as $registrationRow) {
-            if (is_array($registrationRow) && is_string($registrationRow['country'] ?? null) && is_string($registrationRow['number'] ?? null)) {
-                $registrations[] = ['country' => $registrationRow['country'], 'number' => $registrationRow['number']];
-            }
-        }
-
-        return [
-            'key' => $seller,
-            'legal_name' => is_string($legalName) ? $legalName : $seller,
-            'registration_number' => is_string($registration) ? $registration : null,
-            'establishment' => is_string($establishment) ? $establishment : null,
-            'tax_registrations' => $registrations,
-        ];
+        return SellerDocumentIdentity::resolve($this->config, $seller);
     }
 }

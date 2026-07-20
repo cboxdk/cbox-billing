@@ -274,7 +274,7 @@
                         <td>{{ $event['title'] }}@if ($event['detail'])<br><span class="k">{{ $event['detail'] }}</span>@endif</td>
                         <td class="right num">{{ $event['amount'] ?? '—' }}</td>
                         <td class="right"><span class="cbx-pill cbx-pill--{{ $event['tone'] }}">{{ $event['status'] }}</span></td>
-                        <td class="right">@if ($event['invoice_id'])<a href="{{ route('hosted.portal.invoice-pdf', ['token' => $session->token, 'invoice' => $event['invoice_id']]) }}">PDF</a>@endif</td>
+                        <td class="right">@if ($event['invoice_id'])<a href="{{ route('hosted.portal.invoice-pdf', ['token' => $session->token, 'invoice' => $event['invoice_id']]) }}">PDF</a>@elseif ($event['credit_note_id'])<a href="{{ route('hosted.portal.credit-note-pdf', ['token' => $session->token, 'creditNote' => $event['credit_note_id']]) }}">PDF</a>@endif</td>
                     </tr>
                 @empty
                     <tr><td colspan="5" style="padding:16px 20px;color:var(--muted-foreground)">No billing history yet.</td></tr>

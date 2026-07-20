@@ -11,6 +11,7 @@ use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
 use App\Billing\Hosted\PortalBillingHistory;
 use App\Billing\Hosted\PortalPresenter;
+use App\Billing\Invoicing\CreditNotePdfRenderer;
 use App\Billing\Invoicing\InvoicePdfRenderer;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Notifications\Contracts\ManagesNotificationPreferences;
@@ -27,6 +28,7 @@ use App\Billing\Tax\Exemptions\ExemptionCertificateService;
 use App\Billing\Tax\Exemptions\ExemptionJurisdictions;
 use App\Models\BillingSession;
 use App\Models\Coupon;
+use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -176,6 +178,25 @@ class PortalController extends HostedController
         return new Response($renderer->render($invoice), Response::HTTP_OK, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$renderer->filename($invoice).'"',
+        ]);
+    }
+
+    /**
+     * `GET` — download a credit note for this account as a PDF. Per-session org scope: a credit
+     * note not owned by the session's organization is 404 (deny-by-default, never leaks that
+     * another org's credit note exists).
+     */
+    public function creditNotePdf(string $token, CreditNote $creditNote, CreditNotePdfRenderer $renderer): Response
+    {
+        $session = $this->require($token, SessionType::Portal);
+
+        if ($creditNote->organization_id !== $session->organization_id) {
+            throw new NotFoundHttpException('This credit note is not available.');
+        }
+
+        return new Response($renderer->render($creditNote), Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$renderer->filename($creditNote).'"',
         ]);
     }
 

@@ -30,7 +30,7 @@ readonly class PortalBillingHistory
     /**
      * @return list<array{
      *     at: string, sort: int, type: string, title: string, detail: ?string,
-     *     amount: ?string, status: string, tone: string, invoice_id: ?int
+     *     amount: ?string, status: string, tone: string, invoice_id: ?int, credit_note_id: ?int
      * }>
      */
     public function forOrganization(string $organizationId, int $limit = 60): array
@@ -82,6 +82,7 @@ readonly class PortalBillingHistory
                 status: $isRefund ? 'refunded' : 'credited',
                 tone: 'info',
                 invoiceId: null,
+                creditNoteId: $note->id,
             );
         }
 
@@ -109,10 +110,10 @@ readonly class PortalBillingHistory
     /**
      * @return array{
      *     at: string, sort: int, type: string, title: string, detail: ?string,
-     *     amount: ?string, status: string, tone: string, invoice_id: ?int
+     *     amount: ?string, status: string, tone: string, invoice_id: ?int, credit_note_id: ?int
      * }
      */
-    private function row(?CarbonInterface $at, string $type, string $title, ?string $detail, ?string $amount, string $status, string $tone, ?int $invoiceId): array
+    private function row(?CarbonInterface $at, string $type, string $title, ?string $detail, ?string $amount, string $status, string $tone, ?int $invoiceId, ?int $creditNoteId = null): array
     {
         return [
             'at' => $at?->format('Y-m-d') ?? '—',
@@ -124,6 +125,7 @@ readonly class PortalBillingHistory
             'status' => $status,
             'tone' => $tone,
             'invoice_id' => $invoiceId,
+            'credit_note_id' => $creditNoteId,
         ];
     }
 

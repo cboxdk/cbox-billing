@@ -21,6 +21,7 @@ Route::prefix('billing')->name('hosted.')->group(function (): void {
 
     Route::get('portal/{token}', [PortalController::class, 'show'])->name('portal.show');
     Route::get('portal/{token}/invoices/{invoice}/pdf', [PortalController::class, 'invoicePdf'])->name('portal.invoice-pdf');
+    Route::get('portal/{token}/credit-notes/{creditNote}/pdf', [PortalController::class, 'creditNotePdf'])->name('portal.credit-note-pdf');
     Route::post('portal/{token}/preview', [PortalController::class, 'preview'])->name('portal.preview');
     Route::post('portal/{token}/change', [PortalController::class, 'change'])->name('portal.change');
     Route::post('portal/{token}/cancel', [PortalController::class, 'cancel'])->name('portal.cancel');

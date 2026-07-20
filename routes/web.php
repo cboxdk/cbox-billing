@@ -205,6 +205,7 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     // (issued only by the engine). `/credit-notes/{creditNote}` binds by id.
     Route::get('/credit-notes', [CreditNoteController::class, 'index'])->middleware('billing.permission:invoices:read')->name('billing.credit-notes');
     Route::get('/credit-notes/{creditNote}', [CreditNoteController::class, 'show'])->middleware('billing.permission:invoices:read')->name('billing.credit-notes.show');
+    Route::get('/credit-notes/{creditNote}/pdf', [CreditNoteController::class, 'pdf'])->middleware('billing.permission:invoices:read')->name('billing.credit-notes.pdf');
 
     Route::get('/invoices/{invoice}', [BillingController::class, 'invoice'])->middleware('billing.permission:invoices:read')->name('billing.invoices.show');
     Route::get('/invoices/{invoice}/pdf', [BillingController::class, 'invoicePdf'])->middleware('billing.permission:invoices:read')->name('billing.invoices.pdf');

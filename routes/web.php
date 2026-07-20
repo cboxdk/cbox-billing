@@ -17,6 +17,7 @@ use App\Http\Controllers\DsarController;
 use App\Http\Controllers\DunningController;
 use App\Http\Controllers\DunningStrategyController;
 use App\Http\Controllers\EnvironmentController;
+use App\Http\Controllers\EnvironmentPromotionController;
 use App\Http\Controllers\ExemptionCertificateController;
 use App\Http\Controllers\ExperimentController;
 use App\Http\Controllers\ExportController;
@@ -77,6 +78,14 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     Route::post('/environment/switch', [TestModeController::class, 'switchEnvironment'])->name('billing.environment.switch');
     // Clone an environment's config into a fresh sandbox plane (deep config copy, empty book).
     Route::post('/environment/clone', [EnvironmentController::class, 'clone'])->middleware('billing.permission:settings:manage')->name('billing.environment.clone');
+
+    // Promote SELECTED config from one plane to another (sandbox → production), with a diff
+    // preview + confirm. The GET screen and preview (write-free) POST and the apply POST all
+    // carry `settings:manage`; the preview route ends `.preview` so the audit trail ignores it,
+    // and the apply records one rich `config.promoted` event from the service.
+    Route::get('/environment/promote', [EnvironmentPromotionController::class, 'form'])->middleware('billing.permission:settings:manage')->name('billing.environment.promote');
+    Route::post('/environment/promote/preview', [EnvironmentPromotionController::class, 'preview'])->middleware('billing.permission:settings:manage')->name('billing.environment.promote.preview');
+    Route::post('/environment/promote', [EnvironmentPromotionController::class, 'apply'])->middleware('billing.permission:settings:manage')->name('billing.environment.promote.apply');
     Route::get('/test-mode/clocks', [TestModeController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.test-mode.clocks');
     Route::post('/test-mode/clocks', [TestModeController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.store');
     Route::get('/test-mode/clocks/{testClock}', [TestModeController::class, 'show'])->middleware('billing.permission:settings:read')->name('billing.test-mode.clocks.show');

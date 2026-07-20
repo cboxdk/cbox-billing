@@ -25,6 +25,8 @@ use App\Billing\Enforcement\Upgrade\UpgradeGate;
 use App\Billing\Environments\Contracts\ClonesEnvironments;
 use App\Billing\Environments\EnvironmentCloner;
 use App\Billing\Environments\EnvironmentRegistry;
+use App\Billing\Environments\Promotion\ConfigPromotion;
+use App\Billing\Environments\Promotion\Contracts\PromotesConfig;
 use App\Billing\Experiments\Contracts\AttributesConversions;
 use App\Billing\Experiments\ConversionAttribution;
 use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
@@ -197,6 +199,10 @@ class BillingServiceProvider extends ServiceProvider
 
         // The environment cloner: creates a sandbox plane and deep-copies a source plane's config.
         $this->app->singleton(ClonesEnvironments::class, EnvironmentCloner::class);
+
+        // The config promotion engine: publishes SELECTED config from one plane to another,
+        // matching by natural key with a created/updated/unchanged diff and relationship remap.
+        $this->app->singleton(PromotesConfig::class, ConfigPromotion::class);
 
         // The per-org opt-out store for the OPTIONAL lifecycle mails; the notifier consults it
         // before an optional send and the portal reads/writes it from the toggle UI.

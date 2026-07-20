@@ -162,6 +162,9 @@ enum AuditAction: string
     case FxOverridesUpdated = 'fx.overrides_updated';
     case FxRefreshed = 'fx.refreshed';
 
+    // Environments — config promotion (publish selected config across planes)
+    case ConfigPromoted = 'config.promoted';
+
     // Test mode
     case TestClockCreated = 'test_clock.created';
     case TestClockAdvanced = 'test_clock.advanced';

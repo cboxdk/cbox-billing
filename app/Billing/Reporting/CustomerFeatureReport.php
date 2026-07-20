@@ -8,7 +8,6 @@ use App\Billing\Features\Enums\FeatureSource;
 use App\Billing\Features\FeatureEntitlements;
 use App\Billing\Features\ValueObjects\ResolvedFeature;
 use App\Models\Feature;
-use App\Models\OrganizationFeatureOverride;
 
 /**
  * Read model for the customer detail page's "Feature entitlements" panel: the org's resolved
@@ -29,13 +28,6 @@ readonly class CustomerFeatureReport
         $catalog = Feature::query()->orderBy('key')->get();
         $resolvedSet = $this->features->forOrganization($organizationId);
 
-        /** @var array<int, OrganizationFeatureOverride> $overrides */
-        $overrides = OrganizationFeatureOverride::query()
-            ->where('organization_id', $organizationId)
-            ->get()
-            ->keyBy('feature_id')
-            ->all();
-
         $rows = [];
         $catalogRows = [];
 
@@ -50,12 +42,18 @@ readonly class CustomerFeatureReport
                 ];
             }
 
-            if ($feature->isArchived() && ! isset($overrides[$feature->id]) && ! isset($resolvedSet[$feature->key])) {
+            $resolved = $resolvedSet[$feature->key] ?? null;
+
+            if ($feature->isArchived() && $resolved === null) {
                 continue;
             }
 
-            $resolved = $resolvedSet[$feature->key] ?? ResolvedFeature::denied($feature->key, $feature->type);
-            $override = $overrides[$feature->id] ?? null;
+            $resolved ??= ResolvedFeature::denied($feature->key, $feature->type);
+
+            // The override state is already carried by the resolved source — no second query is
+            // needed. `override` covers both a grant-override and a revoke-override, exactly the
+            // rows for which the console shows a "clear override" action.
+            $overridden = $resolved->source === FeatureSource::Override;
 
             $rows[] = [
                 'id' => $feature->id,
@@ -65,8 +63,7 @@ readonly class CustomerFeatureReport
                 'enabled' => $resolved->enabled,
                 'value' => $resolved->value,
                 'source' => $resolved->source->value,
-                'overridden' => $override instanceof OrganizationFeatureOverride,
-                'override_reason' => $override?->reason,
+                'overridden' => $overridden,
                 'carries_value' => $feature->type->carriesValue(),
             ];
         }

@@ -11,6 +11,7 @@ use App\Models\FxRate as FxRateModel;
 use Brick\Math\BigRational;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Query\JoinClause;
 
 /**
  * Resolves the exchange rate to apply for a `from → to` conversion as of a reporting date,
@@ -124,30 +125,38 @@ readonly class FxRateRepository
      * The latest stored rate per (base, quote, source) as of `$asOf` — the console rates view's
      * data. Ordered by pair then source for a stable table.
      *
+     * Resolved in SQL: a grouped subquery takes MAX(as_of_date) per (base, quote, source) up to
+     * `$asOf`, joined back to the row that owns it. The unique `(as_of_date, base, quote, source)`
+     * key guarantees exactly one row per group, so the result set is bounded by the number of
+     * distinct pairs — never the full rate history — regardless of how deep the table grows.
+     *
      * @return list<FxRate>
      */
     public function latestRates(CarbonInterface $asOf): array
     {
+        $onDate = CarbonImmutable::instance($asOf)->toDateString();
+
+        $latest = FxRateModel::query()
+            ->selectRaw('base, quote, source, MAX(as_of_date) as as_of_date')
+            ->whereDate('as_of_date', '<=', $onDate)
+            ->groupBy('base', 'quote', 'source');
+
         $rows = FxRateModel::query()
-            ->whereDate('as_of_date', '<=', CarbonImmutable::instance($asOf)->toDateString())
-            ->orderBy('base')
-            ->orderBy('quote')
-            ->orderBy('source')
-            ->orderByDesc('as_of_date')
+            ->joinSub($latest, 'latest', function (JoinClause $join): void {
+                $join->on('fx_rates.base', '=', 'latest.base')
+                    ->on('fx_rates.quote', '=', 'latest.quote')
+                    ->on('fx_rates.source', '=', 'latest.source')
+                    ->on('fx_rates.as_of_date', '=', 'latest.as_of_date');
+            })
+            ->orderBy('fx_rates.base')
+            ->orderBy('fx_rates.quote')
+            ->orderBy('fx_rates.source')
             ->get();
 
-        /** @var array<string, FxRate> $latest */
-        $latest = [];
+        $result = [];
 
         foreach ($rows as $row) {
-            $key = $row->base.'/'.$row->quote.'/'.$row->source;
-
-            // Rows are newest-first per key; keep the first seen.
-            if (isset($latest[$key])) {
-                continue;
-            }
-
-            $latest[$key] = FxRate::of(
+            $result[] = FxRate::of(
                 CarbonImmutable::instance($row->as_of_date)->startOfDay(),
                 $row->base,
                 $row->quote,
@@ -156,6 +165,6 @@ readonly class FxRateRepository
             );
         }
 
-        return array_values($latest);
+        return $result;
     }
 }

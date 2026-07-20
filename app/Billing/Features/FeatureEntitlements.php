@@ -11,6 +11,7 @@ use App\Models\Feature;
 use App\Models\OrganizationFeatureOverride;
 use App\Models\PlanFeature;
 use App\Models\Subscription;
+use Illuminate\Contracts\Cache\Repository as Cache;
 
 /**
  * Resolves an org's boolean / config feature entitlements — the gating sibling of the metered
@@ -37,15 +38,30 @@ use App\Models\Subscription;
  * resolver is a per-request container singleton, so the memo lives exactly one request;
  * {@see flush()} clears it when a caller mutates a grant/override/subscription and re-resolves
  * within the same request (wired to those models' saved/deleted events in the service provider).
+ *
+ * **Cross-request cache (PERF-4):** the same per-org context is also cached in the shared cache
+ * store for a short TTL, so back-to-back requests for the same org (the console customer page,
+ * the `/features` API a client polls) resolve without re-reading the catalog + grants + overrides
+ * every time. The cache key carries a global epoch counter that {@see flush()} bumps, so a
+ * grant/override/subscription write invalidates every org at once (mirroring the request memo);
+ * the short TTL bounds staleness even if a bust is ever missed.
  */
 class FeatureEntitlements
 {
+    /** Cross-request context TTL (seconds) — short, since a write also bumps the epoch. */
+    private const CACHE_TTL = 60;
+
+    /** The cache key holding the global epoch; bumped on every flush to rotate all org keys. */
+    private const EPOCH_KEY = 'feature-entitlements:epoch';
+
     /**
      * Per-org resolution context, memoized for the request.
      *
      * @var array<string, array{plan_id: int|null, features: array<int, Feature>, grants: array<int, PlanFeature>, overrides: array<int, OrganizationFeatureOverride>}>
      */
     private array $memo = [];
+
+    public function __construct(private Cache $cache) {}
 
     /**
      * The org's full resolved feature set, keyed by feature key. Every feature that is live
@@ -105,10 +121,16 @@ class FeatureEntitlements
         return $this->resolve($org, $key)->enabled;
     }
 
-    /** Drop the memoized per-org context (e.g. after a grant/override/subscription change). */
+    /**
+     * Drop the memoized per-org context (e.g. after a grant/override/subscription change) and
+     * bump the cross-request cache epoch so every org's cached context is invalidated at once.
+     * The epoch is stored forever (store-agnostic increment: read-then-write, so it works on
+     * stores whose `increment()` refuses a missing key).
+     */
     public function flush(): void
     {
         $this->memo = [];
+        $this->cache->forever(self::EPOCH_KEY, $this->epoch() + 1);
     }
 
     /**
@@ -179,6 +201,21 @@ class FeatureEntitlements
             return $this->memo[$org];
         }
 
+        return $this->memo[$org] = $this->cache->remember(
+            'feature-entitlements:'.$this->epoch().':'.$org,
+            self::CACHE_TTL,
+            fn (): array => $this->loadContext($org),
+        );
+    }
+
+    /**
+     * Load the org's resolution context from the durable catalog (the DB read wrapped by both the
+     * request memo and the cross-request cache).
+     *
+     * @return array{plan_id: int|null, features: array<int, Feature>, grants: array<int, PlanFeature>, overrides: array<int, OrganizationFeatureOverride>}
+     */
+    private function loadContext(string $org): array
+    {
         $subscription = Subscription::query()
             ->where('organization_id', $org)
             ->serving()
@@ -202,11 +239,19 @@ class FeatureEntitlements
             ->keyBy('feature_id')
             ->all();
 
-        return $this->memo[$org] = [
+        return [
             'plan_id' => $planId,
             'features' => $features,
             'grants' => $grants,
             'overrides' => $overrides,
         ];
+    }
+
+    /** The current global cache epoch (0 when never flushed). */
+    private function epoch(): int
+    {
+        $epoch = $this->cache->get(self::EPOCH_KEY, 0);
+
+        return is_numeric($epoch) ? (int) $epoch : 0;
     }
 }

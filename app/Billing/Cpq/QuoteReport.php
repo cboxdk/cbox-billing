@@ -52,10 +52,19 @@ readonly class QuoteReport
      */
     public function counts(): array
     {
-        $counts = ['all' => Quote::query()->count()];
+        // One grouped aggregate instead of 1 (all) + N (per status) COUNT queries.
+        $rows = Quote::query()
+            ->toBase()
+            ->selectRaw('status, count(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
+        $counts = ['all' => 0];
 
         foreach (QuoteStatus::cases() as $status) {
-            $counts[$status->value] = Quote::query()->where('status', $status->value)->count();
+            $count = $rows->get($status->value);
+            $counts[$status->value] = is_numeric($count) ? (int) $count : 0;
+            $counts['all'] += $counts[$status->value];
         }
 
         return $counts;

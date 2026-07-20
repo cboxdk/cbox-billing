@@ -46,6 +46,12 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('web')
                 ->group(__DIR__.'/../routes/hosted.php');
 
+            // Public, no-auth hosted order form: the CPQ /quote/{token} page a customer accepts
+            // or declines. Self-contained + CSP-safe; the opaque token is the whole addressing
+            // (an unknown token 404s). On the `web` group so session CSRF protects accept/decline.
+            Route::middleware('web')
+                ->group(__DIR__.'/../routes/quotes.php');
+
             // Public, no-auth embeddable storefront: the pricing table + paywall
             // (/pricing/{key}, /pricing/{key}/embed, /pricing/{key}/embed.js, /paywall).
             // Self-contained + CSP-safe; a pricing table's public key (or the paywall's org +

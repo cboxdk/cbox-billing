@@ -59,6 +59,20 @@ enum AuditAction: string
     case DunningRetried = 'dunning.retried';
     case DunningStopped = 'dunning.stopped';
 
+    // CPQ — sales quotes
+    case QuoteCreated = 'quote.created';
+    case QuoteUpdated = 'quote.updated';
+    case QuoteSubmitted = 'quote.submitted';
+    case QuoteApproved = 'quote.approved';
+    case QuoteRejected = 'quote.rejected';
+    case QuoteSent = 'quote.sent';
+    case QuoteResent = 'quote.resent';
+    case QuoteExpired = 'quote.expired';
+    case QuoteCloned = 'quote.cloned';
+    case QuoteAccepted = 'quote.accepted';
+    case QuoteDeclined = 'quote.declined';
+    case QuoteDeleted = 'quote.deleted';
+
     // Licenses
     case LicenseIssued = 'license.issued';
     case LicenseRenewed = 'license.renewed';
@@ -212,6 +226,17 @@ enum AuditAction: string
 
             'billing.subscriptions.dunning.retry' => self::DunningRetried,
             'billing.subscriptions.dunning.stop' => self::DunningStopped,
+
+            'billing.quotes.store' => self::QuoteCreated,
+            'billing.quotes.update' => self::QuoteUpdated,
+            'billing.quotes.submit' => self::QuoteSubmitted,
+            'billing.quotes.approve' => self::QuoteApproved,
+            'billing.quotes.reject' => self::QuoteRejected,
+            'billing.quotes.send' => self::QuoteSent,
+            'billing.quotes.resend' => self::QuoteResent,
+            'billing.quotes.expire' => self::QuoteExpired,
+            'billing.quotes.clone' => self::QuoteCloned,
+            'billing.quotes.destroy' => self::QuoteDeleted,
 
             'billing.licenses.issue' => self::LicenseIssued,
             'billing.licenses.renew' => self::LicenseRenewed,

@@ -5,6 +5,7 @@ use App\Providers\AuditServiceProvider;
 use App\Providers\BillingServiceProvider;
 use App\Providers\CboxIdWebhookServiceProvider;
 use App\Providers\ConsoleServiceProvider;
+use App\Providers\CpqServiceProvider;
 use App\Providers\ExportServiceProvider;
 use App\Providers\ImportServiceProvider;
 use App\Providers\LicensingServiceProvider;
@@ -17,6 +18,7 @@ return [
     AppServiceProvider::class,
     ConsoleServiceProvider::class,
     BillingServiceProvider::class,
+    CpqServiceProvider::class,
     TaxExemptionServiceProvider::class,
     ExportServiceProvider::class,
     ImportServiceProvider::class,

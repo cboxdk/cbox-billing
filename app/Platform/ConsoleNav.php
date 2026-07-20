@@ -68,6 +68,18 @@ class ConsoleNav
                 ['route' => 'billing.subscriptions.dunning', 'label' => 'Dunning', 'key' => 'dunning', 'params' => [], 'feature' => null, 'order' => 80],
             ],
         ],
+        'quotes' => [
+            'label' => 'Quotes', 'icon' => 'receipt', 'order' => 25, 'feature' => null,
+            'pages' => [
+                ['route' => 'billing.quotes', 'label' => 'All', 'key' => 'all', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.quotes', 'label' => 'Drafts', 'key' => 'draft', 'params' => ['status' => 'draft'], 'feature' => null, 'order' => 20],
+                ['route' => 'billing.quotes', 'label' => 'Pending approval', 'key' => 'pending_approval', 'params' => ['status' => 'pending_approval'], 'feature' => null, 'order' => 30],
+                ['route' => 'billing.quotes', 'label' => 'Sent', 'key' => 'sent', 'params' => ['status' => 'sent'], 'feature' => null, 'order' => 40],
+                ['route' => 'billing.quotes', 'label' => 'Accepted', 'key' => 'accepted', 'params' => ['status' => 'accepted'], 'feature' => null, 'order' => 50],
+                ['route' => 'billing.quotes.approvals', 'label' => 'Approval queue', 'key' => 'approvals', 'params' => [], 'feature' => null, 'order' => 60],
+                ['route' => 'billing.quotes.create', 'label' => 'New quote', 'key' => 'new', 'params' => [], 'feature' => null, 'order' => 70],
+            ],
+        ],
         'invoices' => [
             'label' => 'Invoices', 'icon' => 'invoice', 'order' => 30, 'feature' => null,
             'pages' => [

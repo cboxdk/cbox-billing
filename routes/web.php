@@ -31,6 +31,8 @@ use App\Http\Controllers\PlanEntitlementController;
 use App\Http\Controllers\PlanFeatureController;
 use App\Http\Controllers\PricingTableController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\QuoteApprovalController;
+use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\RetentionController;
 use App\Http\Controllers\SeatController;
 use App\Http\Controllers\SellerEntityController;
@@ -112,6 +114,27 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     Route::post('/subscriptions/{subscription}/seats', [SeatController::class, 'setPurchased'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.seats.set');
     Route::post('/subscriptions/{subscription}/seats/assign', [SeatController::class, 'assign'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.seats.assign');
     Route::post('/subscriptions/{subscription}/seats/unassign', [SeatController::class, 'unassign'])->middleware('billing.permission:subscriptions:manage')->name('billing.subscriptions.seats.unassign');
+
+    // --- CPQ: sales quotes + contracts (Wave 5). A rep authors a quote, it is threshold-routed
+    // for approval, sent to the customer as a branded order form, accepted by e-signature, and
+    // provisions a subscription. Reads carry `quotes:read`, authoring/lifecycle `quotes:manage`,
+    // and the deal-desk decision `quotes:approve` (a rep cannot self-approve). `/approvals` and
+    // `/new` are declared before `/{quote}` so the static segments are not captured by binding.
+    Route::get('/quotes', [QuoteController::class, 'index'])->middleware('billing.permission:quotes:read')->name('billing.quotes');
+    Route::get('/quotes/approvals', [QuoteApprovalController::class, 'index'])->middleware('billing.permission:quotes:read')->name('billing.quotes.approvals');
+    Route::get('/quotes/new', [QuoteController::class, 'create'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.create');
+    Route::post('/quotes', [QuoteController::class, 'store'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.store');
+    Route::get('/quotes/{quote}', [QuoteController::class, 'show'])->middleware('billing.permission:quotes:read')->name('billing.quotes.show');
+    Route::get('/quotes/{quote}/edit', [QuoteController::class, 'edit'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.edit');
+    Route::put('/quotes/{quote}', [QuoteController::class, 'update'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.update');
+    Route::post('/quotes/{quote}/submit', [QuoteController::class, 'submit'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.submit');
+    Route::post('/quotes/{quote}/send', [QuoteController::class, 'send'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.send');
+    Route::post('/quotes/{quote}/resend', [QuoteController::class, 'resend'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.resend');
+    Route::post('/quotes/{quote}/expire', [QuoteController::class, 'expire'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.expire');
+    Route::post('/quotes/{quote}/clone', [QuoteController::class, 'clone'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.clone');
+    Route::post('/quotes/{quote}/approve', [QuoteApprovalController::class, 'approve'])->middleware('billing.permission:quotes:approve')->name('billing.quotes.approve');
+    Route::post('/quotes/{quote}/reject', [QuoteApprovalController::class, 'reject'])->middleware('billing.permission:quotes:approve')->name('billing.quotes.reject');
+    Route::delete('/quotes/{quote}', [QuoteController::class, 'destroy'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.destroy');
 
     // --- Revenue analytics (engine Reporting module) ---
     Route::get('/analytics/revenue', [AnalyticsController::class, 'revenue'])->middleware('billing.permission:analytics:read')->name('analytics.revenue');

@@ -161,6 +161,8 @@
         <a class="cmd" href="{{ route('billing.subscriptions') }}">@include('partials.icon', ['name' => 'repeat', 'size' => 15, 'sw' => 1.7])Go to Subscriptions<kbd class="k">G S</kbd></a>
         <a class="cmd" href="{{ route('analytics.revenue') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Analytics · Revenue</a>
         <a class="cmd" href="{{ route('analytics.retention') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Analytics · Retention</a>
+        <a class="cmd" href="{{ route('billing.quotes') }}">@include('partials.icon', ['name' => 'receipt', 'size' => 15, 'sw' => 1.7])Go to Quotes</a>
+        <a class="cmd" href="{{ route('billing.quotes.approvals') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Quote approvals</a>
         <a class="cmd" href="{{ route('billing.invoices') }}">@include('partials.icon', ['name' => 'invoice', 'size' => 15, 'sw' => 1.7])Go to Invoices<kbd class="k">G I</kbd></a>
         <a class="cmd" href="{{ route('billing.customers') }}">@include('partials.icon', ['name' => 'building', 'size' => 15, 'sw' => 1.7])Go to Customers</a>
         <a class="cmd" href="{{ route('billing.access-grants') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Access grants</a>
@@ -184,6 +186,7 @@
     <div class="grp" id="palgroup-actions" style="border-top:1px solid var(--border)">
         <p>Actions</p>
         <a class="cmd" href="{{ route('billing.subscriptions.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New subscription</a>
+        <a class="cmd" href="{{ route('billing.quotes.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New quote</a>
         <a class="cmd" href="{{ route('billing.invoices.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])Create invoice</a>
         <a class="cmd" href="{{ route('billing.products.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New product</a>
         <a class="cmd" href="{{ route('billing.coupons.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New coupon</a>

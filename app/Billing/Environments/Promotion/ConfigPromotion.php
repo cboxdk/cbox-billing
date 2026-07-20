@@ -7,6 +7,7 @@ namespace App\Billing\Environments\Promotion;
 use App\Billing\Audit\Contracts\RecordsAudit;
 use App\Billing\Audit\Enums\AuditAction;
 use App\Billing\Audit\ValueObjects\AuditTarget;
+use App\Billing\Environments\PlaneDocumentPrefix;
 use App\Billing\Environments\Promotion\Contracts\PromotesConfig;
 use App\Billing\Environments\Promotion\Descriptors\ChildDescriptor;
 use App\Billing\Environments\Promotion\Descriptors\DependencyDescriptor;
@@ -22,6 +23,7 @@ use App\Billing\Environments\Promotion\ValueObjects\PromotionResult;
 use App\Billing\Mode\EnvironmentScope;
 use App\Models\Coupon;
 use App\Models\Environment;
+use App\Models\SellerEntity;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -657,6 +659,21 @@ class ConfigPromotion implements PromotesConfig
         // starts fresh in the target plane (its redemption ledger lives only where it was earned).
         if ($row instanceof Coupon) {
             $row->setAttribute('times_redeemed', 0);
+        }
+
+        // The seller's legal-document prefix is plane-local (it is NOT a compare-field, so an
+        // EXISTING target seller never has its numbering overwritten by a promotion). A seller the
+        // promotion CREATES still needs one: take the source's, stripped of the source plane's
+        // marker and rebased onto the target plane's, so the new row numbers under its own series.
+        if ($row instanceof SellerEntity) {
+            $prefix = $sourceRow->getAttribute('invoice_prefix');
+            $sourcePlane = $sourceRow->getAttribute('environment');
+
+            $row->setAttribute('invoice_prefix', PlaneDocumentPrefix::rebase(
+                is_string($prefix) ? $prefix : '',
+                is_string($sourcePlane) ? $sourcePlane : '',
+                $target->key,
+            ));
         }
 
         return $row;

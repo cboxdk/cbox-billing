@@ -64,6 +64,13 @@ use Illuminate\Support\Facades\DB;
  * is stored under a plane-namespaced id (`{newKey}__{sourceId}`) and every reference to it is
  * remapped — two planes therefore never collide on the string id while the seller's identity and
  * branding are fully copied.
+ *
+ * SELLER NUMBERING: the plane-namespaced id also means the clone draws from its OWN legal number
+ * counter, starting at 1 — so an inherited invoice PREFIX would make the clone mint the very same
+ * document numbers as the source (`CBOX-DK-2026-00001` in both planes), which is what let an
+ * ambiguous, reference-only settlement payload address two planes at once. The cloned seller
+ * therefore gets a plane-distinct prefix ({@see PlaneDocumentPrefix}) — production's series is never
+ * touched, the clone's is marked with its own environment key.
  */
 class EnvironmentCloner implements ClonesEnvironments
 {
@@ -263,9 +270,18 @@ class EnvironmentCloner implements ClonesEnvironments
 
             $cloneId = $targetKey.'__'.$sourceId;
 
+            $prefix = $seller->getAttribute('invoice_prefix');
+
             $copy = $seller->replicate();
             $copy->setAttribute('id', $cloneId);
             $copy->setAttribute('environment', $targetKey);
+
+            // The clone must NOT inherit the legal-document prefix verbatim: the number series is
+            // per-seller, so an identical prefix makes both planes mint `CBOX-DK-2026-00001`.
+            if (is_string($prefix)) {
+                $copy->setAttribute('invoice_prefix', PlaneDocumentPrefix::for($prefix, $targetKey));
+            }
+
             $copy->save();
 
             $map[$sourceId] = $cloneId;

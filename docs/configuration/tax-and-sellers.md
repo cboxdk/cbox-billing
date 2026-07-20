@@ -46,7 +46,7 @@ Each field:
 | `registration_number` | Company registration number. |
 | `establishment` | The entity's country of establishment (ISO). |
 | `currency` | The entity's home currency. |
-| `invoice_prefix` | Prefix for this entity's invoice-number sequence. |
+| `invoice_prefix` | Prefix for this entity's invoice-number sequence. Used verbatim in production; every other environment numbers under a [plane-distinct variant](../concepts/invoicing-and-tax.md#numbering-is-plane-distinct) of it. |
 | `tax_registrations` | The `{country, number}` pairs this entity is registered in. |
 
 ## Routing and numbering

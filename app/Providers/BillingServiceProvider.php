@@ -444,6 +444,7 @@ class BillingServiceProvider extends ServiceProvider
         // idempotency hold across requests.
         $this->app->singleton(CreditNoteNumberSequence::class, static fn (Application $app): DatabaseCreditNoteNumberSequence => new DatabaseCreditNoteNumberSequence(
             $app->make('db')->connection(),
+            $app->make(BillingContext::class),
         ));
 
         $this->app->singleton(RefundRepository::class, static fn (Application $app): DatabaseRefundRepository => new DatabaseRefundRepository(
@@ -591,6 +592,7 @@ class BillingServiceProvider extends ServiceProvider
     {
         $this->app->singleton(InvoiceNumberSequence::class, static fn (Application $app): DatabaseInvoiceNumberSequence => new DatabaseInvoiceNumberSequence(
             $app->make('db')->connection(),
+            $app->make(BillingContext::class),
         ));
 
         $this->app->singleton(EntityRouter::class, ConfiguredEntityRouter::class);

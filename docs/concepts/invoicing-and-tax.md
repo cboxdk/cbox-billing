@@ -28,7 +28,36 @@ sequence on the app's connection. Each seller entity has its own `invoice_prefix
 and sequence, so numbers are unique and monotonic per legal entity. The engine pairs
 the first-finalize currency stamp with the number commit so a concurrent
 first-finalize resolves to one currency (see the currency lock below). Sequences
-live in the `invoice_sequences` table.
+live in the `invoice_sequences` table (credit notes in `credit_note_sequences`),
+keyed by `(seller, environment)`.
+
+### Numbering is plane-distinct
+
+Two environments must never mint the same legal document number — a settlement
+webhook carrying nothing but an invoice number would otherwise address two planes
+at once. Numbering is therefore scoped to the plane in two places:
+
+- **The prefix.** Production numbers under the seller's configured
+  `invoice_prefix` verbatim, forever. Every other plane appends its own
+  environment key, upper-cased: seller `CBOX-DK` in the `staging` plane numbers
+  `CBOX-DK-STAGING-2026-00001` (and credit notes `CBOX-DK-STAGING-CN-2026-00001`).
+  The derivation (`PlaneDocumentPrefix`) is deterministic and idempotent, applies
+  both to a **cloned** seller and to the `billing.seller` **config fallback** a
+  plane with no authored seller row resolves, and degrades to a short digest of the
+  environment key when the key is too long to fit the authored 40-character width.
+- **The counter.** Each `(seller, environment)` pair owns its own gapless
+  sequence, so a sandbox draw can never consume — or gap — production's series,
+  even where both planes resolve the same seller id.
+
+Promotion never carries `invoice_prefix` across planes: an existing target seller
+keeps its own numbering, and a seller a promotion *creates* gets the source prefix
+rebased onto the target plane.
+
+Environments cloned before this behaviour existed are corrected by the
+`backfill_plane_distinct_seller_prefixes` migration, which rewrites only
+non-production sellers whose prefix is shared across planes. Documents already
+issued in those sandboxes keep their old numbers; the counter stays monotonic
+across the change and production is never rewritten.
 
 ## The billing-currency lock
 

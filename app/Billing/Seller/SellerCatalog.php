@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Billing\Seller;
 
+use App\Billing\Environments\PlaneDocumentPrefix;
+use App\Billing\Mode\BillingContext;
 use App\Models\SellerEntity as SellerEntityModel;
 use Cbox\Billing\Seller\ValueObjects\SellerEntity;
 use Cbox\Billing\Seller\ValueObjects\TaxRegistration;
@@ -21,10 +23,17 @@ use RuntimeException;
  * Source of truth, in order: the operator-authored `seller_entities` DB register (Wave 4),
  * then the `billing.seller` config. A deployment that never authored a seller resolves the
  * config exactly as before — the DB is a superset the console writes, never a required one.
+ *
+ * PLANE-DISTINCT NUMBERING. The DB register is plane-scoped, but the CONFIG fallback is not: every
+ * plane that has authored no seller row resolves the same config entity — the same id AND the same
+ * invoice prefix. Two planes would then mint identical legal document numbers (and, before the
+ * sequence was keyed by plane, share one counter). The config fallback is therefore plane-marked
+ * ({@see PlaneDocumentPrefix}): production resolves the configured prefix verbatim, every sandbox
+ * resolves the same identity under its own prefix.
  */
 readonly class SellerCatalog
 {
-    public function __construct(private Config $config) {}
+    public function __construct(private Config $config, private BillingContext $context) {}
 
     /** The configured default selling entity — the DB `is_default` row, else the config default. */
     public function default(): SellerEntity
@@ -91,7 +100,10 @@ readonly class SellerCatalog
             registrationNumber: self::str($definition, 'registration_number'),
             establishment: new CountryCode(self::str($definition, 'establishment')),
             defaultCurrency: self::str($definition, 'currency'),
-            invoicePrefix: self::str($definition, 'invoice_prefix'),
+            invoicePrefix: PlaneDocumentPrefix::for(
+                self::str($definition, 'invoice_prefix'),
+                $this->context->environmentKey(),
+            ),
             taxRegistrations: $this->registrations($definition),
         );
     }

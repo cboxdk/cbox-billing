@@ -22,6 +22,23 @@ php artisan migrate --force
 
 Migration applies the app's migrations and every installed plugin's automatically.
 
+### Release note — document sequences are rebuilt
+
+This release rebuilds `invoice_sequences` and `credit_note_sequences` to widen
+their primary key from `(seller)` to `(seller, environment)`, and runs a data fix
+that gives sellers in **non-production** planes a plane-distinct `invoice_prefix`
+(see [Invoicing → numbering is plane-distinct](../concepts/invoicing-and-tax.md#numbering-is-plane-distinct)).
+
+- Both tables are tiny (one row per seller per plane) and the rebuild is a
+  rename → create → copy → drop inside the migration's transaction.
+- **Pause invoice finalization while it runs.** Numbers are drawn under a row lock
+  on these tables; a concurrent finalize would block on the rebuild.
+- Production numbering is not touched — no prefix change, no counter change, no gap.
+- Sandbox planes that were cloned before this release change prefix, so their
+  number series visibly changes stem. Nothing is renumbered or reissued.
+- The prefix data fix is deliberately **not reversible** (reverting would re-create
+  the cross-plane collision); the sequence rebuild is.
+
 ## The queue worker
 
 Lifecycle notifications and per-org jobs run on the queue, so a worker must run:

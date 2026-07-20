@@ -82,8 +82,14 @@ class ConfigSurface
                 group: PromotionGroup::Branding,
                 modelClass: SellerEntity::class,
                 naturalKeyAttributes: ['id'],
+                // `invoice_prefix` is DELIBERATELY absent: it is plane-local legal numbering, not
+                // promotable config. Each plane numbers its documents under its own prefix
+                // ({@see \App\Billing\Environments\PlaneDocumentPrefix}), so promoting a sandbox
+                // seller must never overwrite the target plane's — least of all production's —
+                // document series. A seller CREATED by a promotion gets the source prefix rebased
+                // onto the target plane instead (see ConfigPromotion::freshRow()).
                 compareFields: [
-                    'legal_name', 'registration_number', 'establishment', 'currency', 'invoice_prefix',
+                    'legal_name', 'registration_number', 'establishment', 'currency',
                     'is_default', 'archived_at', 'brand_color', 'logo_url', 'from_name', 'from_email',
                     'reply_to', 'footer_address', 'support_url', 'support_email', 'default_locale',
                 ],

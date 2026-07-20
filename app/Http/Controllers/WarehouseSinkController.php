@@ -9,6 +9,7 @@ use App\Billing\Export\Enums\ExportFormat;
 use App\Billing\Export\Enums\Warehouse;
 use App\Billing\Export\WarehouseManifestPreview;
 use App\Billing\Export\WarehouseSyncService;
+use App\Billing\Mode\BillingContext;
 use App\Models\WarehouseSink;
 use App\Models\WarehouseSyncRun;
 use Illuminate\Contracts\View\View;
@@ -40,7 +41,10 @@ class WarehouseSinkController extends Controller
     /** A safe credential reference — an ARN / integration name (no whitespace or SQL metacharacters). */
     private const CREDENTIAL_REF = '/^[A-Za-z0-9_:\/.\-]+$/';
 
-    public function __construct(private readonly DatasetRegistry $registry) {}
+    public function __construct(
+        private readonly DatasetRegistry $registry,
+        private readonly BillingContext $context,
+    ) {}
 
     public function index(): View
     {
@@ -118,7 +122,12 @@ class WarehouseSinkController extends Controller
     private function validated(Request $request, ?WarehouseSink $existing = null): array
     {
         $request->validate([
-            'key' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9_-]+$/', Rule::unique('warehouse_sinks', 'key')->ignore($existing?->id)],
+            // Sink keys are unique PER ENVIRONMENT, matching the `(key, environment)` unique index:
+            // a sandbox may run its own `analytics` sink alongside production's, but a second
+            // `analytics` inside one plane is still refused.
+            'key' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9_-]+$/', Rule::unique('warehouse_sinks', 'key')
+                ->where('environment', $this->context->environmentKey())
+                ->ignore($existing?->id)],
             'name' => ['required', 'string', 'max:120'],
             'warehouse' => ['required', Rule::enum(Warehouse::class)],
             'disk' => ['required', 'string', 'max:64', Rule::in($this->allowedDisks())],

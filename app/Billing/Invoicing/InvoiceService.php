@@ -10,6 +10,7 @@ use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Seller\SellerCatalog;
+use App\Billing\Support\WeightedAllocator;
 use App\Billing\Tax\Exemptions\ExemptionContext;
 use App\Billing\Tax\TaxContextFactory;
 use App\Models\Invoice;
@@ -326,7 +327,7 @@ readonly class InvoiceService implements GeneratesInvoices
                 'invoice_id' => $invoice->id,
                 'description' => $line->description,
                 'quantity' => $line->quantity,
-                'unit_minor' => $line->quantity > 0 ? intdiv($line->net->minor(), $line->quantity) : $line->net->minor(),
+                'unit_minor' => WeightedAllocator::unitMinor($line->net->minor(), $line->quantity),
                 'net_minor' => $line->net->minor(),
                 'amount_minor' => $line->gross->minor(),
                 // The engine's per-line verdict, persisted so an exempt line is legible on the

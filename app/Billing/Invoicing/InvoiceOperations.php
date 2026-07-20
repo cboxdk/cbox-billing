@@ -10,6 +10,7 @@ use App\Billing\Invoicing\Exceptions\InvoiceActionDenied;
 use App\Billing\Invoicing\ValueObjects\ManualLine;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Seller\SellerCatalog;
+use App\Billing\Support\WeightedAllocator;
 use App\Billing\Tax\TaxContextFactory;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
@@ -189,7 +190,7 @@ readonly class InvoiceOperations implements RunsInvoiceOperations
                 'invoice_id' => $invoice->id,
                 'description' => $line->description,
                 'quantity' => $line->quantity,
-                'unit_minor' => $line->quantity > 0 ? intdiv($line->net->minor(), $line->quantity) : $line->net->minor(),
+                'unit_minor' => WeightedAllocator::unitMinor($line->net->minor(), $line->quantity),
                 'amount_minor' => $line->gross->minor(),
             ]);
         }
@@ -240,7 +241,7 @@ readonly class InvoiceOperations implements RunsInvoiceOperations
     private function reconstructedLines(Invoice $invoice): array
     {
         $currency = $invoice->currency;
-        $rows = $invoice->lines->all();
+        $rows = array_values($invoice->lines->all());
         $grossTotal = $invoice->total_minor;
 
         if ($rows === [] || $grossTotal <= 0) {
@@ -257,23 +258,17 @@ readonly class InvoiceOperations implements RunsInvoiceOperations
             )];
         }
 
+        // Split the header net + tax across the lines by each line's gross, through the one shared
+        // allocator (largest-remainder) so both sums reconcile to the header exactly.
+        $weights = array_map(static fn (InvoiceLine $row): int => (int) $row->amount_minor, $rows);
+        $nets = WeightedAllocator::allocate($invoice->subtotal_minor, $weights);
+        $taxes = WeightedAllocator::allocate($invoice->tax_minor, $weights);
+
         $lines = [];
-        $netAssigned = 0;
-        $taxAssigned = 0;
-        $last = count($rows) - 1;
 
-        foreach ($rows as $index => $row) {
-            $gross = (int) $row->amount_minor;
-
-            if ($index === $last) {
-                $net = $invoice->subtotal_minor - $netAssigned;
-                $tax = $invoice->tax_minor - $taxAssigned;
-            } else {
-                $net = intdiv($invoice->subtotal_minor * $gross, $grossTotal);
-                $tax = intdiv($invoice->tax_minor * $gross, $grossTotal);
-                $netAssigned += $net;
-                $taxAssigned += $tax;
-            }
+        foreach ($rows as $slot => $row) {
+            $net = $nets[$slot];
+            $tax = $taxes[$slot];
 
             $lines[] = new QuoteLine(
                 description: (string) $row->description,

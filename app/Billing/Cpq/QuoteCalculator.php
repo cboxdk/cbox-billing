@@ -11,6 +11,7 @@ use App\Billing\Cpq\Enums\QuoteLineType;
 use App\Billing\Cpq\ValueObjects\ComputedLine;
 use App\Billing\Cpq\ValueObjects\QuoteComputation;
 use App\Billing\Mode\Contracts\BillingClock;
+use App\Billing\Support\WeightedAllocator;
 use App\Models\Plan;
 use App\Models\Quote;
 use App\Models\QuoteLine;
@@ -224,7 +225,7 @@ readonly class QuoteCalculator
 
         // Distribute the discount across the recurring lines proportionally, remainder-safe.
         $weights = array_map(static fn (int $i): int => $prepared[$i]['net']->minor(), $recurringIndexes);
-        $allocated = $this->allocateProportional($discount->amount->minor(), $weights);
+        $allocated = WeightedAllocator::allocate($discount->amount->minor(), $weights);
 
         $shares = [];
         foreach ($recurringIndexes as $slot => $index) {
@@ -256,49 +257,6 @@ readonly class QuoteCalculator
         }
 
         return $committed;
-    }
-
-    /**
-     * Split `$total` minor units across `$weights` proportionally, distributing the rounding
-     * remainder by largest fractional part so the shares sum to `$total` exactly.
-     *
-     * @param  list<int>  $weights
-     * @return list<int>
-     */
-    private function allocateProportional(int $total, array $weights): array
-    {
-        $sum = array_sum($weights);
-
-        if ($sum <= 0) {
-            return array_fill(0, count($weights), 0);
-        }
-
-        $shares = [];
-        $fractions = [];
-        $allocated = 0;
-
-        foreach ($weights as $slot => $weight) {
-            $exact = $total * $weight;
-            $base = intdiv($exact, $sum);
-            $shares[$slot] = $base;
-            $fractions[$slot] = $exact - $base * $sum;
-            $allocated += $base;
-        }
-
-        $remainder = $total - $allocated;
-        // Hand out the remaining units to the largest fractional parts first.
-        arsort($fractions);
-        foreach (array_keys($fractions) as $slot) {
-            if ($remainder <= 0) {
-                break;
-            }
-            $shares[$slot]++;
-            $remainder--;
-        }
-
-        ksort($shares);
-
-        return array_values($shares);
     }
 
     /** A zero computation for a quote with no lines yet (a fresh draft preview). */

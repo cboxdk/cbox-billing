@@ -8,6 +8,7 @@ use App\Models\ImportRun;
 use App\Models\Organization;
 use App\Models\Subscription;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\Support\ImportsFixtures;
 use Tests\TestCase;
 
@@ -70,6 +71,41 @@ class ImportConsoleTest extends TestCase
             ->assertOk()
             ->assertSee('cus_ann')
             ->assertSee('in_ann_1');
+    }
+
+    public function test_a_wrong_mime_upload_is_refused_before_any_parse(): void
+    {
+        $this->signedInWith()->post('/import/preview', [
+            'source' => 'stripe',
+            'files' => [UploadedFile::fake()->create('export.php', 4, 'application/x-php')],
+        ])->assertSessionHasErrors('files.0');
+
+        // Refused up front: nothing was staged.
+        $this->assertSame(0, ImportRun::query()->count());
+    }
+
+    public function test_an_oversized_upload_is_refused_before_any_parse(): void
+    {
+        // 10 MB + 1 KB, just over the ceiling.
+        $this->signedInWith()->post('/import/preview', [
+            'source' => 'stripe',
+            'files' => [UploadedFile::fake()->create('export.json', 10_240 + 1)],
+        ])->assertSessionHasErrors('files.0');
+
+        $this->assertSame(0, ImportRun::query()->count());
+    }
+
+    public function test_a_deeply_nested_payload_is_refused_before_any_parse(): void
+    {
+        // A JSON document nested well past the parse depth cap.
+        $deep = str_repeat('[', 200).str_repeat(']', 200);
+
+        $this->signedInWith()->post('/import/preview', [
+            'source' => 'stripe',
+            'payload' => $deep,
+        ])->assertSessionHasErrors('files');
+
+        $this->assertSame(0, ImportRun::query()->count());
     }
 
     public function test_import_requires_authentication(): void

@@ -30,6 +30,18 @@ class ImportController extends Controller
     /** Above this many source records, the commit is queued rather than run inline. */
     private const QUEUE_THRESHOLD = 500;
 
+    /** Per-file / combined-upload ceiling (KB) — a provider export is JSON text, not a large blob. */
+    private const MAX_UPLOAD_KB = 10_240;
+
+    /** The most upload files one preview accepts (a provider bundle is a handful of resources). */
+    private const MAX_FILES = 25;
+
+    /** Pasted-payload byte ceiling — the same 10 MB as an uploaded file. */
+    private const MAX_PAYLOAD_BYTES = self::MAX_UPLOAD_KB * 1024;
+
+    /** Max JSON nesting the importer will parse — deeper input is refused, never walked. */
+    private const MAX_JSON_DEPTH = 64;
+
     public function __construct(
         private readonly AdapterRegistry $adapters,
         private readonly BillingContext $context,
@@ -53,8 +65,15 @@ class ImportController extends Controller
     /** Parse the upload, stage it, and render the dry-run plan — no writes. */
     public function preview(Request $request, ImportRunner $runner): View|RedirectResponse
     {
+        // Bound the untrusted upload BEFORE it is read: constrain type (JSON/text export), file
+        // count, and size on every ingest path so an oversized/wrong-type upload is refused up
+        // front rather than slurped whole into memory and decoded inline.
         $request->validate([
             'source' => ['required', 'string'],
+            'files' => ['sometimes', 'array', 'max:'.self::MAX_FILES],
+            'files.*' => ['file', 'mimes:json,txt', 'max:'.self::MAX_UPLOAD_KB],
+            'export' => ['sometimes', 'file', 'mimes:json,txt', 'max:'.self::MAX_UPLOAD_KB],
+            'payload' => ['sometimes', 'nullable', 'string', 'max:'.self::MAX_PAYLOAD_BYTES],
         ]);
 
         $source = ImportSource::tryFromString($request->string('source')->toString());
@@ -148,7 +167,7 @@ class ImportController extends Controller
             foreach ($files as $file) {
                 if ($file->isValid()) {
                     $resource = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-                    $map[$resource] = (string) file_get_contents((string) $file->getRealPath());
+                    $map[$resource] = $this->boundedRead((string) file_get_contents((string) $file->getRealPath()));
                 }
             }
 
@@ -159,15 +178,43 @@ class ImportController extends Controller
 
         $combined = $request->file('export');
         if ($combined instanceof UploadedFile && $combined->isValid()) {
-            return SourceExport::fromCombinedJson((string) file_get_contents((string) $combined->getRealPath()));
+            return SourceExport::fromCombinedJson($this->boundedRead((string) file_get_contents((string) $combined->getRealPath())));
         }
 
         $payload = trim($request->string('payload')->toString());
         if ($payload !== '') {
-            return SourceExport::fromCombinedJson($payload);
+            return SourceExport::fromCombinedJson($this->boundedRead($payload));
         }
 
         return null;
+    }
+
+    /**
+     * Return `$content` only if it is safe to parse: within the byte ceiling AND not nested past
+     * {@see MAX_JSON_DEPTH}. Oversized or deeply-nested input is refused with a validation error
+     * before any adapter walks it — a depth-limited decode never recurses into a hostile document.
+     */
+    private function boundedRead(string $content): string
+    {
+        if (strlen($content) > self::MAX_PAYLOAD_BYTES) {
+            throw ValidationException::withMessages([
+                'files' => 'The export is larger than the '.(self::MAX_UPLOAD_KB / 1024).' MB limit.',
+            ]);
+        }
+
+        // A depth-capped decode fails closed on a document nested past the limit (JSON_ERROR_DEPTH).
+        // Empty/whitespace content is left for the adapter to report as "no records".
+        if (trim($content) !== '') {
+            json_decode($content, true, self::MAX_JSON_DEPTH);
+
+            if (json_last_error() === JSON_ERROR_DEPTH) {
+                throw ValidationException::withMessages([
+                    'files' => 'The export is nested too deeply to import safely.',
+                ]);
+            }
+        }
+
+        return $content;
     }
 
     /**

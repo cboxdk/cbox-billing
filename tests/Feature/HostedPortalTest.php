@@ -52,12 +52,17 @@ class HostedPortalTest extends TestCase
     {
         ['plaintext' => $token] = ApiToken::issue($org.'-sdk', $org);
 
-        $this->postJson('/api/v1/portal-sessions', [
+        $response = $this->postJson('/api/v1/portal-sessions', [
             'org' => $org,
             'return_url' => 'https://merchant.example/account',
         ], ['Authorization' => 'Bearer '.$token])->assertCreated();
 
-        return BillingSession::query()->where('organization_id', $org)->where('type', 'portal')->firstOrFail();
+        // Only the digest is stored, so recover the plaintext token from the returned URL.
+        $sessionToken = basename((string) parse_url((string) $response->json('url'), PHP_URL_PATH));
+        $session = BillingSession::query()->where('organization_id', $org)->where('type', 'portal')->firstOrFail();
+        $session->token = $sessionToken;
+
+        return $session;
     }
 
     public function test_the_portal_page_renders_the_current_subscription(): void

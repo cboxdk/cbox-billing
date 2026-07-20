@@ -56,13 +56,18 @@ class HostedCheckoutTest extends TestCase
 
     private function openCheckout(string $org): BillingSession
     {
-        $this->postJson('/api/v1/checkout-sessions', [
+        $response = $this->postJson('/api/v1/checkout-sessions', [
             'org' => $org,
             'plan' => 'starter',
             'return_url' => 'https://merchant.example/done',
         ], $this->orgWithToken($org))->assertCreated();
 
-        return BillingSession::query()->where('organization_id', $org)->firstOrFail();
+        // Only the digest is stored, so recover the plaintext token from the returned URL.
+        $token = basename((string) parse_url((string) $response->json('url'), PHP_URL_PATH));
+        $session = BillingSession::query()->where('organization_id', $org)->firstOrFail();
+        $session->token = $token;
+
+        return $session;
     }
 
     private function fakeGateway(PaymentIntentStatus $status = PaymentIntentStatus::Succeeded): FakePaymentGateway
@@ -176,13 +181,15 @@ class HostedCheckoutTest extends TestCase
             'tax_id_validated' => true,
         ]);
         ['plaintext' => $token] = ApiToken::issue('org_rc-sdk', 'org_rc');
-        $this->postJson('/api/v1/checkout-sessions', [
+        $response = $this->postJson('/api/v1/checkout-sessions', [
             'org' => 'org_rc',
             'plan' => 'starter',
             'return_url' => 'https://merchant.example/done',
         ], ['Authorization' => 'Bearer '.$token])->assertCreated();
 
+        $sessionToken = basename((string) parse_url((string) $response->json('url'), PHP_URL_PATH));
         $session = BillingSession::query()->where('organization_id', 'org_rc')->firstOrFail();
+        $session->token = $sessionToken;
 
         $this->postJson('/billing/checkout/'.$session->token.'/intent')
             ->assertOk()

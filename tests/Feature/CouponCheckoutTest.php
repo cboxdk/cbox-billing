@@ -44,7 +44,7 @@ class CouponCheckoutTest extends TestCase
         $this->coupon('SAVE20', 20);
 
         $headers = $this->orgWithToken('org_ck');
-        $this->postJson('/api/v1/checkout-sessions', [
+        $response = $this->postJson('/api/v1/checkout-sessions', [
             'org' => 'org_ck',
             'plan' => 'starter',
             'return_url' => 'https://merchant.example/done',
@@ -52,6 +52,7 @@ class CouponCheckoutTest extends TestCase
         ], $headers)->assertCreated();
 
         $session = BillingSession::query()->where('organization_id', 'org_ck')->firstOrFail();
+        $session->token = basename((string) parse_url((string) $response->json('url'), PHP_URL_PATH));
         $this->assertSame('SAVE20', $session->coupon_code);
 
         // The checkout page shows the discounted price, and the intent charges it.
@@ -82,7 +83,7 @@ class CouponCheckoutTest extends TestCase
         $this->coupon('FOREVER20', 20, ['duration' => 'forever']);
 
         $headers = $this->orgWithToken('org_bind');
-        $this->postJson('/api/v1/checkout-sessions', [
+        $response = $this->postJson('/api/v1/checkout-sessions', [
             'org' => 'org_bind',
             'plan' => 'starter',
             'return_url' => 'https://merchant.example/done',
@@ -90,6 +91,7 @@ class CouponCheckoutTest extends TestCase
         ], $headers)->assertCreated();
 
         $session = BillingSession::query()->where('organization_id', 'org_bind')->firstOrFail();
+        $session->token = basename((string) parse_url((string) $response->json('url'), PHP_URL_PATH));
         $this->postJson('/billing/checkout/'.$session->token.'/intent')->assertOk();
         $reference = (string) $session->refresh()->payment_reference;
 

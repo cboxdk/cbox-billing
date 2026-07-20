@@ -12,7 +12,6 @@ use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Mail\PaymentFailedMail;
 use App\Mail\RenewalReminderMail;
 use App\Models\ApiToken;
-use App\Models\BillingSession;
 use App\Models\CboxIdAccessGrant;
 use App\Models\CreditNote;
 use App\Models\Invoice;
@@ -69,12 +68,13 @@ class PortalSelfServeTest extends TestCase
     {
         ['plaintext' => $token] = ApiToken::issue($org.'-sdk', $org);
 
-        $this->postJson('/api/v1/portal-sessions', [
+        $response = $this->postJson('/api/v1/portal-sessions', [
             'org' => $org,
             'return_url' => 'https://merchant.example/account',
         ], ['Authorization' => 'Bearer '.$token])->assertCreated();
 
-        return BillingSession::query()->where('organization_id', $org)->where('type', 'portal')->firstOrFail()->token;
+        // Only the digest is stored, so the working plaintext token lives in the returned URL.
+        return basename((string) parse_url((string) $response->json('url'), PHP_URL_PATH));
     }
 
     /** A plain per-seat plan so a seat change genuinely prorates a positive charge. */

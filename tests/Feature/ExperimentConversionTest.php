@@ -55,8 +55,11 @@ class ExperimentConversionTest extends TestCase
 
     private function checkoutSession(): BillingSession
     {
-        return BillingSession::query()->create([
-            'token' => 'tok_'.uniqid(),
+        // Only the SHA-256 digest is stored at rest; keep the plaintext on the model in memory.
+        $token = 'tok_'.uniqid();
+
+        $session = BillingSession::query()->create([
+            'token_hash' => BillingSession::hashToken($token),
             'organization_id' => 'org_'.uniqid(),
             'type' => 'checkout',
             'plan_key' => 'team',
@@ -64,6 +67,9 @@ class ExperimentConversionTest extends TestCase
             'status' => 'pending',
             'expires_at' => now()->addHour(),
         ]);
+        $session->token = $token;
+
+        return $session;
     }
 
     public function test_a_checkout_start_then_settlement_attributes_to_the_variant_and_is_idempotent(): void

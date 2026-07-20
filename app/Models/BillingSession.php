@@ -19,8 +19,13 @@ use Illuminate\Support\Carbon;
  * it collects payment for; the `payment_reference` is the reference the gateway's settled
  * webhook carries, joining the client-side intent to the exactly-once activation.
  *
+ * Only the SHA-256 `token_hash` is stored at rest (P2): the raw token lives in memory just
+ * long enough to mint the URL or resolve a request, and `$session->token` reads it back from
+ * that in-memory copy — never a database column — so a DB dump never yields live tokens.
+ *
  * @property string $id
- * @property string $token
+ * @property string $token_hash
+ * @property string|null $token
  * @property string $organization_id
  * @property SessionType $type
  * @property string|null $plan_key
@@ -39,9 +44,16 @@ class BillingSession extends Model
     use HasUuids;
 
     protected $fillable = [
-        'token', 'organization_id', 'type', 'plan_key', 'currency', 'coupon_code',
+        'token_hash', 'organization_id', 'type', 'plan_key', 'currency', 'coupon_code',
         'return_url', 'payment_reference', 'status', 'expires_at', 'completed_at',
     ];
+
+    /**
+     * The plaintext token, held in memory only (set when a session is minted or resolved). It is
+     * NOT a database column — only its {@see $token_hash} digest is persisted — so a save never
+     * writes it back and a dumped row never carries it.
+     */
+    protected ?string $plaintextToken = null;
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -52,6 +64,24 @@ class BillingSession extends Model
             'expires_at' => 'datetime',
             'completed_at' => 'datetime',
         ];
+    }
+
+    /** The SHA-256 digest a lookup keys on for the plaintext `$token`. */
+    public static function hashToken(string $token): string
+    {
+        return hash('sha256', $token);
+    }
+
+    /** Read the in-memory plaintext token (present only on a freshly minted or resolved session). */
+    public function getTokenAttribute(): ?string
+    {
+        return $this->plaintextToken;
+    }
+
+    /** Hold the plaintext token in memory (never persisted); callers read it back as `$session->token`. */
+    public function setTokenAttribute(?string $token): void
+    {
+        $this->plaintextToken = $token;
     }
 
     /** Whether the session's TTL has elapsed. */

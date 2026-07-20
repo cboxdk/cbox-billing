@@ -18,7 +18,10 @@ use Illuminate\Support\Str;
  * Mints and resolves hosted sessions. The token is a 48-char URL-safe random string —
  * non-guessable, so possession of the URL is what authorizes the page — and each session
  * carries a TTL (`billing.hosted.session_ttl_minutes`) after which a pending token no
- * longer opens its page.
+ * longer opens its page. Only the token's SHA-256 digest is persisted (`token_hash`): the
+ * raw token travels in the URL to the customer, but a DB dump never yields a live token
+ * (P2). Minting keeps the plaintext in memory so the caller can build the URL; resolution
+ * hashes the incoming token and looks up by digest.
  *
  * Thin by design: it owns only the row and its token/TTL invariants. The checkout's
  * payment intent (and the activation that flips it complete) live in
@@ -46,6 +49,13 @@ readonly class BillingSessionService implements ManagesBillingSessions
             ->first();
 
         if ($existing instanceof BillingSession) {
+            // The row's plaintext is not recoverable from its stored digest, so reuse ROTATES the
+            // token: one row per (org, plan) is preserved (no unbounded growth) while a fresh,
+            // working URL is handed back. Older links for this offer stop resolving by design.
+            $token = Str::random(48);
+            $existing->forceFill(['token_hash' => BillingSession::hashToken($token)])->save();
+            $existing->token = $token;
+
             return $existing;
         }
 
@@ -66,13 +76,17 @@ readonly class BillingSessionService implements ManagesBillingSessions
         // is the source of truth for the request's plane).
         $session = BillingSession::query()
             ->withoutGlobalScope(LivemodeScope::class)
-            ->where('token', $token)
+            ->where('token_hash', BillingSession::hashToken($token))
             ->where('type', $type->value)
             ->first();
 
         if (! $session instanceof BillingSession) {
             return null;
         }
+
+        // Carry the plaintext (from the URL) back on the resolved session so callers/views can
+        // rebuild the hosted URL — it stays in memory, never re-persisted.
+        $session->token = $token;
 
         // Stamp a lapsed-but-still-pending token expired so its status reads honestly.
         if ($session->status === SessionStatus::Pending && $session->isExpired()) {
@@ -96,8 +110,10 @@ readonly class BillingSessionService implements ManagesBillingSessions
 
     private function open(Organization $organization, SessionType $type, string $returnUrl, ?string $planKey = null, ?string $currency = null, ?string $couponCode = null): BillingSession
     {
-        return BillingSession::query()->create([
-            'token' => Str::random(48),
+        $token = Str::random(48);
+
+        $session = BillingSession::query()->create([
+            'token_hash' => BillingSession::hashToken($token),
             'organization_id' => $organization->id,
             'type' => $type->value,
             'plan_key' => $planKey,
@@ -107,5 +123,11 @@ readonly class BillingSessionService implements ManagesBillingSessions
             'status' => SessionStatus::Pending->value,
             'expires_at' => Carbon::now()->addMinutes($this->ttlMinutes),
         ]);
+
+        // Hand the plaintext back on the minted session (in memory only) so the caller can build
+        // the hosted URL; the row itself holds only the digest.
+        $session->token = $token;
+
+        return $session;
     }
 }

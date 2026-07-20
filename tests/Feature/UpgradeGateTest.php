@@ -59,7 +59,7 @@ class UpgradeGateTest extends TestCase
 
         // The deep-link resolves to a real pending checkout session for the Team plan.
         $token = basename((string) parse_url($checkoutUrl, PHP_URL_PATH));
-        $session = BillingSession::query()->where('token', $token)->first();
+        $session = BillingSession::query()->where('token_hash', BillingSession::hashToken($token))->first();
 
         $this->assertNotNull($session);
         $this->assertSame('org_klarhed', $session->organization_id);

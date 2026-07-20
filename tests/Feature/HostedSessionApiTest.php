@@ -62,7 +62,35 @@ class HostedSessionApiTest extends TestCase
         $this->assertSame('checkout', $session->type->value);
         $this->assertSame('starter', $session->plan_key);
         $this->assertSame('pending', $session->status->value);
-        $this->assertStringEndsWith('/billing/checkout/'.$session->token, (string) $response->json('url'));
+
+        // Only the SHA-256 digest is persisted — never the raw token — but the returned URL still
+        // carries a working plaintext token whose digest matches the stored row.
+        $urlToken = basename((string) parse_url((string) $response->json('url'), PHP_URL_PATH));
+        $this->assertStringEndsWith('/billing/checkout/'.$urlToken, (string) $response->json('url'));
+        $this->assertSame($session->token_hash, BillingSession::hashToken($urlToken));
+    }
+
+    public function test_session_tokens_are_stored_as_a_hash_not_plaintext(): void
+    {
+        $auth = $this->orgWithToken('org_hash');
+
+        $url = (string) $this->postJson('/api/v1/checkout-sessions', [
+            'org' => 'org_hash', 'plan' => 'starter', 'return_url' => 'https://merchant.example/done',
+        ], $auth)->assertCreated()->json('url');
+
+        $plaintext = basename((string) parse_url($url, PHP_URL_PATH));
+        $session = BillingSession::query()->where('organization_id', 'org_hash')->firstOrFail();
+
+        // The persisted column is the SHA-256 digest, never the raw 48-char token from the URL.
+        $this->assertNotSame($plaintext, $session->token_hash);
+        $this->assertSame(hash('sha256', $plaintext), $session->token_hash);
+        $this->assertSame(64, strlen($session->token_hash));
+
+        // A raw dump of the row carries no attribute equal to the live token.
+        $this->assertNotContains($plaintext, $session->getAttributes());
+
+        // Lookup by the plaintext token still resolves and opens the page.
+        $this->get($url)->assertOk();
     }
 
     public function test_checkout_session_refuses_a_plan_not_priced_in_the_currency(): void

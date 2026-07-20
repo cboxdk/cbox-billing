@@ -37,7 +37,7 @@ class PaywallPageTest extends TestCase
         // The CTA is the gate's own hosted-checkout deep-link, resolving to a real Team session.
         $this->assertMatchesRegularExpression('#href="[^"]*/billing/checkout/[^"]+"#', $html);
         preg_match('#/billing/checkout/([A-Za-z0-9]+)#', $html, $m);
-        $session = BillingSession::query()->where('token', $m[1])->firstOrFail();
+        $session = BillingSession::query()->where('token_hash', BillingSession::hashToken($m[1]))->firstOrFail();
         $this->assertSame('team', $session->plan_key);
     }
 

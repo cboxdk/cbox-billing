@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Billing\Coupons;
 
+use App\Billing\Coupons\Contracts\DiscountsAmounts;
+use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Coupons\Enums\CouponDiscountKind;
 use App\Billing\Coupons\Enums\CouponScope;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
@@ -28,11 +30,11 @@ use Illuminate\Support\Carbon;
  * row, re-check the caps against the settled count, then insert), so concurrent redeemers
  * can never push `times_redeemed` past `max_redemptions`.
  */
-readonly class CouponRedeemer
+readonly class CouponRedeemer implements RedeemsCoupons
 {
     public function __construct(
         private ConnectionInterface $db,
-        private CouponDiscounter $discounter,
+        private DiscountsAmounts $discounter,
     ) {}
 
     /**

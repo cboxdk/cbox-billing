@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Cpq;
 
+use App\Billing\Coupons\Contracts\DiscountsAmounts;
 use App\Billing\Coupons\CouponDiscounter;
 use App\Billing\Coupons\ValueObjects\CouponDiscount;
 use App\Billing\Cpq\Enums\QuoteDiscountKind;
@@ -48,7 +49,7 @@ readonly class QuoteCalculator
 {
     public function __construct(
         private QuoteBuilder $quotes,
-        private CouponDiscounter $coupons,
+        private DiscountsAmounts $coupons,
         private QuoteTaxContextFactory $contexts,
         private BillingClock $clock,
     ) {}

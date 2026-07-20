@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Cpq;
 
-use App\Billing\Coupons\CouponRedeemer;
+use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Cpq\Contracts\ProvisionsFromQuote;
 use App\Billing\Cpq\Enums\QuoteLineType;
 use App\Billing\Cpq\Exceptions\QuoteActionDenied;
@@ -40,7 +40,7 @@ readonly class QuoteProvisioner implements ProvisionsFromQuote
     public function __construct(
         private ConnectionInterface $db,
         private SubscribesOrganizations $subscriptions,
-        private CouponRedeemer $coupons,
+        private RedeemsCoupons $coupons,
     ) {}
 
     public function provision(Quote $quote): Subscription

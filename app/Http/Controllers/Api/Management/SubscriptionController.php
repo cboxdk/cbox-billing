@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Management;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Coupons\CouponRedeemer;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Retention\Contracts\ManagesRetention;
@@ -65,7 +66,7 @@ class SubscriptionController extends ApiController
      * plan. With `trial: true` (or a positive `trial_days`) the subscription opens in a free
      * trial (`Trialing`, charging nothing) that converts on the scheduled trial pass.
      */
-    public function store(Request $request, SubscribesOrganizations $subscriptions, CouponRedeemer $coupons, ResolvesAccountCurrency $currencies): JsonResponse
+    public function store(Request $request, SubscribesOrganizations $subscriptions, RedeemsCoupons $coupons, ResolvesAccountCurrency $currencies): JsonResponse
     {
         $request->validate([
             'org' => ['required', 'string'],
@@ -553,7 +554,7 @@ class SubscriptionController extends ApiController
      *
      * @return array<string, mixed>
      */
-    private function presentCoupon(Coupon $coupon, Plan $plan, string $currency, int $seats, CouponRedeemer $coupons): array
+    private function presentCoupon(Coupon $coupon, Plan $plan, string $currency, int $seats, RedeemsCoupons $coupons): array
     {
         $net = $plan->amountFor($currency, $seats);
         $discount = $coupons->discountFor($coupon, $net);

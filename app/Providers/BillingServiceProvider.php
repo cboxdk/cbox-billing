@@ -10,6 +10,9 @@ use App\Billing\Api\Contracts\ApiTokenAuthenticator;
 use App\Billing\Api\DatabaseApiTokenAuthenticator;
 use App\Billing\Catalog\Contracts\AuthorsPlanPrices;
 use App\Billing\Catalog\PlanPriceAuthoring;
+use App\Billing\Coupons\Contracts\DiscountsAmounts;
+use App\Billing\Coupons\Contracts\RedeemsCoupons;
+use App\Billing\Coupons\CouponDiscounter;
 use App\Billing\Coupons\CouponRedeemer;
 use App\Billing\Enforcement\CacheReservationStore;
 use App\Billing\Enforcement\CentralAllowanceLeaseSource;
@@ -18,7 +21,9 @@ use App\Billing\Enforcement\EventLogUsageBuffer;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredFeaturePlan;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredPlan;
 use App\Billing\Enforcement\Upgrade\UpgradeGate;
+use App\Billing\Experiments\Contracts\AttributesConversions;
 use App\Billing\Experiments\ConversionAttribution;
+use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
 use App\Billing\Features\FeatureEntitlements;
 use App\Billing\Fx\EcbFxRateSource;
 use App\Billing\Fx\EcbRatesParser;
@@ -83,6 +88,7 @@ use App\Billing\Seats\SeatManager;
 use App\Billing\Seller\ConfiguredEntityRouter;
 use App\Billing\Seller\SellerCatalog;
 use App\Billing\Storefront\CheckoutLinkBuilder;
+use App\Billing\Storefront\Contracts\BuildsCheckoutLinks;
 use App\Billing\Subscriptions\Contracts\CollectsProration;
 use App\Billing\Subscriptions\Contracts\ConvertsTrials;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
@@ -419,6 +425,15 @@ class BillingServiceProvider extends ServiceProvider
         // PERF-2) lives exactly one request; the boot() hook flushes it on a grant/override/
         // subscription write.
         $this->app->singleton(FeatureEntitlements::class);
+
+        // Contracts-first DI: bind each module's interface to its concrete so callers depend on
+        // the contract (money paths especially). The feature resolver's interface must resolve the
+        // SAME singleton the flush hook targets, so it is aliased rather than newly constructed.
+        $this->app->singleton(RedeemsCoupons::class, CouponRedeemer::class);
+        $this->app->singleton(DiscountsAmounts::class, CouponDiscounter::class);
+        $this->app->singleton(AttributesConversions::class, ConversionAttribution::class);
+        $this->app->alias(FeatureEntitlements::class, ResolvesFeatureEntitlements::class);
+        $this->app->singleton(BuildsCheckoutLinks::class, static fn (Application $app): CheckoutLinkBuilder => $app->make(CheckoutLinkBuilder::class));
 
         // The settled-webhook effect, decorated to ALSO activate a hosted checkout
         // (ADR-0009): a checkout's subscription is created strictly on the gateway's

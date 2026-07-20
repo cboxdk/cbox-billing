@@ -6,6 +6,7 @@ namespace App\Billing\Storefront;
 
 use App\Billing\Experiments\ValueObjects\ExperimentAttribution;
 use App\Billing\Notifications\Branding\BrandingResolver;
+use App\Billing\Storefront\Contracts\BuildsCheckoutLinks;
 use App\Billing\Storefront\ValueObjects\FeatureCell;
 use App\Billing\Storefront\ValueObjects\FeatureRow;
 use App\Billing\Storefront\ValueObjects\PriceOffer;
@@ -42,7 +43,7 @@ readonly class PricingTablePresenter
 
     public function __construct(
         private BrandingResolver $branding,
-        private CheckoutLinkBuilder $links,
+        private BuildsCheckoutLinks $links,
     ) {}
 
     /**

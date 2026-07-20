@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Billing\Storefront;
 
+use App\Billing\Storefront\Contracts\BuildsCheckoutLinks;
+
 /**
  * Builds a pricing-table CTA's deep-link — the hand-off from a PUBLIC, pre-customer pricing
  * page into the operator's checkout entry point, carrying the chosen `{plan}` / `{currency}` /
@@ -25,7 +27,7 @@ namespace App\Billing\Storefront;
  * A target containing any `{...}` placeholder has them substituted (URL-encoded); a target with
  * none gets the params appended as a query string (merged with any it already carries).
  */
-readonly class CheckoutLinkBuilder
+readonly class CheckoutLinkBuilder implements BuildsCheckoutLinks
 {
     public function __construct(private string $defaultCheckoutUrl) {}
 

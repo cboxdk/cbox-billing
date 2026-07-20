@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Support;
 
+use App\Billing\Coupons\Contracts\DiscountsAmounts;
 use App\Billing\Coupons\CouponDiscounter;
 use App\Models\PlanPrice;
 use App\Models\Subscription;
@@ -73,7 +74,7 @@ class SubscriptionRevenue
             return $amount;
         }
 
-        $discount = app(CouponDiscounter::class)->forBinding($binding, $amount, Carbon::now()->toDateTimeImmutable());
+        $discount = app(DiscountsAmounts::class)->forBinding($binding, $amount, Carbon::now()->toDateTimeImmutable());
 
         if ($discount === null) {
             return $amount;

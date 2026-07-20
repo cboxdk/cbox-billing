@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Coupons;
 
+use App\Billing\Coupons\Contracts\DiscountsAmounts;
 use App\Billing\Coupons\ValueObjects\CouponDiscount;
 use App\Models\Coupon;
 use App\Models\SubscriptionCoupon;
@@ -24,7 +25,7 @@ use DateTimeImmutable;
  * (from a durable {@see SubscriptionCoupon} binding) flow through here, so the discounted
  * amount a customer previews is by construction the amount they are charged.
  */
-readonly class CouponDiscounter
+readonly class CouponDiscounter implements DiscountsAmounts
 {
     public function __construct(private CouponApplier $applier) {}
 

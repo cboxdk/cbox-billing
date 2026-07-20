@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Hosted;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
-use App\Billing\Coupons\CouponDiscounter;
-use App\Billing\Coupons\CouponRedeemer;
+use App\Billing\Coupons\Contracts\DiscountsAmounts;
+use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
@@ -76,8 +76,8 @@ class PortalController extends HostedController
         private readonly PlanRetirementService $retirements,
         private readonly CancellationSurvey $survey,
         private readonly RetentionOffers $offers,
-        private readonly CouponRedeemer $coupons,
-        private readonly CouponDiscounter $discounter,
+        private readonly RedeemsCoupons $coupons,
+        private readonly DiscountsAmounts $discounter,
         private readonly UsageReport $usage,
         private readonly ManagesSeats $seats,
         private readonly PortalBillingHistory $history,

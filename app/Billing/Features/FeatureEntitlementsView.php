@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Features;
 
+use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
 use App\Billing\Features\ValueObjects\ResolvedFeature;
 
 /**
@@ -15,7 +16,7 @@ use App\Billing\Features\ValueObjects\ResolvedFeature;
  */
 readonly class FeatureEntitlementsView
 {
-    public function __construct(private FeatureEntitlements $features) {}
+    public function __construct(private ResolvesFeatureEntitlements $features) {}
 
     /**
      * @return array<string, array{type: string|null, enabled: bool, value: int|string|null, source: string}>

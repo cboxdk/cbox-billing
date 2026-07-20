@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Enforcement\Upgrade;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
 use App\Billing\Features\FeatureEntitlements;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -34,7 +35,7 @@ use Illuminate\Support\Collection;
 readonly class ResolvesRequiredFeaturePlan
 {
     public function __construct(
-        private FeatureEntitlements $features,
+        private ResolvesFeatureEntitlements $features,
         private TransitionPolicy $transitions,
         private ResolvesAccountCurrency $currencies,
     ) {}

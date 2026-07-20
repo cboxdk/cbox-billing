@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Features;
 
+use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
 use App\Billing\Features\Enums\FeatureSource;
 use App\Billing\Features\ValueObjects\ResolvedFeature;
 use App\Billing\Metering\EntitlementsView;
@@ -46,7 +47,7 @@ use Illuminate\Contracts\Cache\Repository as Cache;
  * grant/override/subscription write invalidates every org at once (mirroring the request memo);
  * the short TTL bounds staleness even if a bust is ever missed.
  */
-class FeatureEntitlements
+class FeatureEntitlements implements ResolvesFeatureEntitlements
 {
     /** Cross-request context TTL (seconds) — short, since a write also bumps the epoch. */
     private const CACHE_TTL = 60;

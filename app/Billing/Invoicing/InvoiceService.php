@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Invoicing;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
-use App\Billing\Coupons\CouponDiscounter;
+use App\Billing\Coupons\Contracts\DiscountsAmounts;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
@@ -57,7 +57,7 @@ readonly class InvoiceService implements GeneratesInvoices
         private TaxContextFactory $taxContexts,
         private ResolvesAccountCurrency $currencies,
         private NotifiesCustomers $notifier,
-        private CouponDiscounter $coupons,
+        private DiscountsAmounts $coupons,
         private ExemptionContext $exemptions,
     ) {}
 

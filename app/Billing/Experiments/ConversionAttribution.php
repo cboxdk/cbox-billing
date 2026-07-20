@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Experiments;
 
+use App\Billing\Experiments\Contracts\AttributesConversions;
 use App\Billing\Experiments\Enums\ExperimentMetric;
 use App\Billing\Experiments\Enums\ExperimentStatus;
 use App\Models\BillingSession;
@@ -34,7 +35,7 @@ use Illuminate\Support\Carbon;
  * at most once. Both paths are best-effort — attribution must never break a checkout or a webhook —
  * so a failed write is contained, not propagated.
  */
-readonly class ConversionAttribution
+readonly class ConversionAttribution implements AttributesConversions
 {
     /** Record a checkout-started conversion from the attribution the checkout session carried. */
     public function recordCheckoutStart(BillingSession $session, string $experimentKey, int $variantId, string $visitorId): void

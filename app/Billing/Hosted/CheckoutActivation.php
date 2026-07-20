@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Hosted;
 
-use App\Billing\Coupons\CouponRedeemer;
+use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
-use App\Billing\Experiments\ConversionAttribution;
+use App\Billing\Experiments\Contracts\AttributesConversions;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionStatus;
 use App\Billing\Mode\BillingContext;
@@ -43,8 +43,8 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
         private InvoicePaymentApplier $inner,
         private SubscribesOrganizations $subscriptions,
         private ManagesBillingSessions $sessions,
-        private CouponRedeemer $coupons,
-        private ConversionAttribution $attribution,
+        private RedeemsCoupons $coupons,
+        private AttributesConversions $attribution,
         private BillingContext $context,
     ) {}
 

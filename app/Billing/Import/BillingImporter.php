@@ -11,8 +11,8 @@ use App\Billing\Catalog\Contracts\AuthorsPlanPrices;
 use App\Billing\Catalog\PlanAuthoring;
 use App\Billing\Catalog\ProductAuthoring;
 use App\Billing\Catalog\ValueObjects\PlanPriceDraft;
+use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Coupons\CouponAuthoring;
-use App\Billing\Coupons\CouponRedeemer;
 use App\Billing\Coupons\Enums\CouponDiscountKind;
 use App\Billing\Coupons\Enums\CouponDuration;
 use App\Billing\Coupons\Enums\CouponScope;
@@ -77,7 +77,7 @@ readonly class BillingImporter
         private PlanAuthoring $plans,
         private AuthorsPlanPrices $prices,
         private CouponAuthoring $coupons,
-        private CouponRedeemer $redeemer,
+        private RedeemsCoupons $redeemer,
         private SubscribesOrganizations $subscriptions,
         private RecordsAudit $audit,
         private BillingContext $context,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Reporting;
 
+use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
 use App\Billing\Features\Enums\FeatureSource;
 use App\Billing\Features\FeatureEntitlements;
 use App\Billing\Features\ValueObjects\ResolvedFeature;
@@ -18,7 +19,7 @@ use App\Models\Feature;
  */
 readonly class CustomerFeatureReport
 {
-    public function __construct(private FeatureEntitlements $features) {}
+    public function __construct(private ResolvesFeatureEntitlements $features) {}
 
     /**
      * @return array{resolved: list<array<string, mixed>>, catalog: list<array<string, mixed>>, has_features: bool}

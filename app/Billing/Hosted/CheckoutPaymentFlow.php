@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Hosted;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Coupons\Contracts\DiscountsAmounts;
 use App\Billing\Coupons\CouponDiscounter;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Tax\TaxContextFactory;
@@ -47,7 +48,7 @@ readonly class CheckoutPaymentFlow
         private PaymentGateway $gateway,
         private ResolvesAccountCurrency $currencies,
         private ResolvesGatewayCustomer $customers,
-        private CouponDiscounter $coupons,
+        private DiscountsAmounts $coupons,
         private QuoteBuilder $quotes,
         private TaxContextFactory $taxContexts,
     ) {}

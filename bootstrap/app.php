@@ -46,6 +46,13 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('web')
                 ->group(__DIR__.'/../routes/hosted.php');
 
+            // Public, no-auth embeddable storefront: the pricing table + paywall
+            // (/pricing/{key}, /pricing/{key}/embed, /pricing/{key}/embed.js, /paywall).
+            // Self-contained + CSP-safe; a pricing table's public key (or the paywall's org +
+            // gated capability) is the whole addressing — no token, no provider auth gate.
+            Route::middleware('web')
+                ->group(__DIR__.'/../routes/storefront.php');
+
             // Public API reference: the OpenAPI 3.1 contract + a self-contained docs page
             // (/api/openapi.yaml, /api/openapi.json, /api/docs). No token — the contract is
             // public. Kept out of the /api/v1 token-authed group.

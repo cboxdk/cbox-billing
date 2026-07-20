@@ -28,6 +28,7 @@ use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PlanCreditGrantController;
 use App\Http\Controllers\PlanEntitlementController;
 use App\Http\Controllers\PlanFeatureController;
+use App\Http\Controllers\PricingTableController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RetentionController;
 use App\Http\Controllers\SeatController;
@@ -185,6 +186,22 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     Route::post('/products/{product}/archive', [ProductController::class, 'archive'])->middleware('billing.permission:catalog:manage')->name('billing.products.archive');
     Route::post('/products/{product}/unarchive', [ProductController::class, 'unarchive'])->middleware('billing.permission:catalog:manage')->name('billing.products.unarchive');
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.products.destroy');
+
+    // Pricing tables (#57) — author the embeddable, public pricing table + paywall surface:
+    // which plans/features to compare, currencies, the interval toggle, branding and the CTA
+    // deep-link. The detail page renders the ACTUAL table (live preview) + the copy-paste embed
+    // snippet. A pricing table is a pure catalog projection (grants nothing, no subscriber
+    // depends on it), so it is safe to hard-delete; the `active` flag takes one offline instead.
+    Route::get('/pricing-tables', [PricingTableController::class, 'index'])->middleware('billing.permission:catalog:read')->name('billing.pricing-tables');
+    Route::get('/pricing-tables/new', [PricingTableController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.create');
+    Route::post('/pricing-tables', [PricingTableController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.store');
+    Route::get('/pricing-tables/{pricing_table}', [PricingTableController::class, 'show'])->middleware('billing.permission:catalog:read')->name('billing.pricing-tables.show');
+    Route::get('/pricing-tables/{pricing_table}/edit', [PricingTableController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.edit');
+    Route::get('/pricing-tables/{pricing_table}/preview', [PricingTableController::class, 'preview'])->middleware('billing.permission:catalog:read')->name('billing.pricing-tables.preview');
+    Route::put('/pricing-tables/{pricing_table}', [PricingTableController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.update');
+    Route::post('/pricing-tables/{pricing_table}/activate', [PricingTableController::class, 'activate'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.activate');
+    Route::post('/pricing-tables/{pricing_table}/deactivate', [PricingTableController::class, 'deactivate'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.deactivate');
+    Route::delete('/pricing-tables/{pricing_table}', [PricingTableController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.destroy');
 
     // Coupons — routable list + detail + create/edit/archive/delete. A redeemed coupon is
     // archived (its ledger + live discounts preserved); only a never-redeemed coupon is

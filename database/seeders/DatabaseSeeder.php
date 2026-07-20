@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             LicensingSeeder::class,
             OrganizationSeeder::class,
             SellerEntitySeeder::class,
+            PricingTableSeeder::class,
         ]);
     }
 }

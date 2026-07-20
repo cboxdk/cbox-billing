@@ -96,13 +96,18 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     Route::get('/environment/promote', [EnvironmentPromotionController::class, 'form'])->middleware('billing.permission:settings:manage')->name('billing.environment.promote');
     Route::post('/environment/promote/preview', [EnvironmentPromotionController::class, 'preview'])->middleware('billing.permission:settings:manage')->name('billing.environment.promote.preview');
     Route::post('/environment/promote', [EnvironmentPromotionController::class, 'apply'])->middleware('billing.permission:settings:manage')->name('billing.environment.promote.apply');
-    Route::get('/test-mode/clocks', [TestModeController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.test-mode.clocks');
-    Route::post('/test-mode/clocks', [TestModeController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.store');
-    Route::get('/test-mode/clocks/{testClock}', [TestModeController::class, 'show'])->middleware('billing.permission:settings:read')->name('billing.test-mode.clocks.show');
-    Route::post('/test-mode/clocks/{testClock}/advance', [TestModeController::class, 'advance'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.advance');
-    Route::post('/test-mode/clocks/{testClock}/bind', [TestModeController::class, 'bind'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.bind');
-    Route::post('/test-mode/clocks/{testClock}/unbind/{subscription}', [TestModeController::class, 'unbind'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.unbind');
-    Route::post('/test-mode/clocks/{testClock}/outcome', [TestModeController::class, 'outcome'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.outcome');
+    // `billing.sandbox` forces the sandbox plane BEFORE binding substitution (see bootstrap/app.php's
+    // priority chain): a test clock only ever exists in a sandbox, so an operator sitting on
+    // production is dropped onto the DEFAULT sandbox, while a named sandbox is left as selected.
+    // Declaring it on the routes rather than inside the controller is what keeps the `{testClock}`
+    // binding and the handler in the SAME plane.
+    Route::get('/test-mode/clocks', [TestModeController::class, 'index'])->middleware(['billing.sandbox', 'billing.permission:settings:read'])->name('billing.test-mode.clocks');
+    Route::post('/test-mode/clocks', [TestModeController::class, 'store'])->middleware(['billing.sandbox', 'billing.permission:settings:manage'])->name('billing.test-mode.clocks.store');
+    Route::get('/test-mode/clocks/{testClock}', [TestModeController::class, 'show'])->middleware(['billing.sandbox', 'billing.permission:settings:read'])->name('billing.test-mode.clocks.show');
+    Route::post('/test-mode/clocks/{testClock}/advance', [TestModeController::class, 'advance'])->middleware(['billing.sandbox', 'billing.permission:settings:manage'])->name('billing.test-mode.clocks.advance');
+    Route::post('/test-mode/clocks/{testClock}/bind', [TestModeController::class, 'bind'])->middleware(['billing.sandbox', 'billing.permission:settings:manage'])->name('billing.test-mode.clocks.bind');
+    Route::post('/test-mode/clocks/{testClock}/unbind/{subscription}', [TestModeController::class, 'unbind'])->middleware(['billing.sandbox', 'billing.permission:settings:manage'])->name('billing.test-mode.clocks.unbind');
+    Route::post('/test-mode/clocks/{testClock}/outcome', [TestModeController::class, 'outcome'])->middleware(['billing.sandbox', 'billing.permission:settings:manage'])->name('billing.test-mode.clocks.outcome');
 
     Route::get('/subscriptions', [BillingController::class, 'subscriptions'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions');
     Route::get('/subscriptions/dunning', [BillingController::class, 'dunning'])->middleware('billing.permission:subscriptions:read')->name('billing.subscriptions.dunning');

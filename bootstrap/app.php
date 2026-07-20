@@ -5,6 +5,7 @@ use App\Http\Middleware\EnforceIdempotency;
 use App\Http\Middleware\EnforcePermission;
 use App\Http\Middleware\EnsureAuthenticated;
 use App\Http\Middleware\EnsureOperator;
+use App\Http\Middleware\EnsureSandboxPlane;
 use App\Http\Middleware\RecordsOperatorAudit;
 use App\Http\Middleware\ResolveConsoleMode;
 use App\Http\Middleware\SetsReferrerPolicy;
@@ -12,6 +13,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -77,7 +79,31 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.token' => AuthenticateApiToken::class,
             'idempotency' => EnforceIdempotency::class,
             'billing.permission' => EnforcePermission::class,
+            'billing.sandbox' => EnsureSandboxPlane::class,
         ]);
+
+        // PLANE-BEFORE-BINDING (console). `billing.mode` (ResolveConsoleMode) pushes the operator's
+        // SELECTED environment onto the ambient BillingContext, and EnvironmentScope reads that
+        // context on every query. But `SubstituteBindings` ships in the `web` GROUP, and a group's
+        // middleware runs before the route's own — so, unsorted, every implicit model binding on a
+        // console route ({subscription}, {testClock}, {invoice}, {plan}, {coupon}, …) resolved under
+        // the ambient PRODUCTION plane no matter which sandbox the operator had selected. That is
+        // both a usability bug (404s on legitimate sandbox rows) and a SAFETY bug (a production id
+        // pasted into a mutating console action bound and mutated the PRODUCTION row while the
+        // operator believed they were in a sandbox).
+        //
+        // The fix is Laravel's middleware PRIORITY list, which is what orders middleware across the
+        // group/route boundary. Chaining the three relative inserts below lands the console's
+        // authenticate → operator-gate → resolve-plane sequence immediately ahead of
+        // `SubstituteBindings`, so a binding is always substituted inside the selected plane and a
+        // cross-plane id simply does not resolve (404). Relative inserts are used rather than a
+        // hard-coded `priority()` array so the framework's own default list keeps flowing through
+        // untouched on upgrade. Order matters: read bottom-up — auth, then the operator-org gate,
+        // then the plane, then the bindings.
+        $middleware->prependToPriorityList(SubstituteBindings::class, EnsureSandboxPlane::class);
+        $middleware->prependToPriorityList(EnsureSandboxPlane::class, ResolveConsoleMode::class);
+        $middleware->prependToPriorityList(ResolveConsoleMode::class, EnsureOperator::class);
+        $middleware->prependToPriorityList(EnsureOperator::class, EnsureAuthenticated::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -32,11 +32,10 @@ readonly class QuoteLifecycle
             throw QuoteActionDenied::notSendable();
         }
 
-        $quote->forceFill([
+        $this->stampToken($quote, [
             'status' => QuoteStatus::Sent,
-            'token' => $quote->token ?? $this->mintToken(),
             'sent_at' => Carbon::now(),
-        ])->save();
+        ]);
 
         return $quote;
     }
@@ -48,12 +47,29 @@ readonly class QuoteLifecycle
             throw QuoteActionDenied::notOpen();
         }
 
-        $quote->forceFill([
-            'token' => $quote->token ?? $this->mintToken(),
-            'sent_at' => Carbon::now(),
-        ])->save();
+        $this->stampToken($quote, ['sent_at' => Carbon::now()]);
 
         return $quote;
+    }
+
+    /**
+     * Persist `$attributes` and ensure the quote carries an order-form token: mint one (once) when
+     * the quote has no `token_hash` yet, storing ONLY the SHA-256 digest and holding the plaintext
+     * in memory so the caller can build the shareable URL from `$quote->token` this request. An
+     * already-tokenized quote keeps its digest (its link is unchanged). The plaintext is never
+     * recoverable from the row again — the digest is the only copy at rest.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function stampToken(Quote $quote, array $attributes): void
+    {
+        if ($quote->token_hash === null) {
+            $plaintext = $this->mintToken();
+            $attributes['token_hash'] = Quote::hashToken($plaintext);
+            $quote->token = $plaintext; // in-memory only, for this request's URL
+        }
+
+        $quote->forceFill($attributes)->save();
     }
 
     /** Expire an outstanding quote (approved or sent). Terminal. */

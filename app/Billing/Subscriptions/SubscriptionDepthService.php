@@ -11,6 +11,7 @@ use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
 use App\Billing\Subscriptions\Contracts\CollectsProration;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Subscriptions\Exceptions\StaleAddOnPreview;
 use App\Billing\Subscriptions\ValueObjects\AddOnPreview;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
 use App\Billing\Subscriptions\ValueObjects\QuantityPreview;
@@ -187,6 +188,17 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         $period = $addOn->periodFor($basePeriod, $at);
         $allotment = $addOn->grantedAllotment($basePeriod, $at, CreditGrantMode::Prorated);
         $charge = $addOn->proratedCharge($this->proration, $basePeriod, $at, GatewayRounding::HalfUp);
+
+        // Snapshot guard: when the caller previewed a "due now" gross, refuse to apply if the fresh
+        // proration has drifted (preview and confirm straddled a period boundary). This makes a
+        // confirm charge exactly the previewed gross, or fail loudly — never a silently different amount.
+        if ($request->expectedGrossDueMinor !== null) {
+            $grossDueNow = $this->grossDueNow($subscription, $charge);
+
+            if ($grossDueNow->minor() !== $request->expectedGrossDueMinor) {
+                throw StaleAddOnPreview::mismatch($request->expectedGrossDueMinor, $grossDueNow->minor(), $grossDueNow->currency());
+            }
+        }
 
         $row = $this->db->transaction(function () use ($subscription, $request, $period, $allotment): SubscriptionAddOn {
             $row = SubscriptionAddOn::query()->updateOrCreate(

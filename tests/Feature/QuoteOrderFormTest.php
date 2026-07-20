@@ -47,9 +47,11 @@ class QuoteOrderFormTest extends TestCase
         $quote = Quote::query()->create([
             'number' => 'Q-OF001', 'organization_id' => $org->id, 'status' => QuoteStatus::Sent,
             'currency' => 'DKK', 'term_count' => 12, 'term_unit' => 'month', 'billing_interval' => 'monthly',
-            'minimum_commitment_minor' => 300000, 'token' => $token, 'sent_at' => Carbon::now(),
+            'minimum_commitment_minor' => 300000, 'token_hash' => Quote::hashToken($token), 'sent_at' => Carbon::now(),
             'valid_until' => Carbon::now()->addDays(14),
         ]);
+        // Only the digest is stored; hold the plaintext in memory so the URL can be built from it.
+        $quote->token = $token;
         $quote->lines()->create(['sort_order' => 0, 'type' => QuoteLineType::Plan, 'plan_id' => $plan->id, 'quantity' => $seats, 'recurring' => true]);
         $quote->lines()->create(['sort_order' => 1, 'type' => QuoteLineType::Custom, 'description' => 'Onboarding', 'quantity' => 1, 'unit_amount_minor' => 50000, 'recurring' => false]);
 

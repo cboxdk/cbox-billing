@@ -13,6 +13,7 @@ use App\Models\PlanCreditGrant;
 use App\Models\PlanPrice;
 use App\Models\Product;
 use App\Models\Subscription;
+use App\Models\SubscriptionAddOn;
 use Cbox\Billing\Metering\Contracts\MeterPolicyResolver;
 use Cbox\Billing\Wallet\Contracts\Wallet;
 use Cbox\Billing\Wallet\Enums\GrantCadence;
@@ -162,6 +163,37 @@ class SubscriptionDepthApiTest extends TestCase
         // A quantity change rescales the per-seat allotment (forfeit-and-regrant reset).
         $this->postJson('/api/v1/subscriptions/org_seats/quantity', ['seats' => 5], $auth)->assertOk();
         $this->assertSame(5_000, $this->walletBalance('org_seats'));
+    }
+
+    public function test_addon_apply_honours_the_previewed_due_now_snapshot(): void
+    {
+        $auth = $this->subscribed('org_addon_snap', 'team');
+
+        $preview = $this->postJson('/api/v1/subscriptions/org_addon_snap/addons', [
+            'key' => 'priority-support', 'price_minor' => 60_000, 'currency' => 'DKK',
+            'alignment' => 'aligned', 'preview' => true,
+        ], $auth)->assertOk();
+
+        $previewedGross = (int) $preview->json('gross_minor');
+        $this->assertGreaterThan(0, $previewedGross);
+
+        // A confirm carrying a STALE expected "due now" (as if the preview and confirm straddled a
+        // period boundary) is rejected — never charged at a drifted amount.
+        $this->postJson('/api/v1/subscriptions/org_addon_snap/addons', [
+            'key' => 'priority-support', 'price_minor' => 60_000, 'currency' => 'DKK',
+            'alignment' => 'aligned', 'expected_due_minor' => $previewedGross + 500,
+        ], $auth)->assertStatus(409);
+
+        $this->assertSame(0, SubscriptionAddOn::query()
+            ->whereHas('subscription', fn ($q) => $q->where('organization_id', 'org_addon_snap'))->count());
+
+        // A confirm carrying the previewed "due now" applies and charges exactly that gross.
+        $this->postJson('/api/v1/subscriptions/org_addon_snap/addons', [
+            'key' => 'priority-support', 'price_minor' => 60_000, 'currency' => 'DKK',
+            'alignment' => 'aligned', 'expected_due_minor' => $previewedGross,
+        ], $auth)->assertCreated()
+            ->assertJsonPath('add_on.key', 'priority-support')
+            ->assertJsonPath('preview.gross_minor', $previewedGross);
     }
 
     public function test_aligned_addon_prorates_to_the_base_period(): void

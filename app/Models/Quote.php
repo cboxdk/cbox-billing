@@ -62,6 +62,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $rejected_by_sub
  * @property Carbon|null $rejected_at
  * @property string|null $rejection_reason
+ * @property string|null $token_hash
  * @property string|null $token
  * @property Carbon|null $sent_at
  * @property Carbon|null $accepted_at
@@ -81,9 +82,16 @@ class Quote extends Model
         'minimum_commitment_minor', 'ramp',
         'approval_required', 'approved_by_sub', 'approved_by_name', 'approved_at',
         'rejected_by_sub', 'rejected_at', 'rejection_reason',
-        'token', 'sent_at', 'accepted_at', 'declined_at', 'decline_reason',
+        'token_hash', 'sent_at', 'accepted_at', 'declined_at', 'decline_reason',
         'subscription_id', 'provisioned_at',
     ];
+
+    /**
+     * The plaintext order-form token, held in memory only (set when the quote is sent or resolved).
+     * It is NOT a database column — only its {@see $token_hash} digest is persisted — so a save
+     * never writes it back and a dumped row never carries it.
+     */
+    protected ?string $plaintextToken = null;
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -105,6 +113,24 @@ class Quote extends Model
             'subscription_id' => 'integer',
             'provisioned_at' => 'datetime',
         ];
+    }
+
+    /** The SHA-256 digest a lookup keys on for the plaintext order-form `$token`. */
+    public static function hashToken(string $token): string
+    {
+        return hash('sha256', $token);
+    }
+
+    /** Read the in-memory plaintext token (present only on a freshly-sent or resolved quote). */
+    public function getTokenAttribute(): ?string
+    {
+        return $this->plaintextToken;
+    }
+
+    /** Hold the plaintext token in memory (never persisted); callers read it back as `$quote->token`. */
+    public function setTokenAttribute(?string $token): void
+    {
+        $this->plaintextToken = $token;
     }
 
     /** The buyer's display name: the linked org, else the free-text prospect, else the number. */

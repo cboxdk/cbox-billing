@@ -14,6 +14,7 @@ use App\Billing\Retention\Exceptions\RetentionException;
 use App\Billing\Retention\ValueObjects\CancellationRequest;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Subscriptions\Exceptions\StaleAddOnPreview;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
 use App\Billing\Subscriptions\ValueObjects\QuantityPreview;
 use App\Http\Controllers\Api\ApiController;
@@ -365,6 +366,9 @@ class SubscriptionController extends ApiController
             'anchor_month' => ['sometimes', 'integer', 'min:1', 'max:12'],
             'interval' => ['sometimes', 'in:monthly,yearly'],
             'preview' => ['sometimes', 'boolean'],
+            // The "due now" gross a prior preview showed; when present on an apply, the service
+            // rejects (409) if the fresh proration has drifted across a period boundary.
+            'expected_due_minor' => ['sometimes', 'integer', 'min:0'],
         ]);
 
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
@@ -390,6 +394,7 @@ class SubscriptionController extends ApiController
             anchorDay: $request->has('anchor_day') ? $request->integer('anchor_day') : null,
             anchorMonth: $request->has('anchor_month') ? $request->integer('anchor_month') : null,
             interval: $request->has('interval') ? BillingInterval::from($request->string('interval')->toString()) : null,
+            expectedGrossDueMinor: $request->has('expected_due_minor') ? $request->integer('expected_due_minor') : null,
         );
 
         if ($request->boolean('preview')) {
@@ -397,7 +402,12 @@ class SubscriptionController extends ApiController
         }
 
         $preview = $depth->previewAddOn($subscription, $addOnRequest);
-        $addOn = $depth->addAddOn($subscription, $addOnRequest);
+
+        try {
+            $addOn = $depth->addAddOn($subscription, $addOnRequest);
+        } catch (StaleAddOnPreview $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
 
         return new JsonResponse([
             'preview' => $preview->toArray(),

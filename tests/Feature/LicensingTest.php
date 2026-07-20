@@ -12,6 +12,7 @@ use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\ApiToken;
 use App\Models\Organization;
 use App\Models\Plan;
+use App\Models\Product;
 use Cbox\Billing\Licensing\ValueObjects\IssuedLicense;
 use Cbox\License\Capabilities;
 use Cbox\License\Ed25519LicenseIssuer;
@@ -224,6 +225,34 @@ class LicensingTest extends TestCase
         // Same deployment: activation now serves the renewed license.
         $activate = $this->getJson('/api/v1/license/activate?deployment_id=dep_renew')->assertOk();
         $this->assertSame($renew->json('id'), $activate->json('license_id'));
+    }
+
+    // --- Product-scope isolation on renew/revoke --------------------------------------
+
+    public function test_a_product_scoped_token_cannot_renew_or_revoke_a_foreign_products_license(): void
+    {
+        $this->org('org_scopelic');
+
+        // A license on the self-hosted product's plan, minted by an unbound operator token.
+        $issue = $this->postJson('/api/v1/licenses', [
+            'customer_id' => 'org_scopelic',
+            'plan' => 'team-onprem',
+            'deployment_id' => 'dep_scope',
+        ], $this->operatorToken())->assertCreated();
+        $licenseId = (string) $issue->json('id');
+
+        // A token bound to a DIFFERENT product.
+        $otherProduct = Product::query()->create(['key' => 'other-product', 'name' => 'Other']);
+        ['plaintext' => $foreign] = ApiToken::issue('ops-other', null, $otherProduct->id);
+        $foreignAuth = ['Authorization' => 'Bearer '.$foreign];
+
+        // It may not renew or revoke the self-hosted license (deny-by-default 404) — the same
+        // isolation the mint path already enforces.
+        $this->postJson('/api/v1/licenses/'.$licenseId.'/renew', [], $foreignAuth)->assertNotFound();
+        $this->postJson('/api/v1/licenses/'.$licenseId.'/revoke', ['reason' => 'x'], $foreignAuth)->assertNotFound();
+
+        // The license is untouched: an unbound operator can still renew it.
+        $this->postJson('/api/v1/licenses/'.$licenseId.'/renew', [], $this->operatorToken())->assertOk();
     }
 
     // --- Revoke + activation ----------------------------------------------------------

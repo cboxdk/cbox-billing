@@ -90,7 +90,8 @@ class QuoteConsoleTest extends TestCase
         $this->withSession($this->session)->post("/quotes/{$quote->id}/send")->assertRedirect();
         $quote->refresh();
         $this->assertSame(QuoteStatus::PendingApproval, $quote->status);
-        $this->assertNull($quote->token);
+        // Only the digest is ever persisted; a pending quote has none.
+        $this->assertNull($quote->token_hash);
     }
 
     public function test_approve_then_send_mints_the_order_form_and_is_audit_logged(): void
@@ -108,10 +109,20 @@ class QuoteConsoleTest extends TestCase
 
         $this->assertSame(1, OperatorAuditEvent::query()->where('action', 'quote.approved')->count());
 
-        $this->withSession($this->session)->post("/quotes/{$quote->id}/send")->assertRedirect();
+        $send = $this->withSession($this->session)->post("/quotes/{$quote->id}/send")->assertRedirect();
         $quote->refresh();
         $this->assertSame(QuoteStatus::Sent, $quote->status);
-        $this->assertNotNull($quote->token);
+        // The order-form token is stored only as a SHA-256 digest; the plaintext link is flashed once.
+        $this->assertNotNull($quote->token_hash);
+        $this->assertSame(64, strlen((string) $quote->token_hash));
+        $send->assertSessionHas('order_form_url');
+
+        // The flashed URL still resolves, and its token hashes to exactly the stored digest — the
+        // plaintext travels in the URL but only the digest is ever persisted.
+        $url = (string) session('order_form_url');
+        $plaintext = basename((string) parse_url($url, PHP_URL_PATH));
+        $this->assertSame($quote->token_hash, hash('sha256', $plaintext));
+        $this->get($url)->assertOk();
     }
 
     public function test_the_owner_cannot_approve_their_own_quote(): void

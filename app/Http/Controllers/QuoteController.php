@@ -167,7 +167,17 @@ class QuoteController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('billing.quotes.show', $quote->id)->with('status', $success);
+        $redirect = redirect()->route('billing.quotes.show', $quote->id)->with('status', $success);
+
+        // The order-form token is stored only as a SHA-256 digest, so the shareable link can only
+        // be shown at the moment it is minted (send/resend) — the plaintext is held in memory on the
+        // quote for exactly this request. Flash it once so the operator can copy it; a later reload
+        // of the quote cannot reconstruct it from the row.
+        if (is_string($quote->token) && $quote->token !== '') {
+            $redirect->with('order_form_url', route('quote.show', $quote->token));
+        }
+
+        return $redirect;
     }
 
     private function validateQuote(Request $request): void

@@ -14,6 +14,11 @@ use Cbox\Billing\Subscription\ValueObjects\AddOn;
  * `creditAllotment`, billed either **aligned** to the base subscription's period or on
  * its own **independent** cycle (`anchorDay` / `anchorMonth` / `interval`). The service
  * projects it into the engine's {@see AddOn}.
+ *
+ * `expectedGrossDueMinor` is the "due now" GROSS the caller was shown at preview time. When set on
+ * an APPLY, the service snapshots against it: if the freshly-computed prorated gross has drifted
+ * (a period boundary crossed between preview and confirm), the apply is rejected as stale rather
+ * than charging a different amount than previewed. Null on a preview, or an unguarded apply.
  */
 readonly class AddOnRequest
 {
@@ -26,6 +31,7 @@ readonly class AddOnRequest
         public ?int $anchorDay = null,
         public ?int $anchorMonth = null,
         public ?BillingInterval $interval = null,
+        public ?int $expectedGrossDueMinor = null,
     ) {}
 
     public function isIndependent(): bool

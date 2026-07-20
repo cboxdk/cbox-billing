@@ -9,6 +9,7 @@ use App\Billing\Licensing\Exceptions\LicensingException;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization;
 use App\Models\Plan;
+use Cbox\Billing\Licensing\Contracts\IssuedLicenseStore;
 use Cbox\Billing\Licensing\ValueObjects\IssuedLicense;
 use DateTimeImmutable;
 use Illuminate\Contracts\Config\Repository as Config;
@@ -76,9 +77,13 @@ class LicenseController extends ApiController
     }
 
     /** `POST /api/v1/licenses/{id}/renew` — reissue with an extended window. */
-    public function renew(Request $request, string $id, IssuesLicenses $licenses, Config $config): JsonResponse
+    public function renew(Request $request, string $id, IssuesLicenses $licenses, IssuedLicenseStore $store, Config $config): JsonResponse
     {
         if ($denied = $this->denyUnlessOperator($request)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseLicenseProduct($request, $store, $id)) {
             return $denied;
         }
 
@@ -94,9 +99,13 @@ class LicenseController extends ApiController
     }
 
     /** `POST /api/v1/licenses/{id}/revoke` — add the license to the revocation list. */
-    public function revoke(Request $request, string $id, IssuesLicenses $licenses): JsonResponse
+    public function revoke(Request $request, string $id, IssuesLicenses $licenses, IssuedLicenseStore $store): JsonResponse
     {
         if ($denied = $this->denyUnlessOperator($request)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseLicenseProduct($request, $store, $id)) {
             return $denied;
         }
 
@@ -105,6 +114,31 @@ class LicenseController extends ApiController
         $licenses->revoke($id, $this->optionalString($request, 'reason'));
 
         return new JsonResponse(['id' => $id, 'revoked' => true]);
+    }
+
+    /**
+     * A product-bound operator token may only act on licenses for its OWN product's plans — the
+     * same isolation {@see store()} applies on mint, now on renew/revoke too (a product-scoped
+     * token must not renew/revoke another product's license on a shared instance). Deny-by-default:
+     * resolve the license's plan → product and 404 when the token may not use it. A license (or
+     * plan) that cannot be resolved is left to the issuer below, preserving the existing
+     * unknown-id semantics for an unbound token.
+     */
+    private function denyUnlessMayUseLicenseProduct(Request $request, IssuedLicenseStore $store, string $id): ?JsonResponse
+    {
+        $license = $store->find($id);
+
+        if ($license === null) {
+            return null; // unknown id — the issuer's renew() returns the correct 404; revoke no-ops.
+        }
+
+        $plan = Plan::query()->where('key', $license->plan)->first();
+
+        if ($plan !== null && ! $this->identity($request)->mayUseProduct((int) $plan->product_id)) {
+            return $this->notFound('Unknown license.');
+        }
+
+        return null;
     }
 
     /**

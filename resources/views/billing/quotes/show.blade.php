@@ -146,9 +146,15 @@
                     <div><dt class="mut" style="font-size:12px">Sent</dt><dd style="margin:2px 0 0">{{ $quote->sent_at?->format('Y-m-d H:i') ?? '—' }}</dd></div>
                 </dl>
 
-                @if ($quote->token && in_array($quote->status->value, ['sent', 'accepted', 'declined'], true))
+                @if (session('order_form_url'))
+                    {{-- Shown once, right after send/resend: the order-form token is hashed at rest,
+                         so this shareable link cannot be reconstructed on a later reload. --}}
+                    <div style="margin-top:14px"><dt class="mut" style="font-size:12px">Order form <span class="mut" style="font-weight:400">— copy now, shown once</span></dt>
+                        <dd style="margin:4px 0 0"><a class="cbx-link num" href="{{ session('order_form_url') }}" target="_blank" rel="noopener">{{ session('order_form_url') }}</a></dd>
+                    </div>
+                @elseif ($quote->token_hash && in_array($quote->status->value, ['sent', 'accepted', 'declined'], true))
                     <div style="margin-top:14px"><dt class="mut" style="font-size:12px">Order form</dt>
-                        <dd style="margin:4px 0 0"><a class="cbx-link num" href="{{ route('quote.show', $quote->token) }}" target="_blank" rel="noopener">{{ route('quote.show', $quote->token) }}</a></dd>
+                        <dd style="margin:4px 0 0" class="mut">Link shared when sent — re-send the quote to reveal it again.</dd>
                     </div>
                 @endif
 

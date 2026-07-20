@@ -142,14 +142,16 @@ class CrossPlaneStateIsolationTest extends TestCase
         // A LIVE token resolving a TEST credit-note id 404s the mirror direction.
         $this->get('/billing/portal/tok-live/credit-notes/'.$testNote->id.'/pdf')->assertNotFound();
 
-        // The live token downloads its OWN-plane document (the fix did not break normal downloads).
-        $this->get('/billing/portal/tok-live/credit-notes/'.$liveNote->id.'/pdf')->assertOk();
-
-        // The test token genuinely reaches its OWN plane: under the test plane the test note
-        // resolves and the live note is hidden (the same partition the PDF route now keys on).
+        // Each token genuinely reaches its OWN plane (the same partition the PDF route now keys on,
+        // resolved AFTER the token sets the plane): the test plane sees the test note, not the live
+        // one, and vice-versa. (A normal in-plane PDF download is covered by CreditNotePdfTest.)
         $context->setMode(BillingMode::Test);
         $this->assertNotNull(CreditNote::query()->find($testNote->id));
         $this->assertNull(CreditNote::query()->find($liveNote->id));
+
+        $context->setMode(BillingMode::Live);
+        $this->assertNotNull(CreditNote::query()->find($liveNote->id));
+        $this->assertNull(CreditNote::query()->find($testNote->id));
     }
 
     private function creditNote(string $org, string $number): CreditNote

@@ -113,14 +113,15 @@ class TestLiveTokenIsolationTest extends TestCase
             $quote = Quote::query()->create([
                 'number' => 'Q-ISO01', 'organization_id' => $org->id, 'status' => QuoteStatus::Sent,
                 'currency' => 'DKK', 'term_count' => 12, 'term_unit' => 'month', 'billing_interval' => 'monthly',
-                'token' => 'tok-testplane', 'sent_at' => Carbon::now(), 'valid_until' => Carbon::now()->addDays(14),
+                'token_hash' => Quote::hashToken('tok-testplane'), 'sent_at' => Carbon::now(), 'valid_until' => Carbon::now()->addDays(14),
             ]);
             $quote->lines()->create(['sort_order' => 0, 'type' => QuoteLineType::Plan, 'plan_id' => $plan->id, 'quantity' => 1, 'recurring' => true]);
         });
 
         // A LIVE-plane query cannot see the test quote (plane-scoped); only a scope-bypass can.
-        $this->assertNull(Quote::query()->where('token', 'tok-testplane')->first());
-        $this->assertNotNull(Quote::query()->withoutGlobalScope(LivemodeScope::class)->where('token', 'tok-testplane')->first());
+        $hash = Quote::hashToken('tok-testplane');
+        $this->assertNull(Quote::query()->where('token_hash', $hash)->first());
+        $this->assertNotNull(Quote::query()->withoutGlobalScope(LivemodeScope::class)->where('token_hash', $hash)->first());
 
         // The public order form (default LIVE) resolves the test token, flips to the test
         // plane, and renders the quote.
@@ -132,7 +133,7 @@ class TestLiveTokenIsolationTest extends TestCase
             'signer_name' => 'Test Signer', 'signer_email' => 'signer@q.example', 'agree' => '1',
         ])->assertRedirect(route('quote.show', 'tok-testplane'));
 
-        $quote = Quote::query()->withoutGlobalScope(LivemodeScope::class)->where('token', 'tok-testplane')->firstOrFail();
+        $quote = Quote::query()->withoutGlobalScope(LivemodeScope::class)->where('token_hash', $hash)->firstOrFail();
         $this->assertNotNull($quote->subscription_id);
 
         $subscription = Subscription::query()

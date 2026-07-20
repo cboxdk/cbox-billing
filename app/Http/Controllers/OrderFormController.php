@@ -94,10 +94,12 @@ class OrderFormController extends Controller
      */
     private function resolve(string $token): Quote
     {
+        // Only the SHA-256 digest is stored, so look the quote up by the hash of the URL token —
+        // the plaintext travels in the URL but never lives in the row.
         $quote = Quote::query()
             ->withoutGlobalScope(LivemodeScope::class)
-            ->where('token', $token)
-            ->whereNotNull('token')
+            ->where('token_hash', Quote::hashToken($token))
+            ->whereNotNull('token_hash')
             ->first();
 
         if (! $quote instanceof Quote) {

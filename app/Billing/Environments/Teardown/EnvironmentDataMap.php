@@ -73,6 +73,8 @@ readonly class EnvironmentDataMap
             'billing_sessions', 'quotes', 'quote_lines', 'quote_acceptances',
             'tax_exemption_certificates', 'organization_feature_overrides', 'allowance_leases',
             'gateway_customers', 'usage_alert_dispatches',
+            // Per-org notification opt-out ledger (tenant preference state).
+            'notification_preferences',
             // Dunning + standing runtime state.
             'account_standings', 'dunning_states',
             // Approvals, imports, test clocks, and the plane's own audit trail.

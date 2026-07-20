@@ -11,6 +11,7 @@ use App\Billing\Support\SubscriptionStanding;
 use App\Models\CboxIdAccessGrant;
 use App\Models\Coupon;
 use App\Models\CreditNote;
+use App\Models\Experiment;
 use App\Models\Feature;
 use App\Models\FxRate;
 use App\Models\Meter;
@@ -138,6 +139,9 @@ readonly class NavigationComposer
             'usage' => [
                 'meters' => Meter::query()->count(),
                 'meters-manage' => Meter::query()->count(),
+            ],
+            'experiments' => [
+                'all' => Experiment::query()->count(),
             ],
             'catalog' => [
                 'products' => Product::query()->count(),

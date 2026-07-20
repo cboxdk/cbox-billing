@@ -73,6 +73,13 @@ enum AuditAction: string
     case QuoteDeclined = 'quote.declined';
     case QuoteDeleted = 'quote.deleted';
 
+    // A/B pricing experiments
+    case ExperimentCreated = 'experiment.created';
+    case ExperimentUpdated = 'experiment.updated';
+    case ExperimentStarted = 'experiment.started';
+    case ExperimentConcluded = 'experiment.concluded';
+    case ExperimentDeleted = 'experiment.deleted';
+
     // Licenses
     case LicenseIssued = 'license.issued';
     case LicenseRenewed = 'license.renewed';
@@ -237,6 +244,12 @@ enum AuditAction: string
             'billing.quotes.expire' => self::QuoteExpired,
             'billing.quotes.clone' => self::QuoteCloned,
             'billing.quotes.destroy' => self::QuoteDeleted,
+
+            'billing.experiments.store' => self::ExperimentCreated,
+            'billing.experiments.update' => self::ExperimentUpdated,
+            'billing.experiments.start' => self::ExperimentStarted,
+            'billing.experiments.conclude' => self::ExperimentConcluded,
+            'billing.experiments.destroy' => self::ExperimentDeleted,
 
             'billing.licenses.issue' => self::LicenseIssued,
             'billing.licenses.renew' => self::LicenseRenewed,

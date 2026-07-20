@@ -16,6 +16,7 @@ use App\Http\Controllers\DsarController;
 use App\Http\Controllers\DunningController;
 use App\Http\Controllers\DunningStrategyController;
 use App\Http\Controllers\ExemptionCertificateController;
+use App\Http\Controllers\ExperimentController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\FxRateController;
@@ -237,6 +238,21 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     Route::post('/pricing-tables/{pricing_table}/activate', [PricingTableController::class, 'activate'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.activate');
     Route::post('/pricing-tables/{pricing_table}/deactivate', [PricingTableController::class, 'deactivate'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.deactivate');
     Route::delete('/pricing-tables/{pricing_table}', [PricingTableController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.pricing-tables.destroy');
+
+    // A/B pricing experiments — run controlled pricing experiments on the public storefront and
+    // measure conversion by variant. Reads (list + results dashboard) carry `analytics:read`;
+    // writes (create/configure, start, conclude/promote) mutate what the public /pricing/{key}
+    // serves, so they carry `catalog:manage`. `…/new` before `…/{experiment}` so the static
+    // segment is never captured by the model binding.
+    Route::get('/experiments', [ExperimentController::class, 'index'])->middleware('billing.permission:analytics:read')->name('billing.experiments');
+    Route::get('/experiments/new', [ExperimentController::class, 'create'])->middleware('billing.permission:catalog:manage')->name('billing.experiments.create');
+    Route::post('/experiments', [ExperimentController::class, 'store'])->middleware('billing.permission:catalog:manage')->name('billing.experiments.store');
+    Route::get('/experiments/{experiment}', [ExperimentController::class, 'show'])->middleware('billing.permission:analytics:read')->name('billing.experiments.show');
+    Route::get('/experiments/{experiment}/edit', [ExperimentController::class, 'edit'])->middleware('billing.permission:catalog:manage')->name('billing.experiments.edit');
+    Route::put('/experiments/{experiment}', [ExperimentController::class, 'update'])->middleware('billing.permission:catalog:manage')->name('billing.experiments.update');
+    Route::post('/experiments/{experiment}/start', [ExperimentController::class, 'start'])->middleware('billing.permission:catalog:manage')->name('billing.experiments.start');
+    Route::post('/experiments/{experiment}/conclude', [ExperimentController::class, 'conclude'])->middleware('billing.permission:catalog:manage')->name('billing.experiments.conclude');
+    Route::delete('/experiments/{experiment}', [ExperimentController::class, 'destroy'])->middleware('billing.permission:catalog:manage')->name('billing.experiments.destroy');
 
     // Coupons — routable list + detail + create/edit/archive/delete. A redeemed coupon is
     // archived (its ledger + live discounts preserved); only a never-redeemed coupon is

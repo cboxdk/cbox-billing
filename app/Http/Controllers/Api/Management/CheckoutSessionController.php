@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Api\Management;
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Coupons\CouponRedeemer;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
+use App\Billing\Experiments\ConversionAttribution;
+use App\Billing\Experiments\ValueObjects\ExperimentAttribution;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization;
@@ -24,7 +26,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class CheckoutSessionController extends ApiController
 {
-    public function __invoke(Request $request, ManagesBillingSessions $sessions, ResolvesAccountCurrency $currencies, CouponRedeemer $coupons): JsonResponse
+    public function __invoke(Request $request, ManagesBillingSessions $sessions, ResolvesAccountCurrency $currencies, CouponRedeemer $coupons, ConversionAttribution $attribution): JsonResponse
     {
         $request->validate([
             'org' => ['required', 'string'],
@@ -32,6 +34,12 @@ class CheckoutSessionController extends ApiController
             'currency' => ['sometimes', 'string', 'size:3'],
             'return_url' => ['required', 'url'],
             'coupon' => ['sometimes', 'nullable', 'string', 'max:60'],
+            // Optional A/B experiment attribution forwarded from a pricing-table CTA deep-link
+            // (the storefront threads these onto the CTA; the operator's checkout entry passes
+            // them through). Absent for an ordinary checkout — attribution is purely additive.
+            ExperimentAttribution::EXPERIMENT_PARAM => ['sometimes', 'nullable', 'string', 'max:120'],
+            ExperimentAttribution::VARIANT_PARAM => ['sometimes', 'nullable', 'integer'],
+            ExperimentAttribution::VISITOR_PARAM => ['sometimes', 'nullable', 'string', 'max:64'],
         ]);
 
         $org = $request->string('org')->toString();
@@ -89,6 +97,18 @@ class CheckoutSessionController extends ApiController
             $request->string('return_url')->toString(),
             $couponCode,
         );
+
+        // Attribute a checkout-started conversion when the request carried A/B attribution. The
+        // recorder validates the variant belongs to a running experiment (deny-by-default) and is
+        // idempotent, so a replayed link never double-counts and never affects the checkout result.
+        if ($request->filled(ExperimentAttribution::VARIANT_PARAM) && $request->filled(ExperimentAttribution::VISITOR_PARAM)) {
+            $attribution->recordCheckoutStart(
+                $session,
+                $request->string(ExperimentAttribution::EXPERIMENT_PARAM)->toString(),
+                (int) $request->integer(ExperimentAttribution::VARIANT_PARAM),
+                $request->string(ExperimentAttribution::VISITOR_PARAM)->toString(),
+            );
+        }
 
         return new JsonResponse([
             'url' => route('hosted.checkout.show', $session->token),

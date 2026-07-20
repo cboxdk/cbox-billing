@@ -29,7 +29,13 @@ readonly class CheckoutLinkBuilder
 {
     public function __construct(private string $defaultCheckoutUrl) {}
 
-    public function build(?string $template, string $planKey, string $currency, string $interval, int $priceMinor): string
+    /**
+     * @param  array<string, string>  $attribution  Extra params (e.g. an A/B experiment's
+     *                                              attribution triple) appended as a query
+     *                                              string to EITHER form of target, so a
+     *                                              placeholder template still carries them.
+     */
+    public function build(?string $template, string $planKey, string $currency, string $interval, int $priceMinor, array $attribution = []): string
     {
         $target = $this->firstNonEmpty($template, $this->defaultCheckoutUrl);
 
@@ -41,7 +47,11 @@ readonly class CheckoutLinkBuilder
         ];
 
         if ($this->hasPlaceholder($target)) {
-            return strtr($target, array_map(rawurlencode(...), $replacements));
+            $url = strtr($target, array_map(rawurlencode(...), $replacements));
+
+            // A placeholder template addresses the plan/currency itself; attribution is not part
+            // of the template contract, so it rides along as an appended query string.
+            return $attribution === [] ? $url : $this->appendQuery($url, $attribution);
         }
 
         return $this->appendQuery($target, [
@@ -49,6 +59,7 @@ readonly class CheckoutLinkBuilder
             'currency' => $currency,
             'interval' => $interval,
             'price' => (string) $priceMinor,
+            ...$attribution,
         ]);
     }
 

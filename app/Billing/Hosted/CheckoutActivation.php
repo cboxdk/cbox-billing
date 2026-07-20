@@ -6,6 +6,7 @@ namespace App\Billing\Hosted;
 
 use App\Billing\Coupons\CouponRedeemer;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
+use App\Billing\Experiments\ConversionAttribution;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionStatus;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
@@ -40,6 +41,7 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
         private SubscribesOrganizations $subscriptions,
         private ManagesBillingSessions $sessions,
         private CouponRedeemer $coupons,
+        private ConversionAttribution $attribution,
     ) {}
 
     public function markPaid(string $reference, Money $amount, PaymentResult $result): void
@@ -72,6 +74,11 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
         $subscription = $this->subscriptions->subscribe($organization, $plan, 1, $session->currency);
         $this->redeemCoupon($session, $subscription);
         $this->sessions->complete($session);
+
+        // Attribute a checkout-completed conversion to the A/B variant this session carried (if
+        // any). Idempotent — inherited from the ingest's settle-once guard AND the unique
+        // conversion index — so a re-delivered settlement never double-counts.
+        $this->attribution->recordSettlement($session);
     }
 
     /**

@@ -47,6 +47,13 @@ class ConsoleNav
                 ['route' => 'analytics.retention', 'label' => 'Retention', 'key' => 'retention', 'params' => [], 'feature' => null, 'order' => 20],
             ],
         ],
+        'experiments' => [
+            'label' => 'Experiments', 'icon' => 'flask', 'order' => 17, 'feature' => null,
+            'pages' => [
+                ['route' => 'billing.experiments', 'label' => 'All', 'key' => 'all', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.experiments.create', 'label' => 'New experiment', 'key' => 'new', 'params' => [], 'feature' => null, 'order' => 20],
+            ],
+        ],
         'data' => [
             'label' => 'Data', 'icon' => 'box', 'order' => 16, 'feature' => null,
             'pages' => [

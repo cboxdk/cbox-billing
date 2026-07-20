@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Experiments\StorefrontExperimentResolver;
+use App\Billing\Experiments\VisitorIdentity;
 use App\Billing\Storefront\PricingTablePresenter;
 use App\Models\PricingTable;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Routing\UrlGenerator;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
@@ -27,24 +30,51 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
  */
 class StorefrontController extends Controller
 {
-    public function show(string $key, PricingTablePresenter $presenter): Response
-    {
-        $table = $this->resolve($key);
-
-        return $this->html(view('storefront.table', [
-            'table' => $presenter->present($table),
-            'mode' => 'page',
-        ])->render());
+    public function show(
+        string $key,
+        Request $request,
+        PricingTablePresenter $presenter,
+        StorefrontExperimentResolver $experiments,
+        VisitorIdentity $visitors,
+    ): Response {
+        return $this->serve($key, 'page', $request, $presenter, $experiments, $visitors);
     }
 
-    public function embed(string $key, PricingTablePresenter $presenter): Response
-    {
-        $table = $this->resolve($key);
+    public function embed(
+        string $key,
+        Request $request,
+        PricingTablePresenter $presenter,
+        StorefrontExperimentResolver $experiments,
+        VisitorIdentity $visitors,
+    ): Response {
+        return $this->serve($key, 'embed', $request, $presenter, $experiments, $visitors);
+    }
 
-        return $this->html(view('storefront.table', [
-            'table' => $presenter->present($table),
-            'mode' => 'embed',
+    /**
+     * Serve the public pricing page, applying any running/promoted A/B experiment: resolve the
+     * anonymous visitor, let the experiment resolver pick the table to present (recording an
+     * impression + threading the assigned variant's attribution onto the CTA links when the
+     * experiment is running), and persist the visitor cookie on the response.
+     */
+    private function serve(
+        string $key,
+        string $mode,
+        Request $request,
+        PricingTablePresenter $presenter,
+        StorefrontExperimentResolver $experiments,
+        VisitorIdentity $visitors,
+    ): Response {
+        $base = $this->resolve($key);
+        $visitorId = $visitors->resolve($request);
+
+        $served = $experiments->resolve($base, $visitorId);
+
+        $response = $this->html(view('storefront.table', [
+            'table' => $presenter->present($served->table, $served->attribution($visitorId)),
+            'mode' => $mode,
         ])->render());
+
+        return $response->withCookie($visitors->cookie($visitorId));
     }
 
     /**

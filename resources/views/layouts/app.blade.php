@@ -161,6 +161,7 @@
         <a class="cmd" href="{{ route('billing.subscriptions') }}">@include('partials.icon', ['name' => 'repeat', 'size' => 15, 'sw' => 1.7])Go to Subscriptions<kbd class="k">G S</kbd></a>
         <a class="cmd" href="{{ route('analytics.revenue') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Analytics · Revenue</a>
         <a class="cmd" href="{{ route('analytics.retention') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Analytics · Retention</a>
+        <a class="cmd" href="{{ route('billing.experiments') }}">@include('partials.icon', ['name' => 'flask', 'size' => 15, 'sw' => 1.7])Go to Experiments</a>
         <a class="cmd" href="{{ route('billing.quotes') }}">@include('partials.icon', ['name' => 'receipt', 'size' => 15, 'sw' => 1.7])Go to Quotes</a>
         <a class="cmd" href="{{ route('billing.quotes.approvals') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Quote approvals</a>
         <a class="cmd" href="{{ route('billing.invoices') }}">@include('partials.icon', ['name' => 'invoice', 'size' => 15, 'sw' => 1.7])Go to Invoices<kbd class="k">G I</kbd></a>
@@ -191,6 +192,7 @@
         <a class="cmd" href="{{ route('billing.products.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New product</a>
         <a class="cmd" href="{{ route('billing.coupons.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New coupon</a>
         <a class="cmd" href="{{ route('billing.plans.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New plan</a>
+        <a class="cmd" href="{{ route('billing.experiments.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New pricing experiment</a>
         <a class="cmd" href="{{ route('billing.catalog.prices.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New price</a>
         <a class="cmd" href="{{ route('billing.meters.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 14, 'sw' => 1.7])New meter</a>
         <a class="cmd" href="{{ route('billing.settings.tokens.create') }}">@include('partials.icon', ['name' => 'key', 'size' => 14, 'sw' => 1.7])New API token</a>

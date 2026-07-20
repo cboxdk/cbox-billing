@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Storefront;
 
+use App\Billing\Experiments\ValueObjects\ExperimentAttribution;
 use App\Billing\Notifications\Branding\BrandingResolver;
 use App\Billing\Storefront\ValueObjects\FeatureCell;
 use App\Billing\Storefront\ValueObjects\FeatureRow;
@@ -44,7 +45,13 @@ readonly class PricingTablePresenter
         private CheckoutLinkBuilder $links,
     ) {}
 
-    public function present(PricingTable $table): RenderedPricingTable
+    /**
+     * @param  ?ExperimentAttribution  $attribution  When the table is served under a running A/B
+     *                                               experiment, the assigned variant's attribution
+     *                                               — threaded onto every CTA deep-link so the
+     *                                               conversion traces back to the variant.
+     */
+    public function present(PricingTable $table, ?ExperimentAttribution $attribution = null): RenderedPricingTable
     {
         $table->loadMissing([
             'columns.plan.prices',
@@ -61,7 +68,7 @@ readonly class PricingTablePresenter
         $columns = [];
 
         foreach ($table->columns as $column) {
-            $rendered = $this->column($table, $column, $currencies, $intervals);
+            $rendered = $this->column($table, $column, $currencies, $intervals, $attribution);
 
             if ($rendered !== null) {
                 $columns[] = $rendered;
@@ -94,7 +101,7 @@ readonly class PricingTablePresenter
      * @param  list<string>  $currencies
      * @param  list<string>  $intervals
      */
-    private function column(PricingTable $table, PricingTablePlan $column, array $currencies, array $intervals): ?PricingColumn
+    private function column(PricingTable $table, PricingTablePlan $column, array $currencies, array $intervals, ?ExperimentAttribution $attribution): ?PricingColumn
     {
         $plan = $column->plan;
 
@@ -107,7 +114,7 @@ readonly class PricingTablePresenter
 
         foreach ($currencies as $currency) {
             foreach ($intervals as $interval) {
-                $offer = $this->offer($table, $column, $currency, $interval);
+                $offer = $this->offer($table, $column, $currency, $interval, $attribution);
                 $offers[$currency][$interval] = $offer;
                 $anyAvailable = $anyAvailable || $offer->available;
             }
@@ -130,7 +137,7 @@ readonly class PricingTablePresenter
         );
     }
 
-    private function offer(PricingTable $table, PricingTablePlan $column, string $currency, string $interval): PriceOffer
+    private function offer(PricingTable $table, PricingTablePlan $column, string $currency, string $interval, ?ExperimentAttribution $attribution): PriceOffer
     {
         $per = $interval === self::INTERVAL_YEAR ? '/yr' : '/mo';
         $plan = $interval === self::INTERVAL_YEAR ? $column->annualPlan : $column->plan;
@@ -154,7 +161,14 @@ readonly class PricingTablePresenter
             minor: $minor,
             formatted: MoneyFormatter::minor($minor, $currency),
             per: $per,
-            ctaUrl: $this->links->build($table->cta_url_template, $plan->key, $currency, $interval, $minor),
+            ctaUrl: $this->links->build(
+                $table->cta_url_template,
+                $plan->key,
+                $currency,
+                $interval,
+                $minor,
+                $attribution?->toQueryParams() ?? [],
+            ),
         );
     }
 

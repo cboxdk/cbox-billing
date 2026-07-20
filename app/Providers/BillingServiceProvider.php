@@ -18,6 +18,7 @@ use App\Billing\Enforcement\EventLogUsageBuffer;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredFeaturePlan;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredPlan;
 use App\Billing\Enforcement\Upgrade\UpgradeGate;
+use App\Billing\Experiments\ConversionAttribution;
 use App\Billing\Features\FeatureEntitlements;
 use App\Billing\Fx\EcbFxRateSource;
 use App\Billing\Fx\EcbRatesParser;
@@ -409,6 +410,7 @@ class BillingServiceProvider extends ServiceProvider
             $app->make(SubscribesOrganizations::class),
             $app->make(ManagesBillingSessions::class),
             $app->make(CouponRedeemer::class),
+            $app->make(ConversionAttribution::class),
         ));
 
         $this->registerTransitionPolicy();

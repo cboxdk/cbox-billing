@@ -95,7 +95,7 @@ class WebhookEndpointRegistry
             'status' => DeliveryStatus::Pending,
         ]);
 
-        DeliverWebhook::dispatch($delivery->id);
+        DeliverWebhook::dispatch($delivery->id, $delivery->livemode);
 
         return $delivery;
     }
@@ -108,6 +108,6 @@ class WebhookEndpointRegistry
             'next_retry_at' => null,
         ])->save();
 
-        DeliverWebhook::dispatch($delivery->id);
+        DeliverWebhook::dispatch($delivery->id, $delivery->livemode);
     }
 }

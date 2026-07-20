@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Billing\Mode\BillingContext;
+use App\Billing\Mode\BillingMode;
 use App\Billing\Webhooks\Delivery\WebhookDeliverer;
 use App\Billing\Webhooks\Enums\DeliveryStatus;
 use App\Billing\Webhooks\Enums\WebhookEvent;
@@ -265,6 +267,54 @@ class OutboundWebhookTest extends TestCase
 
         $this->assertSame(1, $swept);
         $this->assertSame(DeliveryStatus::Delivered, $delivery->fresh()?->status);
+    }
+
+    // ---- 4b. Plane isolation: a TEST delivery is not lost under the worker's LIVE default ----
+
+    public function test_the_delivery_job_sets_the_plane_so_a_test_delivery_is_not_a_no_op(): void
+    {
+        Http::fake(['*' => Http::response('', 200)]);
+        $context = app(BillingContext::class);
+
+        // A TEST-plane endpoint + failed delivery (livemode=false).
+        $context->setMode(BillingMode::Test);
+        $endpoint = $this->endpoint([WebhookEvent::PaymentSettled->value]);
+        $delivery = $this->pendingDelivery($endpoint, WebhookEvent::PaymentSettled->value);
+        $this->assertFalse($delivery->livemode);
+
+        // The worker runs at the ambient default LIVE plane...
+        $context->setMode(BillingMode::Live);
+
+        // ...but the job carries the delivery's own plane, so it resolves and delivers the test row.
+        (new DeliverWebhook($delivery->id, false))->handle(
+            app(WebhookDeliverer::class),
+            $context,
+        );
+
+        $this->assertSame(DeliveryStatus::Delivered, WebhookDelivery::query()
+            ->withoutGlobalScopes()->findOrFail($delivery->id)->status);
+    }
+
+    public function test_the_retry_sweep_reaches_failed_test_deliveries_across_the_plane(): void
+    {
+        config(['billing.webhooks.max_attempts' => 5]);
+        Http::fakeSequence()->push('nope', 500)->push('', 200);
+        $context = app(BillingContext::class);
+
+        // A failed TEST delivery, due for retry.
+        $context->setMode(BillingMode::Test);
+        $endpoint = $this->endpoint([WebhookEvent::PaymentSettled->value]);
+        $delivery = $this->pendingDelivery($endpoint, WebhookEvent::PaymentSettled->value);
+        app(WebhookDeliverer::class)->deliver($delivery); // now failed
+        $delivery->forceFill(['next_retry_at' => now()->subMinute()])->save();
+
+        // The sweep runs at the scheduler's default LIVE plane — it must still find + retry it.
+        $context->setMode(BillingMode::Live);
+        $swept = app(WebhookDispatcher::class)->retryPending();
+
+        $this->assertSame(1, $swept);
+        $this->assertSame(DeliveryStatus::Delivered, WebhookDelivery::query()
+            ->withoutGlobalScopes()->findOrFail($delivery->id)->status);
     }
 
     // ---- 5. Test event (ping) ----

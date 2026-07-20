@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
  * event collapses onto this same row instead of double-delivering.
  *
  * @property string $id
+ * @property bool $livemode
  * @property string $endpoint_id
  * @property string $event_type
  * @property string $event_id

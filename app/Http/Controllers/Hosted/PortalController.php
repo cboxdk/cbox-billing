@@ -163,40 +163,46 @@ class PortalController extends HostedController
     }
 
     /**
-     * `GET` — download an invoice for this account as a PDF. Per-session org scope: an
-     * invoice not owned by the session's organization is 404 (deny-by-default, never leaks
-     * that another org's invoice exists).
+     * `GET` — download an invoice for this account as a PDF. The document id arrives as a raw
+     * STRING, not a route-model binding: the binding would resolve the {@see Invoice} under the
+     * worker's default LIVE plane BEFORE the token sets the request's plane, so a test token could
+     * serve a live document. We {@see require()} the session FIRST (which sets the plane from the
+     * token), THEN resolve the invoice — now plane-scoped, so a cross-plane id simply 404s. The
+     * per-session org scope is the second gate (deny-by-default, never leaks another org's invoice).
      */
-    public function invoicePdf(string $token, Invoice $invoice, InvoicePdfRenderer $renderer): Response
+    public function invoicePdf(string $token, string $invoice, InvoicePdfRenderer $renderer): Response
     {
         $session = $this->require($token, SessionType::Portal);
+        $model = Invoice::query()->find($invoice);
 
-        if ($invoice->organization_id !== $session->organization_id) {
+        if (! $model instanceof Invoice || $model->organization_id !== $session->organization_id) {
             throw new NotFoundHttpException('This invoice is not available.');
         }
 
-        return new Response($renderer->render($invoice), Response::HTTP_OK, [
+        return new Response($renderer->render($model), Response::HTTP_OK, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$renderer->filename($invoice).'"',
+            'Content-Disposition' => 'attachment; filename="'.$renderer->filename($model).'"',
         ]);
     }
 
     /**
-     * `GET` — download a credit note for this account as a PDF. Per-session org scope: a credit
-     * note not owned by the session's organization is 404 (deny-by-default, never leaks that
-     * another org's credit note exists).
+     * `GET` — download a credit note for this account as a PDF. As with {@see invoicePdf()}, the id
+     * is a raw STRING resolved AFTER the token sets the plane, so route-model binding cannot serve a
+     * live credit note to a test token. A cross-plane or cross-org id is 404 (deny-by-default, never
+     * leaks that another org's credit note exists).
      */
-    public function creditNotePdf(string $token, CreditNote $creditNote, CreditNotePdfRenderer $renderer): Response
+    public function creditNotePdf(string $token, string $creditNote, CreditNotePdfRenderer $renderer): Response
     {
         $session = $this->require($token, SessionType::Portal);
+        $model = CreditNote::query()->find($creditNote);
 
-        if ($creditNote->organization_id !== $session->organization_id) {
+        if (! $model instanceof CreditNote || $model->organization_id !== $session->organization_id) {
             throw new NotFoundHttpException('This credit note is not available.');
         }
 
-        return new Response($renderer->render($creditNote), Response::HTTP_OK, [
+        return new Response($renderer->render($model), Response::HTTP_OK, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$renderer->filename($creditNote).'"',
+            'Content-Disposition' => 'attachment; filename="'.$renderer->filename($model).'"',
         ]);
     }
 

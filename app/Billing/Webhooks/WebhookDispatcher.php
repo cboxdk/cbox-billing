@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Webhooks;
 
+use App\Billing\Mode\BillingContext;
+use App\Billing\Mode\BillingMode;
+use App\Billing\Mode\LivemodeScope;
 use App\Billing\Webhooks\Delivery\WebhookDeliverer;
 use App\Billing\Webhooks\Enums\DeliveryStatus;
 use App\Billing\Webhooks\Jobs\DeliverWebhook;
@@ -20,7 +23,10 @@ use App\Models\WebhookEndpoint;
  */
 class WebhookDispatcher
 {
-    public function __construct(private readonly WebhookDeliverer $deliverer) {}
+    public function __construct(
+        private readonly WebhookDeliverer $deliverer,
+        private readonly BillingContext $context,
+    ) {}
 
     /** @return int the number of deliveries enqueued */
     public function dispatch(ResolvedEvent $resolved): int
@@ -36,7 +42,7 @@ class WebhookDispatcher
             $delivery = $this->recordFor($endpoint, $resolved);
 
             if ($delivery->wasRecentlyCreated) {
-                DeliverWebhook::dispatch($delivery->id);
+                DeliverWebhook::dispatch($delivery->id, $delivery->livemode);
                 $enqueued++;
             }
         }
@@ -53,8 +59,10 @@ class WebhookDispatcher
      */
     public function retryPending(int $limit = 100): int
     {
+        // The sweep runs at the scheduler's default LIVE plane, so query WITHOUT the plane scope —
+        // otherwise a failed TEST delivery is invisible and never retries.
         $due = WebhookDelivery::query()
-            ->with('endpoint')
+            ->withoutGlobalScope(LivemodeScope::class)
             ->where('status', DeliveryStatus::Failed->value)
             ->whereNotNull('next_retry_at')
             ->where('next_retry_at', '<=', now())
@@ -63,7 +71,12 @@ class WebhookDispatcher
             ->get();
 
         foreach ($due as $delivery) {
-            $this->deliverer->deliver($delivery);
+            // Deliver each row in ITS OWN plane, then load its (plane-scoped) endpoint from inside
+            // that plane so the relation resolves — a test delivery's endpoint is not dropped.
+            $this->context->runInMode(BillingMode::fromLivemode($delivery->livemode), function () use ($delivery): void {
+                $delivery->loadMissing('endpoint');
+                $this->deliverer->deliver($delivery);
+            });
         }
 
         return $due->count();

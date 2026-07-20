@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToMode;
 use App\Billing\Tax\Exemptions\Enums\ExemptionStatus;
 use App\Billing\Tax\Exemptions\Enums\ExemptionType;
 use Cbox\Geo\ValueObjects\Jurisdiction;
@@ -25,8 +26,11 @@ use Illuminate\Support\Carbon;
  * The uploaded document lives on the PRIVATE disk at `document_path`; it is never web-served
  * without an authz check (see the console download action).
  *
+ * Plane-partitioned ({@see BelongsToMode}): a test certificate never exempts a live invoice.
+ *
  * @property int $id
  * @property string $organization_id
+ * @property bool $livemode
  * @property string $jurisdiction
  * @property ExemptionType $exemption_type
  * @property string $certificate_number
@@ -43,6 +47,8 @@ use Illuminate\Support\Carbon;
  */
 class TaxExemptionCertificate extends Model
 {
+    use BelongsToMode;
+
     protected $fillable = [
         'organization_id', 'jurisdiction', 'exemption_type', 'certificate_number',
         'issued_at', 'expires_at', 'status', 'document_path', 'document_name',

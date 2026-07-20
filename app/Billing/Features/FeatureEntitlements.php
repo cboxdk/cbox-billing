@@ -8,6 +8,7 @@ use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
 use App\Billing\Features\Enums\FeatureSource;
 use App\Billing\Features\ValueObjects\ResolvedFeature;
 use App\Billing\Metering\EntitlementsView;
+use App\Billing\Mode\BillingContext;
 use App\Models\Feature;
 use App\Models\OrganizationFeatureOverride;
 use App\Models\PlanFeature;
@@ -62,7 +63,7 @@ class FeatureEntitlements implements ResolvesFeatureEntitlements
      */
     private array $memo = [];
 
-    public function __construct(private Cache $cache) {}
+    public function __construct(private Cache $cache, private BillingContext $context) {}
 
     /**
      * The org's full resolved feature set, keyed by feature key. Every feature that is live
@@ -198,12 +199,17 @@ class FeatureEntitlements implements ResolvesFeatureEntitlements
      */
     private function contextFor(string $org): array
     {
-        if (isset($this->memo[$org])) {
-            return $this->memo[$org];
+        // Key by the current PLANE as well as the org: a test request must never warm — or read
+        // back — a live org's feature context (or vice-versa), even for the same org id resolved
+        // under a mode switch within one request. `L`/`T` keeps the two planes' entries distinct.
+        $key = ($this->context->livemode() ? 'L' : 'T').':'.$org;
+
+        if (isset($this->memo[$key])) {
+            return $this->memo[$key];
         }
 
-        return $this->memo[$org] = $this->cache->remember(
-            'feature-entitlements:'.$this->epoch().':'.$org,
+        return $this->memo[$key] = $this->cache->remember(
+            'feature-entitlements:'.$this->epoch().':'.$key,
             self::CACHE_TTL,
             fn (): array => $this->loadContext($org),
         );

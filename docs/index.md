@@ -97,6 +97,10 @@ The app is organized around a few load-bearing ideas:
 - **[Storefront: pricing tables & paywall](storefront/_index.md)** — the embeddable,
   seller-branded, self-contained pricing table a marketing site drops in, the embed
   snippet (iframe vs script), the drop-in paywall, and the checkout deep-link contract.
+- **[A/B pricing experiments](experiments/_index.md)** — run controlled pricing experiments
+  on the public storefront and measure conversion by variant: deterministic sticky
+  assignment, idempotent conversion attribution, a two-proportion-z significance signal
+  (with honest caveats), and concluding by promoting a winner.
 - **[CPQ: sales quoting & contracts](quotes/_index.md)** — the sales-led motion: a rep
   authors a quote with line items and contract terms, it is threshold-routed for approval,
   sent as a branded hosted order form, accepted by e-signature, and provisions a subscription.

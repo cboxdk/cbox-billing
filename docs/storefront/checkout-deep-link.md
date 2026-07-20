@@ -63,3 +63,12 @@ POST /api/v1/checkout-sessions   { org, plan, currency, return_url }
 ```
 
 then redirects the customer to that `url`. From there the hosted checkout owns the payment.
+
+## A/B experiment attribution
+
+When a table is served under a running [A/B pricing experiment](../experiments/_index.md), the
+CTA additionally carries an attribution triple — `cbox_exp` (experiment key), `cbox_var` (the
+assigned variant id) and `cbox_vid` (the anonymous visitor id). Forward these to
+`POST /api/v1/checkout-sessions` as `experiment` / `variant` / `visitor` and the conversion is
+attributed back to the variant (checkout started, then completed on settlement), idempotently.
+See [conversion attribution](../experiments/attribution.md).

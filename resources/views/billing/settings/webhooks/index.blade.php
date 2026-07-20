@@ -82,7 +82,8 @@
                 </form>
 
                 @if ($endpoint->active)
-                    <form method="POST" action="{{ route('billing.settings.webhooks.deactivate', $endpoint) }}">@csrf
+                    <form method="POST" action="{{ route('billing.settings.webhooks.deactivate', $endpoint) }}"
+                          data-confirm="Deactivate this endpoint? It stops receiving events until reactivated." data-confirm-title="Deactivate endpoint?" data-confirm-label="Deactivate" data-confirm-variant="destructive">@csrf
                         <button type="submit" class="cbx-btn">Deactivate</button>
                     </form>
                 @else

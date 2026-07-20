@@ -74,6 +74,13 @@ table.of-lines td.r, table.of-lines th.r { text-align: right; }
 .of-status.warn { background: color-mix(in srgb, var(--of-warn) 14%, transparent); color: var(--of-warn); }
 .of-foot { text-align: center; font-size: 11px; color: var(--of-muted); margin-top: 18px; }
 details.of-decline summary { cursor: pointer; font-size: 12px; color: var(--of-muted); margin-top: 12px; }
+.of-backdrop { position: fixed; inset: 0; background: rgba(10,12,18,.55); display: none; z-index: 40; }
+.of-modal { position: fixed; z-index: 41; left: 50%; top: 50%; transform: translate(-50%,-50%); width: min(92vw, 420px); background: var(--of-card); color: var(--of-fg); border: 1px solid var(--of-line); border-radius: var(--of-radius); box-shadow: var(--of-shadow); padding: 20px 22px; display: none; }
+.of-modal h2 { margin: 0 0 8px; font-size: 16px; }
+.of-modal p { margin: 0 0 16px; font-size: 13px; color: var(--of-muted); }
+.of-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.of-modal .of-btn { width: auto; padding: 9px 16px; font-size: 14px; }
+.of-modal .of-btn.bad { background: var(--of-bad); }
 @media (max-width: 560px) { .of-terms { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -107,6 +114,7 @@ details.of-decline summary { cursor: pointer; font-size: 12px; color: var(--of-m
             @endif
 
             <p class="of-sec-title">What's included</p>
+            <div style="overflow-x:auto">
             <table class="of-lines">
                 <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Net</th><th class="r">Tax</th><th class="r">Total</th></tr></thead>
                 <tbody>
@@ -121,6 +129,7 @@ details.of-decline summary { cursor: pointer; font-size: 12px; color: var(--of-m
                     @endforeach
                 </tbody>
             </table>
+            </div>
 
             <div class="of-totals">
                 @if ($c->hasCoupon())
@@ -156,7 +165,7 @@ details.of-decline summary { cursor: pointer; font-size: 12px; color: var(--of-m
                 </form>
                 <details class="of-decline">
                     <summary>Decline this order</summary>
-                    <form method="POST" action="{{ route('quote.decline', $token) }}" style="margin-top:8px">
+                    <form method="POST" action="{{ route('quote.decline', $token) }}" style="margin-top:8px" id="ofDeclineForm">
                         @csrf
                         <div class="of-field"><label for="reason">Reason (optional)</label><textarea id="reason" name="reason" rows="2" maxlength="500"></textarea></div>
                         <button type="submit" class="of-btn secondary">Decline</button>
@@ -168,5 +177,61 @@ details.of-decline summary { cursor: pointer; font-size: 12px; color: var(--of-m
 
     <p class="of-foot">Secured by {{ $b->productName }}. This is an electronic order form; acceptance is recorded with a timestamp.</p>
 </div>
+
+@if ($form->isActionable())
+<div class="of-backdrop" id="ofBackdrop"></div>
+<div class="of-modal" id="ofDeclineModal" role="alertdialog" aria-modal="true" aria-labelledby="ofDeclineTitle" aria-describedby="ofDeclineBody">
+    <h2 id="ofDeclineTitle">Decline this order?</h2>
+    <p id="ofDeclineBody">The seller will be notified and this order form can no longer be accepted. This cannot be undone.</p>
+    <div class="of-modal-actions">
+        <button type="button" class="of-btn secondary" id="ofDeclineCancel" style="width:auto;margin-top:0">Keep it</button>
+        <button type="button" class="of-btn bad" id="ofDeclineConfirm">Decline order</button>
+    </div>
+</div>
+<script>
+(function () {
+    var form = document.getElementById('ofDeclineForm');
+    var backdrop = document.getElementById('ofBackdrop');
+    var modal = document.getElementById('ofDeclineModal');
+    var cancel = document.getElementById('ofDeclineCancel');
+    var confirm = document.getElementById('ofDeclineConfirm');
+    if (!form || !modal) return;
+    var confirmed = false, lastFocus = null;
+    function openModal() {
+        lastFocus = document.activeElement;
+        backdrop.style.display = 'block';
+        modal.style.display = 'block';
+        confirm.focus();
+        document.addEventListener('keydown', onKey, true);
+    }
+    function closeModal() {
+        backdrop.style.display = 'none';
+        modal.style.display = 'none';
+        document.removeEventListener('keydown', onKey, true);
+        if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+    function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); closeModal(); }
+        else if (e.key === 'Tab') {
+            e.preventDefault();
+            (document.activeElement === confirm ? cancel : confirm).focus();
+        }
+    }
+    form.addEventListener('submit', function (e) {
+        if (confirmed) { confirmed = false; return; }
+        e.preventDefault();
+        openModal();
+    });
+    cancel.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+    confirm.addEventListener('click', function () {
+        confirmed = true;
+        closeModal();
+        if (typeof form.requestSubmit === 'function') form.requestSubmit();
+        else form.submit();
+    });
+})();
+</script>
+@endif
 </body>
 </html>

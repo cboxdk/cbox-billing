@@ -1,6 +1,11 @@
 @extends('layouts.app')
 @section('title', 'Tax exemptions')
-@section('crumb', 'Tax exemptions')
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Customers', 'href' => route('billing.customers')],
+        ['label' => 'Tax exemptions'],
+    ]" />
+@endsection
 
 @php
     use App\Billing\Tax\Exemptions\ExemptionJurisdictions;
@@ -21,6 +26,12 @@
 
     @include('partials.flash')
 
+    <form method="GET" action="{{ route('billing.tax-exemptions') }}" class="filters" role="search">
+        <div class="fsearch">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<input name="q" value="{{ $search }}" placeholder="Filter by organization, jurisdiction or certificate…" aria-label="Filter tax exemptions"><kbd class="k">F</kbd></div>
+        @if ($search)<a href="{{ route('billing.tax-exemptions') }}" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Clear</a>@endif
+        <span style="margin-left:auto" class="num mut">{{ $certificates->total() }}{{ $search ? ' matching' : '' }} {{ \Illuminate\Support\Str::plural('certificate', $certificates->total()) }}</span>
+    </form>
+
     <section class="cbx-panel">
         <table class="tbl">
             <thead><tr><th>Organization</th><th style="width:200px">Jurisdiction</th><th style="width:110px">Type</th><th style="width:160px">Certificate #</th><th style="width:100px">Status</th><th style="width:120px">Expires</th></tr></thead>
@@ -35,10 +46,18 @@
                         <td class="num mut">{{ $cert->expires_at?->format('Y-m-d') ?? 'no expiry' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div><h3>No exemption certificates yet.</h3><p>Certificates uploaded from a customer's detail page (or their portal) appear here.</p></div></td></tr>
+                    <tr><td colspan="6" style="padding:0">
+                        @if ($search)
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18])</div><h3>No matches</h3><p>No certificate matches “{{ $search }}”. Try a different term or clear the filter.</p></div>
+                        @else
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div><h3>No exemption certificates yet.</h3><p>Certificates uploaded from a customer's detail page (or their portal) appear here.</p></div>
+                        @endif
+                    </td></tr>
                 @endforelse
             </tbody>
         </table>
     </section>
+
+    {{ $certificates->links('partials.pagination') }}
 </div>
 @endsection

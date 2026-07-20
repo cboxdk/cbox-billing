@@ -32,7 +32,7 @@
 
         <div class="alert" id="error" role="alert"><span id="error-text"></span></div>
 
-        <div class="state" id="processing">
+        <div class="state" id="processing" role="status" aria-live="polite">
             <span class="spin"></span> Payment received — activating your subscription…
         </div>
 

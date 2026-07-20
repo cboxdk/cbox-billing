@@ -16,7 +16,7 @@
 @section('breadcrumb')
     <x-breadcrumb :items="[
         ['label' => 'Data'],
-        ['label' => 'Import', 'url' => route('billing.import')],
+        ['label' => 'Import', 'href' => route('billing.import')],
         ['label' => 'Dry-run'],
     ]" />
 @endsection
@@ -80,7 +80,14 @@
         </section>
     @endif
 
-    <form method="POST" action="{{ route('billing.import.commit', $run->id) }}">
+    @php
+        $commitNeedsConfirm = $run->livemode || $plan->hasConflicts();
+        $commitConfirmBody = $run->livemode
+            ? 'Commit this import to LIVE data? '.($plan->hasConflicts() ? 'Conflicted rows are skipped; all other rows are written now.' : 'All matched rows are written now.')
+            : 'Commit this import? Conflicted rows are skipped; all other rows are written now.';
+    @endphp
+    <form method="POST" action="{{ route('billing.import.commit', $run->id) }}"
+        @if ($commitNeedsConfirm) data-confirm="{{ $commitConfirmBody }}" data-confirm-title="Commit import?" data-confirm-label="Commit import" data-confirm-variant="{{ $run->livemode ? 'destructive' : 'primary' }}" @endif>
         @csrf
 
         {{-- Plan mapping editor --}}

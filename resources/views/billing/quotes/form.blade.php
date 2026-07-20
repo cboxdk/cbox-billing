@@ -59,7 +59,7 @@
 
         <section class="cbx-panel" style="margin-bottom:16px">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Customer & header</h2></header>
-            <div style="padding:14px 20px" class="cbx-grid-2" style="gap:14px 24px">
+            <div class="cbx-grid-2" style="padding:14px 20px;gap:14px 24px">
                 <label style="display:block">
                     <span class="mut" style="font-size:12px">Billing organization</span>
                     <select name="organization_id" class="cbx-input">
@@ -134,7 +134,7 @@
 
         <section class="cbx-panel" style="margin-bottom:16px">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Contract terms</h2></header>
-            <div style="padding:14px 20px" class="cbx-grid-3" style="gap:14px 24px">
+            <div class="cbx-grid-3" style="padding:14px 20px;gap:14px 24px">
                 <label style="display:block"><span class="mut" style="font-size:12px">Term length</span><input name="term_count" type="number" min="1" max="120" class="cbx-input" value="{{ $val('term_count', 12) }}" required></label>
                 <label style="display:block"><span class="mut" style="font-size:12px">Term unit</span>
                     <select name="term_unit" class="cbx-input">

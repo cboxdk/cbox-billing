@@ -67,10 +67,12 @@
         <section class="cbx-panel" style="border-left:3px solid var(--warning)">
             <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Awaiting approval</h2><span class="mut" style="font-size:12px">Threshold: {{ $threshold }}</span></header>
             <div style="padding:8px 20px 18px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
-                <form method="POST" action="{{ route('billing.quotes.approve', $quote->id) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Approve</button></form>
-                <form method="POST" action="{{ route('billing.quotes.reject', $quote->id) }}" style="margin:0;display:flex;gap:8px;align-items:center">
+                <form method="POST" action="{{ route('billing.quotes.approve', $quote->id) }}" style="margin:0"
+                      data-confirm="Approve {{ $quote->number }}? It becomes sendable to the customer." data-confirm-title="Approve quote?" data-confirm-label="Approve" data-confirm-variant="primary">@csrf<button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Approve</button></form>
+                <form method="POST" action="{{ route('billing.quotes.reject', $quote->id) }}" style="margin:0;display:flex;gap:8px;align-items:center"
+                      data-confirm="Reject {{ $quote->number }} back to the owner? They will see your reason." data-confirm-title="Reject quote?" data-confirm-label="Reject" data-confirm-variant="destructive">
                     @csrf
-                    <input name="reason" required maxlength="500" placeholder="Reason for rejection" style="min-width:280px" aria-label="Rejection reason">
+                    <input name="reason" required maxlength="500" placeholder="Reason for rejection" class="cbx-input" style="min-width:280px" aria-label="Rejection reason">
                     <button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Reject</button>
                 </form>
             </div>

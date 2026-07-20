@@ -169,12 +169,16 @@
         <a class="cmd" href="{{ route('billing.invoices') }}">@include('partials.icon', ['name' => 'invoice', 'size' => 15, 'sw' => 1.7])Go to Invoices<kbd class="k">G I</kbd></a>
         <a class="cmd" href="{{ route('billing.customers') }}">@include('partials.icon', ['name' => 'building', 'size' => 15, 'sw' => 1.7])Go to Customers</a>
         <a class="cmd" href="{{ route('billing.access-grants') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Access grants</a>
+        <a class="cmd" href="{{ route('billing.tax-exemptions') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Tax exemptions</a>
         <a class="cmd" href="{{ route('billing.usage') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to Usage</a>
         <a class="cmd" href="{{ route('billing.exports') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Data · Exports</a>
         <a class="cmd" href="{{ route('billing.exports.warehouse') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Data · Warehouse sinks</a>
+        <a class="cmd" href="{{ route('billing.import') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Data · Import</a>
         <a class="cmd" href="{{ route('billing.credit-notes') }}">@include('partials.icon', ['name' => 'invoice', 'size' => 15, 'sw' => 1.7])Go to Credit notes</a>
         <a class="cmd" href="{{ route('billing.catalog') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Catalog</a>
         <a class="cmd" href="{{ route('billing.pricing') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Plans &amp; pricing</a>
+        <a class="cmd" href="{{ route('billing.features') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Features</a>
+        <a class="cmd" href="{{ route('billing.pricing-tables') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Pricing tables</a>
         <a class="cmd" href="{{ route('billing.products') }}">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Go to Products</a>
         <a class="cmd" href="{{ route('billing.coupons') }}">@include('partials.icon', ['name' => 'receipt', 'size' => 15, 'sw' => 1.7])Go to Coupons</a>
         <a class="cmd" href="{{ route('billing.meters') }}">@include('partials.icon', ['name' => 'gauge', 'size' => 15, 'sw' => 1.7])Go to Meters</a>
@@ -183,6 +187,9 @@
         <a class="cmd" href="{{ route('billing.settings') }}">@include('partials.icon', ['name' => 'settings', 'size' => 15, 'sw' => 1.7])Go to Settings</a>
         <a class="cmd" href="{{ route('billing.settings.webhooks') }}">@include('partials.icon', ['name' => 'arrow-up-right', 'size' => 15, 'sw' => 1.7])Go to Webhooks</a>
         <a class="cmd" href="{{ route('billing.settings.emails') }}">@include('partials.icon', ['name' => 'bell', 'size' => 15, 'sw' => 1.7])Go to Email templates</a>
+        <a class="cmd" href="{{ route('billing.settings.fx') }}">@include('partials.icon', ['name' => 'activity', 'size' => 15, 'sw' => 1.7])Go to FX rates</a>
+        <a class="cmd" href="{{ route('billing.audit') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Audit log</a>
+        <a class="cmd" href="{{ route('billing.audit.gdpr') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to GDPR / DSAR</a>
         <a class="cmd" href="{{ route('openapi.docs') }}" target="_blank" rel="noopener">@include('partials.icon', ['name' => 'box', 'size' => 15, 'sw' => 1.7])Open API reference (OpenAPI)</a>
     </div>
     {{-- Only real, existing actions — no no-op commands. --}}

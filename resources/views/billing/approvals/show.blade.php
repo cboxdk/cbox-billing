@@ -56,13 +56,13 @@
                 <form method="POST" action="{{ route('billing.approvals.approve', $request->id) }}" style="margin:0;display:flex;gap:6px;align-items:center"
                       data-confirm="Approve and execute {{ $request->action_type->label() }} (request #{{ $request->id }})? This runs the action." data-confirm-label="Approve" data-confirm-variant="primary">
                     @csrf
-                    <input name="note" maxlength="500" placeholder="Note (optional)" style="width:200px" aria-label="Approval note">
+                    <input name="note" maxlength="500" placeholder="Note (optional)" class="cbx-input" style="width:200px" aria-label="Approval note">
                     <button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Approve</button>
                 </form>
                 <form method="POST" action="{{ route('billing.approvals.reject', $request->id) }}" style="margin:0;display:flex;gap:6px;align-items:center"
                       data-confirm="Reject request #{{ $request->id }}? Nothing will be executed." data-confirm-label="Reject">
                     @csrf
-                    <input name="note" required maxlength="500" placeholder="Rejection reason" style="width:200px" aria-label="Rejection reason">
+                    <input name="note" required maxlength="500" placeholder="Rejection reason" class="cbx-input" style="width:200px" aria-label="Rejection reason">
                     <button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Reject</button>
                 </form>
             </div>

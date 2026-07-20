@@ -29,6 +29,7 @@
     .cbx-switch input:checked + .cbx-switch-track { background: var(--primary); border-color: var(--primary); }
     .cbx-switch input:checked + .cbx-switch-track::after { transform: translateX(16px); }
     .cbx-switch input:disabled { cursor: not-allowed; }
+    .cbx-switch input:focus-visible + .cbx-switch-track { outline: 2px solid var(--ring, var(--primary)); outline-offset: 2px; }
     .notif-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; }
     .notif-row + .notif-row { border-top: 1px solid var(--border); }
     .notif-row .t { font-size: 13.5px; font-weight: 600; }
@@ -159,7 +160,7 @@
                 @endforelse
             </div>
         </div>
-        <div class="alert" id="seat-error"><span></span></div>
+        <div class="alert" role="alert" aria-live="assertive" id="seat-error"><span></span></div>
     </div>
 </div>
 @endif
@@ -203,7 +204,7 @@
                 your subscription can't renew on the retired plan, so please choose one of the options above before {{ $sunset->renewalDue }}.
             @endif
         </div>
-        <div class="alert" id="sunset-error"><span></span></div>
+        <div class="alert" role="alert" aria-live="assertive" id="sunset-error"><span></span></div>
     </div>
 </div>
 @endif
@@ -224,7 +225,7 @@
             <div id="preview-text"></div>
             <button class="cbx-btn cbx-btn--primary cbx-btn--sm" id="confirm-change" style="width:auto;margin-top:10px">Confirm change</button>
         </div>
-        <div class="alert" id="change-error"><span></span></div>
+        <div class="alert" role="alert" aria-live="assertive" id="change-error"><span></span></div>
     </div>
 </div>
 @endif
@@ -255,7 +256,7 @@
             <div class="element" id="setup-element"></div>
             <button class="cbx-btn cbx-btn--primary" id="save-pm" style="margin-top:12px" disabled>Save card</button>
         </div>
-        <div class="alert" id="pm-error"><span></span></div>
+        <div class="alert" role="alert" aria-live="assertive" id="pm-error"><span></span></div>
     </div>
 </div>
 @endif
@@ -263,7 +264,7 @@
 {{-- Billing history: broader than invoices — invoices, payments, refunds/credits, coupons --}}
 <div class="hosted-card" id="history">
     <header><h1>Billing history</h1><p>Invoices, payments, refunds, credits and promo codes.</p></header>
-    <div class="hosted-body" style="padding:0">
+    <div class="hosted-body" style="padding:0;overflow-x:auto">
         <table class="tbl">
             <thead><tr><th>Date</th><th>Activity</th><th class="right">Amount</th><th class="right">Status</th><th class="right"></th></tr></thead>
             <tbody>
@@ -285,7 +286,7 @@
 
 <div class="hosted-card" id="invoices">
     <header><h1>Invoices</h1></header>
-    <div class="hosted-body" style="padding:0">
+    <div class="hosted-body" style="padding:0;overflow-x:auto">
         <table class="tbl">
             <thead><tr><th>Invoice</th><th>Date</th><th class="right">Amount</th><th class="right">Status</th><th class="right">PDF</th></tr></thead>
             <tbody>
@@ -318,7 +319,8 @@
         @endif
 
         @if ($exemptions->isNotEmpty())
-            <table class="tbl" style="margin-bottom:14px">
+            <div style="overflow-x:auto;margin-bottom:14px">
+            <table class="tbl">
                 <thead><tr><th>Jurisdiction</th><th>Type</th><th>Certificate #</th><th class="right">Status</th></tr></thead>
                 <tbody>
                     @foreach ($exemptions as $cert)
@@ -331,6 +333,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
         @endif
 
         <form method="POST" action="{{ route('hosted.portal.exemptions', ['token' => $session->token]) }}" enctype="multipart/form-data" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -385,8 +388,8 @@
             <strong>Always sent</strong> — these transactional and legal emails can't be turned off:
             @foreach ($notifications['mandatory'] as $mandatory)<span>{{ $mandatory['label'] }}@if (! $loop->last) · @endif</span>@endforeach
         </div>
-        <div class="alert" id="notif-error"><span></span></div>
-        <div class="state" id="notif-saved"><span>Preference saved.</span></div>
+        <div class="alert" role="alert" aria-live="assertive" id="notif-error"><span></span></div>
+        <div class="state" id="notif-saved" role="status" aria-live="polite"><span>Preference saved.</span></div>
     </div>
 </div>
 
@@ -417,7 +420,7 @@
         @endif
 
         <button class="cbx-btn cbx-btn--ghost" id="cancel-btn" style="color:var(--destructive);margin-top:12px">Cancel subscription at period end</button>
-        <div class="alert" id="cancel-error"><span></span></div>
+        <div class="alert" role="alert" aria-live="assertive" id="cancel-error"><span></span></div>
     </div>
 </div>
 @endif

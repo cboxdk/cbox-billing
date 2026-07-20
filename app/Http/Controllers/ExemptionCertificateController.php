@@ -106,21 +106,43 @@ class ExemptionCertificateController extends Controller
     }
 
     /** `GET` — the console-wide tax-exemption overview: who is exempt where. */
-    public function overview(): View
+    public function overview(Request $request): View
     {
+        $search = $this->search($request);
+
         $certificates = TaxExemptionCertificate::query()
             ->with('organization')
+            ->when($search !== null, function ($query) use ($search): void {
+                $like = '%'.$search.'%';
+                $orgIds = Organization::query()->where('name', 'like', $like)->pluck('id');
+                $query->where(function ($q) use ($like, $orgIds): void {
+                    $q->where('organization_id', 'like', $like)
+                        ->orWhere('jurisdiction', 'like', $like)
+                        ->orWhere('certificate_number', 'like', $like)
+                        ->orWhereIn('organization_id', $orgIds);
+                });
+            })
             ->orderByRaw("CASE status WHEN 'verified' THEN 0 WHEN 'pending' THEN 1 WHEN 'expired' THEN 2 ELSE 3 END")
             ->orderBy('jurisdiction')
-            ->get();
+            ->paginate(25)
+            ->withQueryString();
 
         return view('billing.tax-exemptions', [
             'activeArea' => 'customers',
-            'activeNav' => 'organizations',
+            'activeNav' => 'tax-exemptions',
             'certificates' => $certificates,
-            'verifiedCount' => $certificates->where('status', ExemptionStatus::Verified)->count(),
-            'pendingCount' => $certificates->where('status', ExemptionStatus::Pending)->count(),
+            'search' => $search,
+            'verifiedCount' => TaxExemptionCertificate::query()->where('status', ExemptionStatus::Verified)->count(),
+            'pendingCount' => TaxExemptionCertificate::query()->where('status', ExemptionStatus::Pending)->count(),
         ]);
+    }
+
+    /** The `?q=` filter term, trimmed; blank becomes null. */
+    private function search(Request $request): ?string
+    {
+        $q = $request->query('q');
+
+        return is_string($q) && trim($q) !== '' ? trim($q) : null;
     }
 
     /** Deny-by-default cross-org access: a certificate not owned by the org in the route is 404. */

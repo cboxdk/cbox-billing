@@ -38,7 +38,16 @@
             </form>
         </header>
         @if ($organizations->isEmpty())
-            <p class="mut" style="padding:24px;text-align:center">No organizations match.</p>
+            <div class="cbx-empty">
+                @if ($search)
+                    <div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18])</div>
+                    <h3>No matches</h3>
+                    <p>No organization matches “{{ $search }}”. Try a different id or name.</p>
+                @else
+                    <h3>No organizations yet</h3>
+                    <p>Data-subject exports and erasure appear here once organizations exist.</p>
+                @endif
+            </div>
         @else
             <table class="tbl">
                 <thead><tr><th>Organization</th><th>Id</th><th>Status</th><th class="right">Actions</th></tr></thead>
@@ -59,7 +68,9 @@
                             <td class="right" style="white-space:nowrap">
                                 <a class="cbx-btn cbx-btn--sm" href="{{ route('billing.audit.gdpr.export', $org->id) }}">Export DSAR bundle</a>
                                 @unless ($org->isErased())
-                                    <form method="POST" action="{{ route('billing.audit.gdpr.erase', $org->id) }}" style="display:inline" onsubmit="return confirm('Erase PII for {{ $org->name }}? Financial records are retained (de-identified). This cannot be undone.');">
+                                    <form method="POST" action="{{ route('billing.audit.gdpr.erase', $org->id) }}" style="display:inline"
+                                          data-confirm="Erase PII for {{ $org->name }}? Financial records are retained (de-identified). This cannot be undone."
+                                          data-confirm-title="Erase PII?" data-confirm-label="Erase PII" data-confirm-variant="destructive">
                                         @csrf
                                         <button type="submit" class="cbx-btn cbx-btn--sm cbx-btn--destructive">Erase PII</button>
                                     </form>

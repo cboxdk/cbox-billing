@@ -8,6 +8,20 @@
     <link rel="icon" href="{{ asset('cbox/assets/logo/favicon.ico') }}">
     <link rel="stylesheet" href="{{ asset('cbox/styles.css') }}">
     <link rel="stylesheet" href="{{ asset('cbox/cbox-app.css') }}">
+    <script>
+        // Hosted pages carry no theme switcher, so they follow the viewer's OS preference —
+        // mirroring the prefers-color-scheme handling the order-form and storefront already do.
+        // The dark palette lives under the `.dark` scope (tokens/colors.css); toggling it on
+        // <html> in <head> applies before first paint, so there is no light-mode flash.
+        (function () {
+            try {
+                var mq = window.matchMedia('(prefers-color-scheme: dark)');
+                var apply = function (dark) { document.documentElement.classList.toggle('dark', dark); };
+                apply(mq.matches);
+                mq.addEventListener('change', function (e) { apply(e.matches); });
+            } catch (e) {}
+        })();
+    </script>
     @stack('head')
     <style>
         body { min-height: 100vh; padding: 40px 20px; }

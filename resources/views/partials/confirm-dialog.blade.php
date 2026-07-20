@@ -49,7 +49,8 @@
 
     function onKeydown(e) {
         if (e.key === 'Escape') { e.preventDefault(); close(false); return; }
-        if (e.key === 'Enter') { e.preventDefault(); close(true); return; }
+        // Enter activates the focused button (Cancel cancels), not an unconditional confirm.
+        if (e.key === 'Enter') { e.preventDefault(); close(document.activeElement !== cancelBtn); return; }
         if (e.key === 'Tab') {
             // Trap focus between the two buttons.
             e.preventDefault();

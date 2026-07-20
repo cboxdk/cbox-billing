@@ -128,6 +128,7 @@ class ConsoleNav
             'pages' => [
                 ['route' => 'billing.customers', 'label' => 'Customers', 'key' => 'organizations', 'params' => [], 'feature' => null, 'order' => 10],
                 ['route' => 'billing.access-grants', 'label' => 'Access grants', 'key' => 'access-grants', 'params' => [], 'feature' => null, 'order' => 20],
+                ['route' => 'billing.tax-exemptions', 'label' => 'Tax exemptions', 'key' => 'tax-exemptions', 'params' => [], 'feature' => null, 'order' => 30],
             ],
         ],
         'licenses' => [

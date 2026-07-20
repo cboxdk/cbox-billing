@@ -27,7 +27,10 @@
             <div><h2 class="cbx-panel-title" style="font-size:14px">Configured sinks</h2><p class="cbx-panel-desc" style="font-size:12px">{{ $sinks->count() }} sink(s)</p></div>
         </header>
         @if ($sinks->isEmpty())
-            <p class="mut" style="padding:24px;text-align:center">No sinks configured yet. Add one below to start staging datasets.</p>
+            <div class="cbx-empty">
+                <h3>No sinks configured yet</h3>
+                <p>Add one below to start staging datasets to object storage.</p>
+            </div>
         @else
             <div style="padding:6px 20px 16px">
                 @foreach ($sinks as $sink)
@@ -42,8 +45,10 @@
                             </div>
                             <div style="display:flex;gap:6px;flex-wrap:wrap">
                                 <form method="POST" action="{{ route('billing.exports.warehouse.run', $sink) }}">@csrf<button class="cbx-btn cbx-btn--sm cbx-btn--primary">Run now</button></form>
-                                <form method="POST" action="{{ route('billing.exports.warehouse.toggle', $sink) }}">@csrf<button class="cbx-btn cbx-btn--sm">{{ $sink->enabled ? 'Disable' : 'Enable' }}</button></form>
-                                <form method="POST" action="{{ route('billing.exports.warehouse.destroy', $sink) }}" onsubmit="return confirm('Remove this sink and its run history?')">@csrf @method('DELETE')<button class="cbx-btn cbx-btn--sm cbx-btn--destructive">Remove</button></form>
+                                <form method="POST" action="{{ route('billing.exports.warehouse.toggle', $sink) }}"
+                                    @if ($sink->enabled) data-confirm="Disable “{{ $sink->name }}”? Scheduled staging stops until it is re-enabled." data-confirm-title="Disable sink?" data-confirm-label="Disable" data-confirm-variant="destructive" @endif>@csrf<button class="cbx-btn cbx-btn--sm">{{ $sink->enabled ? 'Disable' : 'Enable' }}</button></form>
+                                <form method="POST" action="{{ route('billing.exports.warehouse.destroy', $sink) }}"
+                                    data-confirm="Remove “{{ $sink->name }}” and its run history? This cannot be undone." data-confirm-title="Remove sink?" data-confirm-label="Remove" data-confirm-variant="destructive">@csrf @method('DELETE')<button class="cbx-btn cbx-btn--sm cbx-btn--destructive">Remove</button></form>
                             </div>
                         </header>
                         <div style="padding:10px 16px">

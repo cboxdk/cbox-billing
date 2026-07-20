@@ -67,7 +67,8 @@
                         <td><span class="cbx-pill cbx-pill--muted">{{ $sub['status'] }}</span></td>
                         <td class="num mut">{{ $sub['trial_ends_at'] ? 'trial → '.$sub['trial_ends_at'] : $sub['period_end'] }}</td>
                         <td style="text-align:right">
-                            <form method="POST" action="{{ route('billing.test-mode.clocks.unbind', [$clock['id'], $sub['id']]) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn cbx-btn--sm">Unbind</button></form>
+                            <form method="POST" action="{{ route('billing.test-mode.clocks.unbind', [$clock['id'], $sub['id']]) }}" style="margin:0"
+                                  data-confirm="Unbind {{ $sub['organization'] }} from this clock? Its billing timeline stops being simulated here." data-confirm-title="Unbind subscription?" data-confirm-label="Unbind" data-confirm-variant="destructive">@csrf<button type="submit" class="cbx-btn cbx-btn--sm">Unbind</button></form>
                         </td>
                     </tr>
                 @empty

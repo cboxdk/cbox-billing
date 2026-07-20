@@ -27,10 +27,12 @@
                         <td class="mut">{{ $quote->owner_name ?? '—' }}</td>
                         <td>
                             <div style="display:flex;gap:6px;align-items:center">
-                                <form method="POST" action="{{ route('billing.quotes.approve', $quote->id) }}" style="margin:0">@csrf<button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Approve</button></form>
-                                <form method="POST" action="{{ route('billing.quotes.reject', $quote->id) }}" style="margin:0;display:flex;gap:5px;align-items:center">
+                                <form method="POST" action="{{ route('billing.quotes.approve', $quote->id) }}" style="margin:0"
+                                      data-confirm="Approve {{ $quote->number }}? It becomes sendable to the customer." data-confirm-title="Approve quote?" data-confirm-label="Approve" data-confirm-variant="primary">@csrf<button type="submit" class="cbx-btn cbx-btn--primary cbx-btn--sm">Approve</button></form>
+                                <form method="POST" action="{{ route('billing.quotes.reject', $quote->id) }}" style="margin:0;display:flex;gap:5px;align-items:center"
+                                      data-confirm="Reject {{ $quote->number }} back to the owner? They will see your reason." data-confirm-title="Reject quote?" data-confirm-label="Reject" data-confirm-variant="destructive">
                                     @csrf
-                                    <input name="reason" required maxlength="500" placeholder="Reason" style="width:120px" aria-label="Rejection reason">
+                                    <input name="reason" required maxlength="500" placeholder="Reason" class="cbx-input" style="width:120px" aria-label="Rejection reason">
                                     <button type="submit" class="cbx-btn cbx-btn--sm" style="color:var(--destructive)">Reject</button>
                                 </form>
                             </div>

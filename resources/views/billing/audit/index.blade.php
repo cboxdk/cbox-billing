@@ -80,13 +80,17 @@
     {{-- The trail --}}
     <section class="cbx-panel">
         @if ($events->isEmpty())
-            <p class="mut" style="padding:24px;text-align:center">No audit events match these filters.</p>
+            <div class="cbx-empty">
+                <div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div>
+                <h3>No audit events match</h3>
+                <p>Nothing matches these filters. Widen the range or reset the filters.</p>
+            </div>
         @else
             <table class="tbl">
                 <thead><tr><th>#</th><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Summary</th><th>Plane</th></tr></thead>
                 <tbody>
                     @foreach ($events as $event)
-                        <tr data-href="{{ route('billing.audit.show', $event->id) }}" style="cursor:pointer">
+                        <tr data-href="{{ route('billing.audit.show', $event->id) }}" tabindex="0" role="link" aria-label="Open audit event {{ $event->sequence }} — {{ $event->action }}" style="cursor:pointer">
                             <td class="num mut">{{ $event->sequence }}</td>
                             <td class="mut" style="white-space:nowrap">{{ $event->occurred_at->format('Y-m-d H:i:s') }}</td>
                             <td>

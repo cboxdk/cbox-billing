@@ -15,7 +15,7 @@
 @section('breadcrumb')
     <x-breadcrumb :items="[
         ['label' => 'Data'],
-        ['label' => 'Import', 'url' => route('billing.import')],
+        ['label' => 'Import', 'href' => route('billing.import')],
         ['label' => 'Run #' . $run->id],
     ]" />
 @endsection

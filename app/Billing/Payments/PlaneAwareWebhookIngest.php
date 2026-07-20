@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Payments;
 
-use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Mode\BillingContext;
-use App\Billing\Mode\EnvironmentScope;
 use App\Billing\Payments\Exceptions\SettlementRejected;
-use App\Models\BillingSession;
 use App\Models\Environment;
-use App\Models\Invoice;
 use Cbox\Billing\Events\PaymentSettled;
 use Cbox\Billing\Payment\Contracts\InvoicePaymentApplier;
 use Cbox\Billing\Payment\Contracts\ProcessedEventStore;
@@ -53,7 +49,7 @@ readonly class PlaneAwareWebhookIngest implements WebhookIngest
         private SettledPaymentStore $settled,
         private InvoicePaymentApplier $applier,
         private BillingContext $context,
-        private EnvironmentRegistry $environments,
+        private WebhookPlaneResolver $planes,
         private ?Dispatcher $events = null,
     ) {}
 
@@ -115,34 +111,13 @@ readonly class PlaneAwareWebhookIngest implements WebhookIngest
     /**
      * Resolve the plane the reference lives in WITHOUT a plane scope: the settlement route carries
      * no credential, so we read the owning plane from the invoice (settlements/renewals) or the
-     * pending checkout session (hosted activation). A reference that matches neither falls back to
-     * the ambient plane — nothing will match under it either, so the apply simply no-ops.
+     * pending checkout session (hosted activation) — via {@see WebhookPlaneResolver}, the same seam
+     * the controller uses to pick the verification secret's plane, so the pre-verify and post-verify
+     * planes can never disagree. A reference that matches neither falls back to the ambient plane —
+     * nothing will match under it either, so the apply simply no-ops.
      */
     private function planeFor(WebhookEvent $event): Environment
     {
-        $reference = $event->reference;
-
-        $owner = Invoice::query()
-            ->withoutGlobalScope(EnvironmentScope::class)
-            ->where('number', $reference)
-            ->first();
-
-        if (! $owner instanceof Invoice) {
-            $owner = BillingSession::query()
-                ->withoutGlobalScope(EnvironmentScope::class)
-                ->where('payment_reference', $reference)
-                ->where('type', 'checkout')
-                ->first();
-        }
-
-        if ($owner === null) {
-            return $this->context->environment();
-        }
-
-        $key = $owner->getAttribute('environment');
-
-        return is_string($key) && $key !== ''
-            ? $this->environments->resolve($key)
-            : $this->context->environment();
+        return $this->planes->forReference($event->reference);
     }
 }

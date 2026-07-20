@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Payments;
 
-use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Mode\BillingContext;
-use App\Billing\Mode\EnvironmentScope;
 use App\Billing\Payments\Contracts\RetriesPayments;
 use App\Billing\Payments\Contracts\UpdatesCards;
 use App\Billing\Payments\Dunning\CardUpdate;
@@ -44,26 +42,19 @@ readonly class DunningCardUpdater implements UpdatesCards
         private PaymentGateway $gateway,
         private LoggerInterface $log,
         private BillingContext $context,
-        private EnvironmentRegistry $environments,
+        private WebhookPlaneResolver $planes,
     ) {}
 
     public function apply(CardUpdate $update): CardUpdateResult
     {
         // HP1: the card-updater webhook carries no credential to set the plane, so resolve the
-        // gateway customer UNSCOPED by (gateway, customer id) and adopt ITS plane before any of the
-        // mode-scoped lookups below (org mapping, in-dunning retries, the vaulted default) run — a
-        // sandbox card-update then recovers only that environment's charges, and vice-versa. With no
-        // gateway customer (the manual/host gateway keys the vault by org id directly) there is no
-        // plane signal, so we stay in the ambient plane.
-        $customer = GatewayCustomer::query()
-            ->withoutGlobalScope(EnvironmentScope::class)
-            ->where('gateway', $update->gateway)
-            ->where('gateway_customer_id', $update->account)
-            ->first();
-
-        $plane = $customer instanceof GatewayCustomer
-            ? $this->environments->resolve($customer->environmentKey())
-            : $this->context->environment();
+        // gateway customer's OWN plane (UNSCOPED, via the shared {@see WebhookPlaneResolver} — the
+        // same seam the controller uses to pick the verification secret's plane) and adopt it before
+        // any of the mode-scoped lookups below (org mapping, in-dunning retries, the vaulted default)
+        // run — a sandbox card-update then recovers only that environment's charges, and vice-versa.
+        // With no gateway customer (the manual/host gateway keys the vault by org id directly) there
+        // is no plane signal, so we stay in the ambient plane.
+        $plane = $this->planes->forAccount($update->gateway, $update->account);
 
         return $this->context->runInEnvironment($plane, fn (): CardUpdateResult => $this->applyInPlane($update));
     }

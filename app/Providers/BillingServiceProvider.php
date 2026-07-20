@@ -87,6 +87,7 @@ use App\Billing\Payments\EnvironmentAwareWebhookVerifier;
 use App\Billing\Payments\PaymentRetryService;
 use App\Billing\Payments\PaymentService;
 use App\Billing\Payments\PlaneAwareWebhookIngest;
+use App\Billing\Payments\WebhookPlaneResolver;
 use App\Billing\Refunds\DatabaseRefundRepository;
 use App\Billing\Reporting\Consolidated\ConsolidatedRevenueReport;
 use App\Billing\Retention\BasicCancellationSurvey;
@@ -674,7 +675,7 @@ class BillingServiceProvider extends ServiceProvider
             $app->make(SettledPaymentStore::class),
             $app->make(InvoicePaymentApplier::class),
             $app->make(BillingContext::class),
-            $app->make(EnvironmentRegistry::class),
+            $app->make(WebhookPlaneResolver::class),
             $app->make(Dispatcher::class),
         ));
 

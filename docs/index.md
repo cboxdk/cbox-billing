@@ -104,6 +104,9 @@ The app is organized around a few load-bearing ideas:
 - **[CPQ: sales quoting & contracts](quotes/_index.md)** — the sales-led motion: a rep
   authors a quote with line items and contract terms, it is threshold-routed for approval,
   sent as a branded hosted order form, accepted by e-signature, and provisions a subscription.
+- **[Approvals: the two-person rule](approvals/_index.md)** — a general maker-checker engine:
+  a refund, wallet adjustment, suspension, or plan archival above a configured threshold is
+  held for a second operator's approval and runs exactly once when approved.
 - **[Testing & sandbox](testing/_index.md)** — test mode's isolated `livemode` plane,
   the fake gateway with no real charges or emails, and fast-forwardable test clocks
   for simulating renewals, trials and dunning in seconds.

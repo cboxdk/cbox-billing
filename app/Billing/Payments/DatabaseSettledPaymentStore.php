@@ -16,8 +16,9 @@ use Illuminate\Database\QueryException;
  * after the claim persisted is a no-op. The webhook ingest calls this in the same
  * transaction as the invoice paid-effect, so the claim and the effect commit atomically.
  *
- * Plane-aware: the claim carries the request's `livemode` and every read is confined to the
- * current plane, so a TEST settlement can never be seen to settle (or block) a LIVE reference.
+ * Plane-aware: the claim carries the request's `environment` (with `livemode` as its mirror) and
+ * every read is confined to the current plane, so a SANDBOX settlement can never be seen to settle
+ * (or block) a PRODUCTION reference.
  */
 readonly class DatabaseSettledPaymentStore implements SettledPaymentStore
 {
@@ -33,6 +34,7 @@ readonly class DatabaseSettledPaymentStore implements SettledPaymentStore
         try {
             $this->db->table(self::TABLE)->insert([
                 'reference' => $reference,
+                'environment' => $this->context->environmentKey(),
                 'livemode' => $this->context->livemode(),
             ]);
 
@@ -46,7 +48,7 @@ readonly class DatabaseSettledPaymentStore implements SettledPaymentStore
     {
         return $this->db->table(self::TABLE)
             ->where('reference', $reference)
-            ->where('livemode', $this->context->livemode())
+            ->where('environment', $this->context->environmentKey())
             ->exists();
     }
 }

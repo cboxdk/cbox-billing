@@ -236,6 +236,7 @@ class CrossPlaneEntryPointTest extends TestCase
             'expires_at' => Carbon::now()->addYear(),
             'key' => 'signed.jwt.artifact',
             'livemode' => $livemode,
+            'environment' => $livemode ? 'production' : 'sandbox',
             'created_at' => Carbon::now(),
         ];
     }

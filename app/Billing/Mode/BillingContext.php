@@ -5,50 +5,78 @@ declare(strict_types=1);
 namespace App\Billing\Mode;
 
 use App\Billing\Mode\Contracts\BillingClock;
-use App\Billing\TestMode\TestClockAdvancer;
+use App\Billing\TestMode\ModeAwarePaymentGateway;
+use App\Models\Environment;
 use Carbon\CarbonImmutable;
 use Closure;
 
 /**
- * The one ambient holder of the request's (or CLI pass's) billing MODE and, while a test
- * clock is being advanced, its virtual "now". Bound as a singleton and as the app's
- * {@see BillingClock}, so:
+ * The one ambient holder of the request's (or CLI pass's) active {@see Environment} — the billing
+ * PLANE — and, while a test clock is being advanced, its virtual "now". Bound as a singleton and
+ * as the app's {@see BillingClock}, so:
  *
- *  - the {@see LivemodeScope} on every partitioned model reads {@see livemode()} to filter
- *    to the current plane (deny-by-default: live unless a test credential set otherwise);
+ *  - the {@see EnvironmentScope} on every partitioned model reads {@see environmentKey()} to
+ *    filter to the current plane (deny-by-default: production unless a credential names another);
+ *  - the {@see ModeAwarePaymentGateway} reads {@see isTest()} to route a
+ *    sandbox charge to the fake gateway;
  *  - every time-sensitive billing service reads {@see now()} for the current instant.
  *
- * It starts LIVE with no virtual time, so nothing outside test mode changes: `now()` is real
- * now and the scope selects `livemode = true`. The console middleware / API authenticator set
- * the mode from the credential; the {@see TestClockAdvancer} scopes a
- * virtual-time window around the due-logic run with {@see runAtVirtualTime()}.
+ * It starts in PRODUCTION with no virtual time (a DB-free in-memory placeholder — no query at
+ * boot or mid-migration), so nothing outside a sandbox changes: `now()` is real now and the scope
+ * selects `environment = 'production'`. The console middleware / API authenticator / public
+ * token-bootstrap set the environment from the credential or the resolved row; the test-clock
+ * advancer scopes a virtual-time window with {@see runAtVirtualTime()}.
+ *
+ * The legacy test/live {@see BillingMode} surface ({@see mode()}, {@see livemode()},
+ * {@see setMode()}, {@see runInMode()}) is retained as a thin bridge over the environment, so
+ * existing callers and the synced `livemode` mirror column keep working unchanged.
  */
 class BillingContext implements BillingClock
 {
-    private BillingMode $mode = BillingMode::Live;
+    private ?Environment $environment = null;
 
     private ?CarbonImmutable $virtualNow = null;
 
+    /** The active plane — the set environment, or the DB-free production default. */
+    public function environment(): Environment
+    {
+        return $this->environment ??= Environment::defaultProduction();
+    }
+
+    /** The stable key of the active plane — what {@see EnvironmentScope} filters every read by. */
+    public function environmentKey(): string
+    {
+        return $this->environment()->key;
+    }
+
+    /** Set the resolved environment for the request/pass (console middleware / API auth / token bootstrap). */
+    public function setEnvironment(Environment $environment): void
+    {
+        $this->environment = $environment;
+    }
+
+    /** The legacy plane enum for the active environment (production → live, sandbox → test). */
     public function mode(): BillingMode
     {
-        return $this->mode;
+        return $this->environment()->billingMode();
     }
 
+    /** Whether charges in the active plane route to the fake gateway (the sandbox / test-key plane). */
     public function isTest(): bool
     {
-        return $this->mode->isTest();
+        return $this->environment()->gatewayKeyMode()->isTest();
     }
 
-    /** Whether rows in the current plane carry `livemode = true` (live) or `false` (test). */
+    /** The `livemode` mirror rows in the active plane carry (production → true, sandbox → false). */
     public function livemode(): bool
     {
-        return $this->mode->livemode();
+        return $this->environment()->livemode();
     }
 
-    /** Set the resolved mode for the request/pass (called by the console middleware / API auth). */
+    /** BC bridge: set the plane from a legacy test/live mode (live → production, test → sandbox). */
     public function setMode(BillingMode $mode): void
     {
-        $this->mode = $mode;
+        $this->environment = Environment::forBillingMode($mode);
     }
 
     public function now(): CarbonImmutable
@@ -57,11 +85,30 @@ class BillingContext implements BillingClock
     }
 
     /**
-     * Run `$callback` in `$mode`, restoring the prior mode afterwards (even on throw). Used
-     * where the request carries no credential to set the plane but a resolved row names it —
+     * Run `$callback` in `$environment`, restoring the prior plane afterwards (even on throw).
+     * Used where the request carries no credential to set the plane but a resolved row names it —
      * e.g. a settlement webhook activating a hosted checkout must subscribe the org in the
-     * checkout session's OWN plane, not the ambient default, then restore so the rest of the
-     * webhook is unaffected.
+     * checkout session's OWN plane, not the ambient default, then restore.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function runInEnvironment(Environment $environment, Closure $callback): mixed
+    {
+        $previous = $this->environment;
+        $this->environment = $environment;
+
+        try {
+            return $callback();
+        } finally {
+            $this->environment = $previous;
+        }
+    }
+
+    /**
+     * BC bridge for {@see runInEnvironment()} from a legacy test/live mode.
      *
      * @template T
      *
@@ -70,21 +117,14 @@ class BillingContext implements BillingClock
      */
     public function runInMode(BillingMode $mode, Closure $callback): mixed
     {
-        $previousMode = $this->mode;
-        $this->mode = $mode;
-
-        try {
-            return $callback();
-        } finally {
-            $this->mode = $previousMode;
-        }
+        return $this->runInEnvironment(Environment::forBillingMode($mode), $callback);
     }
 
     /**
-     * Run `$callback` as if it were TEST mode at exactly `$virtualNow`, restoring the prior
-     * mode and virtual time afterwards (even on throw). This is how the test-clock advancer
-     * steps the world to each due instant: the due-logic run inside sees `now()` = the step
-     * time and `livemode()` = false, so it processes only test rows and writes test rows.
+     * Run `$callback` as if it were the SANDBOX plane at exactly `$virtualNow`, restoring the
+     * prior plane and virtual time afterwards (even on throw). This is how the test-clock advancer
+     * steps the world to each due instant: the due-logic run inside sees `now()` = the step time
+     * and the sandbox plane, so it processes only sandbox rows and writes sandbox rows.
      *
      * @template T
      *
@@ -93,16 +133,16 @@ class BillingContext implements BillingClock
      */
     public function runAtVirtualTime(CarbonImmutable $virtualNow, Closure $callback): mixed
     {
-        $previousMode = $this->mode;
+        $previous = $this->environment;
         $previousVirtual = $this->virtualNow;
 
-        $this->mode = BillingMode::Test;
+        $this->environment = Environment::defaultSandbox();
         $this->virtualNow = $virtualNow;
 
         try {
             return $callback();
         } finally {
-            $this->mode = $previousMode;
+            $this->environment = $previous;
             $this->virtualNow = $previousVirtual;
         }
     }

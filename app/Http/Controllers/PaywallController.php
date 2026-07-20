@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
 use App\Billing\Mode\BillingContext;
-use App\Billing\Mode\BillingMode;
 use App\Billing\Notifications\Branding\BrandingResolver;
 use App\Billing\Storefront\PaywallPresenter;
 use App\Billing\Storefront\ReturnUrlPolicy;
@@ -43,6 +43,7 @@ class PaywallController extends Controller
         BrandingResolver $branding,
         ManagesBillingSessions $sessions,
         BillingContext $context,
+        EnvironmentRegistry $environments,
     ): Response {
         $sellerBranding = $branding->forSeller(null);
 
@@ -65,7 +66,7 @@ class PaywallController extends Controller
         // HP1: bootstrap the plane from the (unscoped) checkout session token BEFORE the presenter
         // reaches any mode-scoped org / subscription / entitlement data — a test session must never
         // render live upgrade state. The org is verified against the token, deny-by-default.
-        $checkoutUrl = $this->existingCheckoutUrl($request, $sessions, $context, $org);
+        $checkoutUrl = $this->existingCheckoutUrl($request, $sessions, $context, $environments, $org);
 
         $paywall = $request->filled('meter')
             ? $presenter->forMeter($org, $request->string('meter')->toString(), $checkoutUrl)
@@ -84,12 +85,12 @@ class PaywallController extends Controller
     /**
      * The deep-link for the CTA: an EXISTING, still-usable checkout session the caller already
      * holds (possession of the token is its authorization) — resolved UNSCOPED, never minted. When
-     * it resolves and belongs to the requested org, its `livemode` sets the request's plane so the
-     * presenter renders that plane's upgrade state; the returned URL is the checkout deep-link.
-     * Null (and no plane change — the public default LIVE plane stands) when no token is supplied,
-     * it does not resolve to a usable session, or it belongs to a different org (deny-by-default).
+     * it resolves and belongs to the requested org, its `environment` sets the request's plane so
+     * the presenter renders that plane's upgrade state; the returned URL is the checkout deep-link.
+     * Null (and no plane change — the public default production plane stands) when no token is
+     * supplied, it does not resolve to a usable session, or it belongs to a different org.
      */
-    private function existingCheckoutUrl(Request $request, ManagesBillingSessions $sessions, BillingContext $context, string $org): ?string
+    private function existingCheckoutUrl(Request $request, ManagesBillingSessions $sessions, BillingContext $context, EnvironmentRegistry $environments, string $org): ?string
     {
         if (! $request->filled('session')) {
             return null;
@@ -104,7 +105,7 @@ class PaywallController extends Controller
             return null;
         }
 
-        $context->setMode(BillingMode::fromLivemode($session->livemode));
+        $context->setEnvironment($environments->resolve($session->environmentKey()));
 
         return route('hosted.checkout.show', $token);
     }

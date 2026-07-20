@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\TestMode\CapturedNotifications;
@@ -36,6 +37,7 @@ class TestModeServiceProvider extends ServiceProvider
     {
         $this->app->singleton(BillingContext::class);
         $this->app->singleton(BillingClock::class, static fn (Application $app): BillingContext => $app->make(BillingContext::class));
+        $this->app->singleton(EnvironmentRegistry::class);
         $this->app->singleton(CapturedNotifications::class);
 
         $this->app->singleton(ResolvesTestChargeOutcome::class, ClockChargeOutcome::class);

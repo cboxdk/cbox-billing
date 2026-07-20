@@ -17,10 +17,10 @@ use Illuminate\Support\Carbon;
  * issuer nodes. Revoking is idempotent: it upserts on the `license_id` primary key, so a
  * repeat revoke keeps the original `revoked_at` rather than duplicating the id.
  *
- * Plane-aware: a revocation carries the request's `livemode` and every read is confined to the
- * current plane, so a test-plane revocation never appears on the live signed revocation list (and
- * a live revocation never leaks into a test deployment's activation refresh) — the published list
- * is cut per plane.
+ * Plane-aware: a revocation carries the request's `environment` (with `livemode` as its mirror)
+ * and every read is confined to the current plane, so a sandbox revocation never appears on the
+ * production signed revocation list (and a production revocation never leaks into a sandbox
+ * deployment's activation refresh) — the published list is cut per plane.
  */
 readonly class DatabaseRevocationRegistry implements LicenseRevocationRegistry
 {
@@ -37,6 +37,7 @@ readonly class DatabaseRevocationRegistry implements LicenseRevocationRegistry
 
         $this->table()->insert([
             'license_id' => $licenseId,
+            'environment' => $this->context->environmentKey(),
             'livemode' => $this->context->livemode(),
             'revoked_at' => Carbon::now(),
             'reason' => $reason,
@@ -72,6 +73,6 @@ readonly class DatabaseRevocationRegistry implements LicenseRevocationRegistry
     /** The revocation table constrained to the current plane. */
     private function scoped(): Builder
     {
-        return $this->table()->where('livemode', $this->context->livemode());
+        return $this->table()->where('environment', $this->context->environmentKey());
     }
 }

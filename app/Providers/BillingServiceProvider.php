@@ -22,6 +22,7 @@ use App\Billing\Enforcement\EventLogUsageBuffer;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredFeaturePlan;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredPlan;
 use App\Billing\Enforcement\Upgrade\UpgradeGate;
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Experiments\Contracts\AttributesConversions;
 use App\Billing\Experiments\ConversionAttribution;
 use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
@@ -453,6 +454,7 @@ class BillingServiceProvider extends ServiceProvider
             $app->make(ConversionAttribution::class),
             $app->make(BillingContext::class),
             $app->make(RecordsAudit::class),
+            $app->make(EnvironmentRegistry::class),
         ));
 
         $this->registerTransitionPolicy();
@@ -617,6 +619,7 @@ class BillingServiceProvider extends ServiceProvider
             $app->make(SettledPaymentStore::class),
             $app->make(InvoicePaymentApplier::class),
             $app->make(BillingContext::class),
+            $app->make(EnvironmentRegistry::class),
             $app->make(Dispatcher::class),
         ));
 

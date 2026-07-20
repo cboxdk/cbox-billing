@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Auth;
 
+use App\Models\Environment;
 use Illuminate\Contracts\Session\Session;
 
 /**
@@ -17,7 +18,8 @@ class CurrentUser
 
     private const ID_TOKEN_KEY = 'auth.id_token';
 
-    private const TEST_MODE_KEY = 'console.test_mode';
+    /** The console's active billing environment (plane) key — defaults to production. */
+    private const ENVIRONMENT_KEY = 'console.environment';
 
     public function __construct(private readonly Session $session) {}
 
@@ -60,18 +62,32 @@ class CurrentUser
 
     public function logout(): void
     {
-        $this->session->forget([self::USER_KEY, self::ID_TOKEN_KEY, self::TEST_MODE_KEY]);
+        $this->session->forget([self::USER_KEY, self::ID_TOKEN_KEY, self::ENVIRONMENT_KEY]);
     }
 
-    /** Whether the console is currently viewing the TEST (sandbox) plane. */
+    /** The console's active billing environment (plane) key — production unless switched. */
+    public function activeEnvironmentKey(): string
+    {
+        $key = $this->session->get(self::ENVIRONMENT_KEY, Environment::PRODUCTION);
+
+        return is_string($key) && $key !== '' ? $key : Environment::PRODUCTION;
+    }
+
+    /** Switch the console to a named environment (the persistent environment switcher). */
+    public function setActiveEnvironment(string $key): void
+    {
+        $this->session->put(self::ENVIRONMENT_KEY, $key === '' ? Environment::PRODUCTION : $key);
+    }
+
+    /** Whether the console is currently viewing a NON-production (sandbox) plane. */
     public function inTestMode(): bool
     {
-        return (bool) $this->session->get(self::TEST_MODE_KEY, false);
+        return $this->activeEnvironmentKey() !== Environment::PRODUCTION;
     }
 
-    /** Flip the console between the live and test planes (the persistent test-mode toggle). */
+    /** BC bridge: flip the console between production and the default sandbox. */
     public function setTestMode(bool $enabled): void
     {
-        $this->session->put(self::TEST_MODE_KEY, $enabled);
+        $this->setActiveEnvironment($enabled ? Environment::SANDBOX : Environment::PRODUCTION);
     }
 }

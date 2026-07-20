@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\BillingMode;
 use App\Billing\Webhooks\Delivery\WebhookDeliverer;
@@ -285,10 +286,11 @@ class OutboundWebhookTest extends TestCase
         // The worker runs at the ambient default LIVE plane...
         $context->setMode(BillingMode::Live);
 
-        // ...but the job carries the delivery's own plane, so it resolves and delivers the test row.
-        (new DeliverWebhook($delivery->id, false))->handle(
+        // ...but the job carries the delivery's own plane, so it resolves and delivers the sandbox row.
+        (new DeliverWebhook($delivery->id, 'sandbox'))->handle(
             app(WebhookDeliverer::class),
             $context,
+            app(EnvironmentRegistry::class),
         );
 
         $this->assertSame(DeliveryStatus::Delivered, WebhookDelivery::query()

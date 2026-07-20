@@ -121,9 +121,9 @@ class ApprovalEngineTest extends TestCase
         // In the LIVE plane the request is visible in the queue.
         $this->withSession($this->checker)->get('/approvals')->assertOk()->assertSee('#'.$request->id);
 
-        // In the TEST plane the live request is filtered out (livemode scoping).
+        // In the SANDBOX plane the production request is filtered out (environment scoping).
         $session = $this->checker;
-        $session['console.test_mode'] = true;
+        $session['console.environment'] = 'sandbox';
         $this->withSession($session)->get('/approvals')->assertOk()->assertSee('Nothing to approve.');
     }
 

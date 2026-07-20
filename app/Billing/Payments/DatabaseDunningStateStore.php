@@ -29,7 +29,7 @@ readonly class DatabaseDunningStateStore implements DunningStateStore
     {
         $row = $this->db->table(self::TABLE)
             ->where('account', $account)
-            ->where('livemode', $this->context->livemode())
+            ->where('environment', $this->context->environmentKey())
             ->first();
 
         if ($row === null) {
@@ -46,11 +46,13 @@ readonly class DatabaseDunningStateStore implements DunningStateStore
 
     public function save(string $account, DunningState $state): void
     {
-        // The plane is part of the dunning key: the SAME org id dunned in test has an independent
-        // notice cadence from live, so a test run never advances (or suppresses) live suspension.
+        // The plane is part of the dunning key: the SAME org id dunned in a sandbox has an
+        // independent notice cadence from production, so a sandbox run never advances (or
+        // suppresses) production suspension. `environment` is the key; `livemode` is its mirror.
         $this->db->table(self::TABLE)->updateOrInsert(
-            ['account' => $account, 'livemode' => $this->context->livemode()],
+            ['account' => $account, 'environment' => $this->context->environmentKey()],
             [
+                'livemode' => $this->context->livemode(),
                 'notices_sent' => $state->noticesSent,
                 'last_notice_at' => $state->lastNoticeAt?->format('Y-m-d H:i:s'),
                 'updated_at' => $this->db->raw('CURRENT_TIMESTAMP'),

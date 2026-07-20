@@ -12,6 +12,7 @@ use App\Billing\Audit\Support\AuditRequestTally;
 use App\Billing\Audit\ValueObjects\AuditActor;
 use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Mode\BillingContext;
+use App\Models\Environment;
 use App\Models\OperatorAuditEvent;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
@@ -123,6 +124,7 @@ readonly class AuditRecorder implements RecordsAudit
                 'organization_id' => $target->organizationId,
                 'summary' => $summary,
                 'metadata' => $metadata === [] ? null : $metadata,
+                'environment' => $livemode ? Environment::PRODUCTION : Environment::SANDBOX,
                 'livemode' => $livemode,
                 'prev_hash' => $prevHash,
                 'created_at' => $now,

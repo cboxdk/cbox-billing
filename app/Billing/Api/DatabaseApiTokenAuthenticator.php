@@ -54,12 +54,13 @@ readonly class DatabaseApiTokenAuthenticator implements ApiTokenAuthenticator
 
         $productId = $token->product_id !== null ? (int) $token->product_id : null;
         $mode = $token->billingMode();
+        $environmentKey = $token->environmentKey();
         $actorSub = 'api-token:'.$token->id;
         $actorName = $token->name;
 
         return $token->organization_id === null
-            ? ApiIdentity::operator($productId, $mode, $actorSub, $actorName)
-            : ApiIdentity::forOrganization($token->organization_id, $productId, $mode, $actorSub, $actorName);
+            ? ApiIdentity::operator($productId, $mode, $actorSub, $actorName, $environmentKey)
+            : ApiIdentity::forOrganization($token->organization_id, $productId, $mode, $actorSub, $actorName, $environmentKey);
     }
 
     /**

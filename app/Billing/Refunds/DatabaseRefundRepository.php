@@ -44,7 +44,7 @@ readonly class DatabaseRefundRepository implements RefundRepository
     {
         $row = $this->db->table(self::TABLE)
             ->where('refund_id', $refundId)
-            ->where('livemode', $this->context->livemode())
+            ->where('environment', $this->context->environmentKey())
             ->first();
 
         if ($row === null) {
@@ -92,7 +92,7 @@ readonly class DatabaseRefundRepository implements RefundRepository
         $sum = $this->db->table(self::TABLE)
             ->where('invoice_number', $invoiceNumber)
             ->where('currency', $currency)
-            ->where('livemode', $this->context->livemode())
+            ->where('environment', $this->context->environmentKey())
             ->sum('gross_minor');
 
         return Money::ofMinor((int) $sum, $currency);
@@ -105,6 +105,7 @@ readonly class DatabaseRefundRepository implements RefundRepository
         $this->db->table(self::TABLE)->updateOrInsert(
             ['refund_id' => $refund->id],
             [
+                'environment' => $this->context->environmentKey(),
                 'livemode' => $this->context->livemode(),
                 'invoice_number' => $note->invoiceNumber,
                 'credit_note_number' => $note->number,

@@ -6,7 +6,6 @@ namespace Tests\Feature;
 
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\BillingMode;
-use App\Billing\Mode\LivemodeScope;
 use App\Models\ApiToken;
 use App\Models\Organization;
 use App\Models\Plan;

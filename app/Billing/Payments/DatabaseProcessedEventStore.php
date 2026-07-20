@@ -15,8 +15,9 @@ use Illuminate\Database\QueryException;
  * false on every re-delivery, so the event stream is deduplicated across process restarts
  * — not just within one process like the engine's in-memory default.
  *
- * Plane-aware: the dedup row carries the request's `livemode` so a test event stream and a live
- * one are deduplicated independently and never suppress each other.
+ * Plane-aware: the dedup row carries the request's `environment` (with `livemode` as its mirror)
+ * so a sandbox event stream and a production one are deduplicated independently and never suppress
+ * each other.
  */
 readonly class DatabaseProcessedEventStore implements ProcessedEventStore
 {
@@ -32,6 +33,7 @@ readonly class DatabaseProcessedEventStore implements ProcessedEventStore
         try {
             $this->db->table(self::TABLE)->insert([
                 'event_id' => $eventId,
+                'environment' => $this->context->environmentKey(),
                 'livemode' => $this->context->livemode(),
             ]);
 

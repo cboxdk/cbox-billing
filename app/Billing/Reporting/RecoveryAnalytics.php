@@ -88,7 +88,7 @@ readonly class RecoveryAnalytics
         $rows = DB::table('payment_retries')
             ->join('invoices', 'invoices.id', '=', 'payment_retries.invoice_id')
             ->where('payment_retries.status', PaymentRetry::STATUS_RECOVERED)
-            ->where('payment_retries.livemode', $this->context->livemode())
+            ->where('payment_retries.environment', $this->context->environmentKey())
             ->groupBy('invoices.currency')
             ->selectRaw('invoices.currency as currency, SUM(invoices.total_minor) as minor')
             ->get();
@@ -128,7 +128,7 @@ readonly class RecoveryAnalytics
         $tallies = [];
 
         $rows = DB::table('payment_retries')
-            ->where('livemode', $this->context->livemode())
+            ->where('environment', $this->context->environmentKey())
             ->groupBy('decline_category', 'status')
             ->selectRaw('decline_category, status, COUNT(*) as total')
             ->get();

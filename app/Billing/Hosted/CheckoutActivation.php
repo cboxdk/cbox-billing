@@ -9,12 +9,12 @@ use App\Billing\Audit\Enums\AuditAction;
 use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Experiments\Contracts\AttributesConversions;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionStatus;
 use App\Billing\Mode\BillingContext;
-use App\Billing\Mode\BillingMode;
-use App\Billing\Mode\LivemodeScope;
+use App\Billing\Mode\EnvironmentScope;
 use App\Billing\Payments\Exceptions\SettlementRejected;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Support\MoneyFormatter;
@@ -52,6 +52,7 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
         private AttributesConversions $attribution,
         private BillingContext $context,
         private RecordsAudit $audit,
+        private EnvironmentRegistry $environments,
     ) {}
 
     public function markPaid(string $reference, Money $amount, PaymentResult $result): void
@@ -65,11 +66,12 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
     private function activateCheckout(string $reference, Money $amount): void
     {
         // The reference is globally unique, so the lookup runs WITHOUT the plane scope — the
-        // webhook route carries no credential to set the mode. The matched session's own
-        // `livemode` names the plane the org must be subscribed in (HP1): a test checkout
-        // activates a test subscription and completes a test session, never crossing into live.
+        // webhook route carries no credential to set the plane. The matched session's own
+        // `environment` names the plane the org must be subscribed in (HP1): a sandbox checkout
+        // activates a sandbox subscription and completes a sandbox session, never crossing into
+        // production.
         $session = BillingSession::query()
-            ->withoutGlobalScope(LivemodeScope::class)
+            ->withoutGlobalScope(EnvironmentScope::class)
             ->where('payment_reference', $reference)
             ->where('type', 'checkout')
             ->where('status', SessionStatus::Pending->value)
@@ -111,7 +113,7 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
             ));
         }
 
-        $this->context->runInMode(BillingMode::fromLivemode($session->livemode), function () use ($session): void {
+        $this->context->runInEnvironment($this->environments->resolve($session->environmentKey()), function () use ($session): void {
             $organization = Organization::query()->find($session->organization_id);
             $plan = Plan::query()->with(['prices', 'product'])->where('key', $session->plan_key)->first();
 

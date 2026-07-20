@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Auth\CurrentUser;
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\BillingMode;
 use App\Billing\TestMode\Enums\TestChargeOutcome;
@@ -30,9 +31,10 @@ class TestModeController extends Controller
     public function __construct(
         private readonly CurrentUser $current,
         private readonly BillingContext $context,
+        private readonly EnvironmentRegistry $environments,
     ) {}
 
-    /** Flip the console between the live and test planes (persistent per-session). */
+    /** Flip the console between production and the default sandbox (BC toggle; posts `enabled`). */
     public function toggle(Request $request): RedirectResponse
     {
         $enabled = $request->boolean('enabled');
@@ -40,8 +42,33 @@ class TestModeController extends Controller
 
         return redirect()->back()->with(
             'status',
-            $enabled ? 'Test mode ON — you are viewing the sandbox dataset.' : 'Test mode off — back on live data.',
+            $enabled ? 'Sandbox ON — you are viewing the sandbox dataset.' : 'Back on production data.',
         );
+    }
+
+    /**
+     * Switch the console to a named environment (the persistent environment switcher). The key
+     * must name a real, seeded environment — an unknown key is refused (deny-by-default) so the
+     * console can never land on a plane that does not exist.
+     */
+    public function switchEnvironment(Request $request): RedirectResponse
+    {
+        $request->validate(['environment' => ['required', 'string', 'max:255']]);
+
+        $key = $request->string('environment')->toString();
+        $environment = $this->environments->find($key);
+
+        if ($environment === null || ! $environment->exists) {
+            return redirect()->back()->with('status', 'Unknown environment — no change.');
+        }
+
+        $this->current->setActiveEnvironment($environment->key);
+
+        return redirect()->back()->with('status', sprintf(
+            'Switched to “%s”%s.',
+            $environment->name,
+            $environment->isProduction() ? '' : ' — sandbox data only, no real charges or emails',
+        ));
     }
 
     public function index(TestClockReport $report): View

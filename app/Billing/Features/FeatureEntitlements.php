@@ -199,10 +199,11 @@ class FeatureEntitlements implements ResolvesFeatureEntitlements
      */
     private function contextFor(string $org): array
     {
-        // Key by the current PLANE as well as the org: a test request must never warm — or read
-        // back — a live org's feature context (or vice-versa), even for the same org id resolved
-        // under a mode switch within one request. `L`/`T` keeps the two planes' entries distinct.
-        $key = ($this->context->livemode() ? 'L' : 'T').':'.$org;
+        // Key by the current ENVIRONMENT as well as the org: a sandbox request must never warm —
+        // or read back — a production org's feature context (or vice-versa), even for the same org
+        // id resolved under a plane switch within one request. The environment key keeps every
+        // plane's entries distinct (and distinguishes two sandboxes, which `L`/`T` could not).
+        $key = $this->context->environmentKey().':'.$org;
 
         if (isset($this->memo[$key])) {
             return $this->memo[$key];

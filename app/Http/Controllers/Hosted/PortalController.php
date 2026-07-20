@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Hosted;
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
 use App\Billing\Hosted\PortalBillingHistory;
@@ -63,6 +64,7 @@ class PortalController extends HostedController
     public function __construct(
         ManagesBillingSessions $sessions,
         BillingContext $context,
+        EnvironmentRegistry $environments,
         private readonly SubscribesOrganizations $subscriptions,
         private readonly PaymentGateway $gateway,
         private readonly ResolvesAccountCurrency $currencies,
@@ -77,7 +79,7 @@ class PortalController extends HostedController
         private readonly ManagesNotificationPreferences $notifications,
         private readonly ExemptionCertificateService $exemptionCertificates,
     ) {
-        parent::__construct($sessions, $context);
+        parent::__construct($sessions, $context, $environments);
     }
 
     /** The portal page: current subscription, upgrade/downgrade options, invoices, methods. */

@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Billing\Licensing;
 
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Licensing\ValueObjects\ActivationBundle;
 use App\Billing\Mode\BillingContext;
-use App\Billing\Mode\BillingMode;
+use App\Models\Environment;
 use Cbox\Billing\Licensing\Contracts\IssuedLicenseStore;
 use Cbox\Billing\Licensing\RevocationPublisher;
 use Illuminate\Contracts\Config\Repository as Config;
@@ -32,6 +33,7 @@ readonly class LicenseActivationService
         private Config $config,
         private BillingContext $context,
         private ConnectionInterface $db,
+        private EnvironmentRegistry $environments,
     ) {}
 
     public function refresh(string $deploymentId): ?ActivationBundle
@@ -40,7 +42,7 @@ readonly class LicenseActivationService
         // deployment's OWNING plane UNSCOPED first (the issued-license store scopes to the ambient
         // — LIVE by default — plane, so a test deployment would otherwise 404), then run the whole
         // refresh in that plane so the license lookup AND the revocation list are cut per plane.
-        return $this->context->runInMode($this->planeFor($deploymentId), fn (): ?ActivationBundle => $this->refreshInPlane($deploymentId));
+        return $this->context->runInEnvironment($this->planeFor($deploymentId), fn (): ?ActivationBundle => $this->refreshInPlane($deploymentId));
     }
 
     private function refreshInPlane(string $deploymentId): ?ActivationBundle
@@ -68,17 +70,17 @@ readonly class LicenseActivationService
      * newest (longest-valid) issued license for the deployment names the plane; an unknown
      * deployment falls back to the ambient plane (the lookup will simply find nothing there too).
      */
-    private function planeFor(string $deploymentId): BillingMode
+    private function planeFor(string $deploymentId): Environment
     {
-        $livemode = $this->db->table('issued_licenses')
+        $environment = $this->db->table('issued_licenses')
             ->where('deployment_id', $deploymentId)
             ->orderByDesc('expires_at')
             ->orderByDesc('issued_at')
             ->orderByDesc('created_at')
-            ->value('livemode');
+            ->value('environment');
 
-        return $livemode === null
-            ? $this->context->mode()
-            : BillingMode::fromLivemode((bool) $livemode);
+        return is_string($environment) && $environment !== ''
+            ? ($this->environments->find($environment) ?? $this->context->environment())
+            : $this->context->environment();
     }
 }

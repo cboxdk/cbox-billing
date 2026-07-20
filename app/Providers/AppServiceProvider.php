@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Auth\CboxIdOidc;
 use App\Auth\Contracts\IdentityProvider;
 use App\Auth\CurrentUser;
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Http\View\NavigationComposer;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Cache\Repository as Cache;
@@ -55,8 +56,13 @@ class AppServiceProvider extends ServiceProvider
         // Make the signed-in user available to the app shell.
         View::composer('layouts.app', function (ViewContract $view): void {
             $current = $this->app->make(CurrentUser::class);
+            $registry = $this->app->make(EnvironmentRegistry::class);
+            $active = $registry->resolve($current->activeEnvironmentKey());
+
             $view->with('currentUser', $current->user());
             $view->with('testMode', $current->inTestMode());
+            $view->with('activeEnvironment', $active);
+            $view->with('environments', $registry->all());
         });
 
         // Overlay live, database-derived counts onto the navigation IA.

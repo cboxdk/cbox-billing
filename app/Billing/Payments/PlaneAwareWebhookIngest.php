@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Billing\Payments;
 
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Mode\BillingContext;
-use App\Billing\Mode\BillingMode;
-use App\Billing\Mode\LivemodeScope;
+use App\Billing\Mode\EnvironmentScope;
 use App\Billing\Payments\Exceptions\SettlementRejected;
 use App\Models\BillingSession;
+use App\Models\Environment;
 use App\Models\Invoice;
 use Cbox\Billing\Events\PaymentSettled;
 use Cbox\Billing\Payment\Contracts\InvoicePaymentApplier;
@@ -30,8 +31,8 @@ use Illuminate\Contracts\Events\Dispatcher;
  *     the dedup guards — under the worker's ambient LIVE default. A TEST settlement therefore
  *     touched LIVE data. Here the reference is resolved to its OWNING plane FIRST (an UNSCOPED
  *     lookup by reference: the invoice number, else the checkout session's payment reference),
- *     then the entire ingest runs {@see BillingContext::runInMode()} in that plane — so a test
- *     settlement resolves, applies, and deduplicates strictly against test-plane rows.
+ *     then the entire ingest runs {@see BillingContext::runInEnvironment()} in that plane — so a
+ *     sandbox settlement resolves, applies, and deduplicates strictly against that environment.
  *
  *  2. REJECTION-AWARE DEDUP. The default writes the settle-once + processed-event guards
  *     UNCONDITIONALLY after the applier returns, even when the applier refused the settlement
@@ -52,13 +53,14 @@ readonly class PlaneAwareWebhookIngest implements WebhookIngest
         private SettledPaymentStore $settled,
         private InvoicePaymentApplier $applier,
         private BillingContext $context,
+        private EnvironmentRegistry $environments,
         private ?Dispatcher $events = null,
     ) {}
 
     public function ingest(WebhookEvent $event): IngestOutcome
     {
-        // Set the request's plane from the reference's OWNING plane before any mode-scoped read.
-        return $this->context->runInMode($this->planeFor($event), fn (): IngestOutcome => $this->ingestInPlane($event));
+        // Set the request's plane from the reference's OWNING plane before any scoped read.
+        return $this->context->runInEnvironment($this->planeFor($event), fn (): IngestOutcome => $this->ingestInPlane($event));
     }
 
     private function ingestInPlane(WebhookEvent $event): IngestOutcome
@@ -116,27 +118,31 @@ readonly class PlaneAwareWebhookIngest implements WebhookIngest
      * pending checkout session (hosted activation). A reference that matches neither falls back to
      * the ambient plane — nothing will match under it either, so the apply simply no-ops.
      */
-    private function planeFor(WebhookEvent $event): BillingMode
+    private function planeFor(WebhookEvent $event): Environment
     {
         $reference = $event->reference;
 
         $owner = Invoice::query()
-            ->withoutGlobalScope(LivemodeScope::class)
+            ->withoutGlobalScope(EnvironmentScope::class)
             ->where('number', $reference)
             ->first();
 
         if (! $owner instanceof Invoice) {
             $owner = BillingSession::query()
-                ->withoutGlobalScope(LivemodeScope::class)
+                ->withoutGlobalScope(EnvironmentScope::class)
                 ->where('payment_reference', $reference)
                 ->where('type', 'checkout')
                 ->first();
         }
 
         if ($owner === null) {
-            return $this->context->mode();
+            return $this->context->environment();
         }
 
-        return BillingMode::fromLivemode((bool) $owner->getAttribute('livemode'));
+        $key = $owner->getAttribute('environment');
+
+        return is_string($key) && $key !== ''
+            ? $this->environments->resolve($key)
+            : $this->context->environment();
     }
 }

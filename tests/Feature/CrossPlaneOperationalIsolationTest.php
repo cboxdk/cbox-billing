@@ -84,8 +84,8 @@ class CrossPlaneOperationalIsolationTest extends TestCase
 
         // Seed outstanding leases for the same (org, meter) in each plane, then read back per plane.
         DB::table('allowance_leases')->insert([
-            ['org' => 'org_lease', 'meter' => 'api_calls', 'livemode' => true, 'outstanding' => 40, 'created_at' => now(), 'updated_at' => now()],
-            ['org' => 'org_lease', 'meter' => 'api_calls', 'livemode' => false, 'outstanding' => 5, 'created_at' => now(), 'updated_at' => now()],
+            ['org' => 'org_lease', 'meter' => 'api_calls', 'livemode' => true, 'environment' => 'production', 'outstanding' => 40, 'created_at' => now(), 'updated_at' => now()],
+            ['org' => 'org_lease', 'meter' => 'api_calls', 'livemode' => false, 'environment' => 'sandbox', 'outstanding' => 5, 'created_at' => now(), 'updated_at' => now()],
         ]);
 
         $this->assertSame(40, $this->inLive(fn () => $source->outstandingFor('org_lease', 'api_calls')));
@@ -147,6 +147,7 @@ class CrossPlaneOperationalIsolationTest extends TestCase
         return [
             'refund_id' => $id,
             'livemode' => $livemode,
+            'environment' => $livemode ? 'production' : 'sandbox',
             'invoice_number' => $invoice,
             'credit_note_number' => 'CN-'.$id,
             'account' => $account,

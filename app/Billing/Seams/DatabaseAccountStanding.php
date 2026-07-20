@@ -32,7 +32,7 @@ readonly class DatabaseAccountStanding implements AccountStanding
     {
         $row = $this->db->table(self::TABLE)
             ->where('account', $account)
-            ->where('livemode', $this->context->livemode())
+            ->where('environment', $this->context->environmentKey())
             ->first();
 
         if ($row instanceof stdClass && is_string($row->state)) {
@@ -45,18 +45,20 @@ readonly class DatabaseAccountStanding implements AccountStanding
     public function flag(string $account, AccountStandingState $state, string $reason): void
     {
         // The plane is part of the standing key: the SAME org id carries an independent standing
-        // per plane, so a test chargeback never flags the live account and vice-versa.
+        // per plane, so a sandbox chargeback never flags the production account and vice-versa.
+        // `environment` is the key; `livemode` is its synced mirror.
         $now = $this->db->raw('CURRENT_TIMESTAMP');
+        $environment = $this->context->environmentKey();
         $livemode = $this->context->livemode();
         $existing = $this->db->table(self::TABLE)
             ->where('account', $account)
-            ->where('livemode', $livemode)
+            ->where('environment', $environment)
             ->exists();
 
         if ($existing) {
             $this->db->table(self::TABLE)
                 ->where('account', $account)
-                ->where('livemode', $livemode)
+                ->where('environment', $environment)
                 ->update([
                     'state' => $state->value,
                     'reason' => $reason,
@@ -68,6 +70,7 @@ readonly class DatabaseAccountStanding implements AccountStanding
 
         $this->db->table(self::TABLE)->insert([
             'account' => $account,
+            'environment' => $environment,
             'livemode' => $livemode,
             'state' => $state->value,
             'reason' => $reason,

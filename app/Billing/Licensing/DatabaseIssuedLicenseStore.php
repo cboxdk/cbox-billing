@@ -49,6 +49,7 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
                 'not_before' => $license->notBefore,
                 'expires_at' => $license->expiresAt,
                 'key' => $license->key,
+                'environment' => $this->context->environmentKey(),
                 'livemode' => $this->context->livemode(),
                 'created_at' => Carbon::now(),
             ],
@@ -205,9 +206,9 @@ readonly class DatabaseIssuedLicenseStore implements IssuedLicenseStore
         return $this->db->table('issued_licenses');
     }
 
-    /** The issued-license table constrained to the current plane (test isolation for reads). */
+    /** The issued-license table constrained to the current plane (sandbox isolation for reads). */
     private function scoped(): Builder
     {
-        return $this->table()->where('livemode', $this->context->livemode());
+        return $this->table()->where('environment', $this->context->environmentKey());
     }
 }

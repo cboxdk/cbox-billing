@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Import\ImportRunner;
 use App\Billing\Mode\BillingContext;
-use App\Billing\Mode\BillingMode;
 use App\Models\ImportRun;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -31,7 +31,7 @@ class ImportCommitJob implements ShouldQueue
 
     public function __construct(public int $runId) {}
 
-    public function handle(ImportRunner $runner, BillingContext $context): void
+    public function handle(ImportRunner $runner, BillingContext $context, EnvironmentRegistry $environments): void
     {
         $run = ImportRun::withoutGlobalScopes()->find($this->runId);
 
@@ -39,7 +39,7 @@ class ImportCommitJob implements ShouldQueue
             return;
         }
 
-        $context->setMode(BillingMode::fromLivemode((bool) $run->livemode));
+        $context->setEnvironment($environments->resolve($run->environmentKey()));
 
         try {
             $runner->commit($run);

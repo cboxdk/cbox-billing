@@ -10,7 +10,7 @@ use App\Billing\Export\ValueObjects\ExportColumn;
 use App\Billing\Export\ValueObjects\ExportCursor;
 use App\Billing\Export\ValueObjects\ExportQuery;
 use App\Billing\Export\ValueObjects\ExportRow;
-use App\Billing\Mode\LivemodeScope;
+use App\Billing\Mode\EnvironmentScope;
 use App\Billing\Support\SubscriptionRevenue;
 use App\Models\Subscription;
 use Carbon\CarbonImmutable;
@@ -83,7 +83,7 @@ class RevenueSnapshotDataset implements ExportDataset
         $snapshotAt = CarbonImmutable::now()->utc()->format('Y-m-d\TH:i:s\Z');
 
         $subscriptions = Subscription::query()
-            ->withoutGlobalScope(LivemodeScope::class)
+            ->withoutGlobalScope(EnvironmentScope::class)
             ->where('livemode', $query->livemode)
             ->with(['plan.prices', 'coupon'])
             ->orderBy('id')

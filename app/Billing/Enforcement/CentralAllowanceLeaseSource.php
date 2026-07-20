@@ -91,7 +91,7 @@ readonly class CentralAllowanceLeaseSource implements AllowanceLeaseSource
         $query = $this->db->table(self::TABLE)
             ->where('org', $org)
             ->where('meter', $meter)
-            ->where('livemode', $this->context->livemode());
+            ->where('environment', $this->context->environmentKey());
 
         if ($lock) {
             $query->lockForUpdate();
@@ -104,11 +104,16 @@ readonly class CentralAllowanceLeaseSource implements AllowanceLeaseSource
 
     private function store(string $org, string $meter, int $outstanding): void
     {
-        // The plane is part of the lease key: a test lease and a live lease for the same
-        // (org, meter) are separate rows, so test metering never draws on the live allowance.
+        // The plane is part of the lease key: a sandbox lease and a production lease for the same
+        // (org, meter) are separate rows, so sandbox metering never draws on the production
+        // allowance. `environment` is the key; `livemode` is its synced mirror.
         $this->db->table(self::TABLE)->updateOrInsert(
-            ['org' => $org, 'meter' => $meter, 'livemode' => $this->context->livemode()],
-            ['outstanding' => $outstanding, 'updated_at' => $this->db->raw('CURRENT_TIMESTAMP')],
+            ['org' => $org, 'meter' => $meter, 'environment' => $this->context->environmentKey()],
+            [
+                'livemode' => $this->context->livemode(),
+                'outstanding' => $outstanding,
+                'updated_at' => $this->db->raw('CURRENT_TIMESTAMP'),
+            ],
         );
     }
 }

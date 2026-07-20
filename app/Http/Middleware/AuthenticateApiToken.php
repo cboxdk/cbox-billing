@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Billing\Api\ApiIdentity;
 use App\Billing\Api\Contracts\ApiTokenAuthenticator;
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Mode\BillingContext;
 use Closure;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +27,7 @@ readonly class AuthenticateApiToken
     public function __construct(
         private ApiTokenAuthenticator $authenticator,
         private BillingContext $context,
+        private EnvironmentRegistry $environments,
     ) {}
 
     /**
@@ -45,9 +47,9 @@ readonly class AuthenticateApiToken
             return $this->unauthorized('Invalid API token.');
         }
 
-        // Push the credential's plane onto the ambient context so every scoped read/write in
-        // this request is confined to it — a test token can only touch the sandbox dataset.
-        $this->context->setMode($identity->mode);
+        // Push the credential's environment onto the ambient context so every scoped read/write in
+        // this request is confined to it — a sandbox token can only touch its own environment.
+        $this->context->setEnvironment($this->environments->resolve($identity->environmentKey));
 
         $request->attributes->set(self::ATTRIBUTE, $identity);
 

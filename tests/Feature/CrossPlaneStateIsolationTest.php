@@ -7,7 +7,6 @@ namespace Tests\Feature;
 use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\BillingMode;
-use App\Billing\Mode\LivemodeScope;
 use App\Models\BillingSession;
 use App\Models\CreditNote;
 use App\Models\CreditNoteLine;

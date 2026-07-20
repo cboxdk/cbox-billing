@@ -35,7 +35,7 @@ class TestModeConsoleTest extends TestCase
             ->assertRedirect();
 
         // With the flag on, the dashboard shows the unmistakable sandbox strip.
-        $this->withSession(['console.test_mode' => true] + $this->session)
+        $this->withSession(['console.environment' => 'sandbox'] + $this->session)
             ->get('/')
             ->assertOk()
             ->assertSee('TEST MODE');

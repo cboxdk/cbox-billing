@@ -23,12 +23,13 @@ use Illuminate\Support\Str;
  * @property string|null $created_by_sub
  * @property string $hash
  * @property string $mode
+ * @property string|null $environment
  * @property Carbon|null $last_used_at
  * @property Carbon|null $revoked_at
  */
 class ApiToken extends Model
 {
-    protected $fillable = ['name', 'organization_id', 'product_id', 'created_by_sub', 'hash', 'mode', 'last_used_at', 'revoked_at'];
+    protected $fillable = ['name', 'organization_id', 'product_id', 'created_by_sub', 'hash', 'mode', 'environment', 'last_used_at', 'revoked_at'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -49,6 +50,20 @@ class ApiToken extends Model
     public function billingMode(): BillingMode
     {
         return BillingMode::parse($this->mode);
+    }
+
+    /**
+     * The environment (plane) this token is bound to. The `environment` key is the source of
+     * truth; a legacy token minted before the binding falls back to deriving it from `mode`
+     * (live → production, test → sandbox), so every existing credential keeps working.
+     */
+    public function environmentKey(): string
+    {
+        if (is_string($this->environment) && $this->environment !== '') {
+            return $this->environment;
+        }
+
+        return $this->billingMode()->isTest() ? Environment::SANDBOX : Environment::PRODUCTION;
     }
 
     /** Whether this is a sandbox (test-mode) token. */
@@ -72,11 +87,15 @@ class ApiToken extends Model
      *
      * @return array{token: self, plaintext: string}
      */
-    public static function issue(string $name, ?string $organizationId = null, ?int $productId = null, ?string $createdBySub = null, BillingMode $mode = BillingMode::Live): array
+    public static function issue(string $name, ?string $organizationId = null, ?int $productId = null, ?string $createdBySub = null, BillingMode $mode = BillingMode::Live, ?string $environmentKey = null): array
     {
         // A test token's plaintext carries a `cbt_` prefix (live: `cbl_`) so the plane is
         // obvious at a glance in a `.env`/log and can never be mistaken for the other.
         $plaintext = ($mode->isTest() ? 'cbt_' : 'cbl_').Str::random(48);
+
+        // Bind the token to a named environment (the source of truth); the legacy `mode` mirror is
+        // kept in sync so older consumers and the plaintext prefix stay meaningful.
+        $environmentKey ??= $mode->isTest() ? Environment::SANDBOX : Environment::PRODUCTION;
 
         $token = self::query()->create([
             'name' => $name,
@@ -84,6 +103,7 @@ class ApiToken extends Model
             'product_id' => $productId,
             'created_by_sub' => $createdBySub,
             'mode' => $mode->value,
+            'environment' => $environmentKey,
             'hash' => hash('sha256', $plaintext),
         ]);
 

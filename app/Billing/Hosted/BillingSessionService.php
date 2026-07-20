@@ -7,7 +7,7 @@ namespace App\Billing\Hosted;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionStatus;
 use App\Billing\Hosted\Enums\SessionType;
-use App\Billing\Mode\LivemodeScope;
+use App\Billing\Mode\EnvironmentScope;
 use App\Models\BillingSession;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -75,7 +75,7 @@ readonly class BillingSessionService implements ManagesBillingSessions
         // sets the request's plane from it before any org/plan/gateway query (the session row
         // is the source of truth for the request's plane).
         $session = BillingSession::query()
-            ->withoutGlobalScope(LivemodeScope::class)
+            ->withoutGlobalScope(EnvironmentScope::class)
             ->where('token_hash', BillingSession::hashToken($token))
             ->where('type', $type->value)
             ->first();

@@ -9,9 +9,9 @@ use App\Billing\Cpq\Exceptions\SignatureRejected;
 use App\Billing\Cpq\OrderFormPresenter;
 use App\Billing\Cpq\QuoteAcceptanceService;
 use App\Billing\Cpq\ValueObjects\SignatureRequest;
+use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Mode\BillingContext;
-use App\Billing\Mode\BillingMode;
-use App\Billing\Mode\LivemodeScope;
+use App\Billing\Mode\EnvironmentScope;
 use App\Models\Quote;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,7 +31,10 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
  */
 class OrderFormController extends Controller
 {
-    public function __construct(private readonly BillingContext $context) {}
+    public function __construct(
+        private readonly BillingContext $context,
+        private readonly EnvironmentRegistry $environments,
+    ) {}
 
     public function show(string $token, OrderFormPresenter $presenter): Response
     {
@@ -87,17 +90,18 @@ class OrderFormController extends Controller
      * Resolve a quote by its opaque order-form token; an unknown token 404s (cross-quote
      * isolation). The token is globally unique and is the whole authorization, so this
      * bootstrap lookup runs WITHOUT the plane scope (a public route carries no credential to
-     * set the mode). The resolved quote's `livemode` is then the SOURCE OF TRUTH for the
+     * set the plane). The resolved quote's `environment` is then the SOURCE OF TRUTH for the
      * request's plane (HP1): the ambient {@see BillingContext} is set from it before the
-     * presenter reads lines or acceptance provisions a subscription — so a test-plane quote
-     * token resolves and acts on ONLY test data, and cannot touch a same-id live org.
+     * presenter reads lines or acceptance provisions a subscription — so a sandbox quote
+     * token resolves and acts on ONLY that environment's data, and cannot touch a same-id
+     * production org.
      */
     private function resolve(string $token): Quote
     {
         // Only the SHA-256 digest is stored, so look the quote up by the hash of the URL token —
         // the plaintext travels in the URL but never lives in the row.
         $quote = Quote::query()
-            ->withoutGlobalScope(LivemodeScope::class)
+            ->withoutGlobalScope(EnvironmentScope::class)
             ->where('token_hash', Quote::hashToken($token))
             ->whereNotNull('token_hash')
             ->first();
@@ -106,7 +110,7 @@ class OrderFormController extends Controller
             abort(SymfonyResponse::HTTP_NOT_FOUND);
         }
 
-        $this->context->setMode(BillingMode::fromLivemode($quote->livemode));
+        $this->context->setEnvironment($this->environments->resolve($quote->environmentKey()));
 
         return $quote;
     }

@@ -9,7 +9,7 @@ use App\Billing\Cpq\Enums\QuoteStatus;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\BillingMode;
-use App\Billing\Mode\LivemodeScope;
+use App\Billing\Mode\EnvironmentScope;
 use App\Billing\Payments\DatabaseGatewayCustomerResolver;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\BillingSession;
@@ -97,9 +97,9 @@ class TestLiveTokenIsolationTest extends TestCase
         $this->assertTrue(app(BillingContext::class)->isTest());
 
         // The live org's Starter subscription never crossed into the test plane.
-        $this->assertSame(0, Subscription::query()->withoutGlobalScope(LivemodeScope::class)
+        $this->assertSame(0, Subscription::query()->withoutGlobalScope(EnvironmentScope::class)
             ->where('organization_id', 'iso_test')->where('livemode', true)->count());
-        $this->assertSame(0, Subscription::query()->withoutGlobalScope(LivemodeScope::class)
+        $this->assertSame(0, Subscription::query()->withoutGlobalScope(EnvironmentScope::class)
             ->where('organization_id', 'iso_live')->where('livemode', false)->count());
     }
 
@@ -121,7 +121,7 @@ class TestLiveTokenIsolationTest extends TestCase
         // A LIVE-plane query cannot see the test quote (plane-scoped); only a scope-bypass can.
         $hash = Quote::hashToken('tok-testplane');
         $this->assertNull(Quote::query()->where('token_hash', $hash)->first());
-        $this->assertNotNull(Quote::query()->withoutGlobalScope(LivemodeScope::class)->where('token_hash', $hash)->first());
+        $this->assertNotNull(Quote::query()->withoutGlobalScope(EnvironmentScope::class)->where('token_hash', $hash)->first());
 
         // The public order form (default LIVE) resolves the test token, flips to the test
         // plane, and renders the quote.
@@ -133,16 +133,16 @@ class TestLiveTokenIsolationTest extends TestCase
             'signer_name' => 'Test Signer', 'signer_email' => 'signer@q.example', 'agree' => '1',
         ])->assertRedirect(route('quote.show', 'tok-testplane'));
 
-        $quote = Quote::query()->withoutGlobalScope(LivemodeScope::class)->where('token_hash', $hash)->firstOrFail();
+        $quote = Quote::query()->withoutGlobalScope(EnvironmentScope::class)->where('token_hash', $hash)->firstOrFail();
         $this->assertNotNull($quote->subscription_id);
 
         $subscription = Subscription::query()
-            ->withoutGlobalScope(LivemodeScope::class)
+            ->withoutGlobalScope(EnvironmentScope::class)
             ->findOrFail($quote->subscription_id);
         $this->assertFalse((bool) $subscription->livemode);
         // And no LIVE subscription leaked into the live plane for this org (the accept ran in
         // the test plane, so the only subscription is livemode=false).
-        $this->assertSame(0, Subscription::query()->withoutGlobalScope(LivemodeScope::class)
+        $this->assertSame(0, Subscription::query()->withoutGlobalScope(EnvironmentScope::class)
             ->where('organization_id', 'q_iso')->where('livemode', true)->count());
     }
 
@@ -166,7 +166,7 @@ class TestLiveTokenIsolationTest extends TestCase
         $this->inTestPlane(fn (): string => $resolver->resolve($org));
 
         // Two rows now coexist for the same (organization, gateway), one per plane.
-        $rows = GatewayCustomer::query()->withoutGlobalScope(LivemodeScope::class)
+        $rows = GatewayCustomer::query()->withoutGlobalScope(EnvironmentScope::class)
             ->where('organization_id', 'gc_iso')->where('gateway', $gateway->name())->get();
         $this->assertCount(2, $rows);
         $this->assertEqualsCanonicalizing([true, false], $rows->pluck('livemode')->map(static fn ($v): bool => (bool) $v)->all());
@@ -178,7 +178,7 @@ class TestLiveTokenIsolationTest extends TestCase
         // third row.
         $resolver->resolve($org);
         $this->inTestPlane(fn (): string => $resolver->resolve($org));
-        $this->assertSame(2, GatewayCustomer::query()->withoutGlobalScope(LivemodeScope::class)
+        $this->assertSame(2, GatewayCustomer::query()->withoutGlobalScope(EnvironmentScope::class)
             ->where('organization_id', 'gc_iso')->count());
     }
 

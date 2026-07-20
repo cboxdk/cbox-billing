@@ -91,17 +91,17 @@
 
     <div class="main">
         @if (! empty($testMode))
-            {{-- Persistent, unmistakable sandbox indicator. When the console is in test mode
-                 every list/detail/report below is scoped to the isolated test dataset. --}}
+            {{-- Persistent, unmistakable sandbox indicator. When the console is on a non-production
+                 environment every list/detail/report below is scoped to that isolated dataset. --}}
             <div class="cbx-testmode-strip" role="status" style="display:flex;align-items:center;justify-content:center;gap:10px;height:30px;background:var(--warning-soft);color:var(--warning);border-bottom:1px solid var(--warning);font-size:11px;font-weight:600;letter-spacing:.03em">
                 <span style="display:inline-flex;align-items:center;gap:6px">
                     <span style="width:7px;height:7px;border-radius:9999px;background:var(--warning)"></span>
-                    TEST MODE — sandbox data only. No real charges or emails.
+                    TEST MODE — {{ $activeEnvironment->name }} sandbox. No real charges or emails.
                 </span>
-                <form method="POST" action="{{ route('billing.test-mode.toggle') }}" style="display:inline">
+                <form method="POST" action="{{ route('billing.environment.switch') }}" style="display:inline">
                     @csrf
-                    <input type="hidden" name="enabled" value="0">
-                    <button type="submit" class="cbx-btn cbx-btn--sm cbx-btn--ghost" style="height:20px">Switch to live</button>
+                    <input type="hidden" name="environment" value="production">
+                    <button type="submit" class="cbx-btn cbx-btn--sm cbx-btn--ghost" style="height:20px">Switch to production</button>
                 </form>
             </div>
         @endif
@@ -129,14 +129,22 @@
                 @endif
             </div>
             <div style="display:flex;align-items:center;gap:6px">
-                @if (! empty($testMode))
-                    <span class="cbx-pill cbx-pill--warning" title="The console is scoped to the test dataset"><span class="dot"></span>Test mode</span>
-                @else
-                    <form method="POST" action="{{ route('billing.test-mode.toggle') }}" style="display:inline">
+                {{-- Environment switcher: pick the active billing plane. Production is the real,
+                     protected plane; a sandbox is an isolated, disposable dataset. --}}
+                @if (! empty($environments) && count($environments) > 1)
+                    <form method="POST" action="{{ route('billing.environment.switch') }}" style="display:inline">
                         @csrf
-                        <input type="hidden" name="enabled" value="1">
-                        <button type="submit" class="cbx-btn cbx-btn--sm cbx-btn--ghost" title="View the isolated sandbox dataset" style="height:28px">Test mode</button>
+                        <select name="environment" onchange="this.form.submit()" title="Active billing environment (plane)"
+                                class="cbx-btn cbx-btn--sm cbx-btn--ghost @if(! empty($testMode)) cbx-pill--warning @endif" style="height:28px;padding:0 8px">
+                            @foreach ($environments as $env)
+                                <option value="{{ $env->key }}" @selected($activeEnvironment->key === $env->key)>
+                                    {{ $env->name }}@if(! $env->isProduction()) (sandbox)@endif
+                                </option>
+                            @endforeach
+                        </select>
                     </form>
+                @elseif (! empty($testMode))
+                    <span class="cbx-pill cbx-pill--warning" title="The console is scoped to a sandbox dataset"><span class="dot"></span>{{ $activeEnvironment->name }}</span>
                 @endif
                 <button class="cbx-search" id="palbtn" style="width:200px;height:28px">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<span class="label">Search or jump to…</span><kbd>⌘K</kbd></button>
                 <button class="iconbtn" id="modebtn" title="Toggle light/dark">@include('partials.icon', ['name' => 'moon', 'size' => 14, 'sw' => 1.7])</button>

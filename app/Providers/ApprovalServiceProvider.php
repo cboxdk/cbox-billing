@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Billing\Approvals\Actions\AdjustWalletActionFactory;
 use App\Billing\Approvals\Actions\ArchivePlanActionFactory;
+use App\Billing\Approvals\Actions\EraseSubjectDataActionFactory;
 use App\Billing\Approvals\Actions\RefundInvoiceActionFactory;
 use App\Billing\Approvals\Actions\SuspendCustomerActionFactory;
 use App\Billing\Approvals\ApprovableActionRegistry;
@@ -34,6 +35,7 @@ class ApprovalServiceProvider extends ServiceProvider
         AdjustWalletActionFactory::class,
         SuspendCustomerActionFactory::class,
         ArchivePlanActionFactory::class,
+        EraseSubjectDataActionFactory::class,
     ];
 
     public function register(): void

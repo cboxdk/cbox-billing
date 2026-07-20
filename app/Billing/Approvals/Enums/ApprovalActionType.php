@@ -35,6 +35,9 @@ enum ApprovalActionType: string
     /** Create a coupon / standing discount (catalog). */
     case CouponCreate = 'coupon.create';
 
+    /** Erase (pseudonymize) a data subject's PII, deleting certificate documents (GDPR RTBF). */
+    case DataErase = 'data.erase';
+
     /** The coarse resource group, for the console filter and colour coding. */
     public function category(): string
     {

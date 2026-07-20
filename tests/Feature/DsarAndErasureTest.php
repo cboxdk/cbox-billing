@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Billing\Approvals\Enums\ApprovalStatus;
 use App\Billing\Audit\Contracts\AssemblesDsarBundle;
 use App\Billing\Audit\Contracts\RedactsSubjectData;
 use App\Billing\Audit\Enums\AuditAction;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Tax\Exemptions\ExemptionCertificateService;
+use App\Models\ApprovalRequest;
 use App\Models\Invoice;
 use App\Models\OperatorAuditEvent;
 use App\Models\Organization;
@@ -33,9 +35,14 @@ class DsarAndErasureTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @var array<string, mixed> */
+    /** @var array<string, mixed> The maker: the operator who initiates the DSAR action. */
     private array $session = ['auth.user' => [
         'sub' => 'demo|tester', 'name' => 'Test Operator', 'email' => 'ops@example.test', 'org' => 'Cbox Systems', 'picture' => null,
+    ]];
+
+    /** @var array<string, mixed> A DISTINCT second operator, to satisfy the erase two-person rule. */
+    private array $checker = ['auth.user' => [
+        'sub' => 'demo|checker', 'name' => 'Checker Operator', 'email' => 'checker@example.test', 'org' => 'Cbox Systems', 'picture' => null,
     ]];
 
     protected function setUp(): void
@@ -109,7 +116,36 @@ class DsarAndErasureTest extends TestCase
         $this->assertSame(1, OperatorAuditEvent::query()->where('action', AuditAction::DsarExported->value)->where('organization_id', 'org_dsar')->count());
     }
 
-    public function test_erasure_redacts_pii_but_retains_the_financial_records(): void
+    public function test_a_single_operator_erase_is_held_for_approval_and_destroys_nothing(): void
+    {
+        Storage::fake(ExemptionCertificateService::DISK);
+        $this->subjectWithHistory();
+
+        Storage::disk(ExemptionCertificateService::DISK)->put('certs/acme.pdf', 'PDF-BYTES');
+        TaxExemptionCertificate::query()->create([
+            'organization_id' => 'org_dsar', 'jurisdiction' => 'DK', 'exemption_type' => 'resale',
+            'certificate_number' => 'CERT-1', 'status' => 'verified',
+            'document_path' => 'certs/acme.pdf', 'document_name' => 'acme.pdf', 'document_mime' => 'application/pdf', 'document_size' => 9,
+        ]);
+
+        // A single operator initiates the erase — it is HELD (maker-checker), not applied.
+        $this->withSession($this->session)->post('/audit/gdpr/org_dsar/erase')
+            ->assertRedirect()->assertSessionHas('status');
+
+        // A pending approval was captured; NOTHING was destroyed.
+        $request = ApprovalRequest::query()->firstOrFail();
+        $this->assertSame(ApprovalStatus::Pending, $request->status);
+        $this->assertSame('data.erase', $request->action_type->value);
+        $this->assertSame('demo|tester', $request->requested_by_sub);
+
+        $org = Organization::query()->findOrFail('org_dsar');
+        $this->assertFalse($org->isErased());
+        $this->assertNotNull($org->billing_email);
+        Storage::disk(ExemptionCertificateService::DISK)->assertExists('certs/acme.pdf');
+        $this->assertDatabaseMissing('operator_audit_events', ['action' => AuditAction::DataErased->value]);
+    }
+
+    public function test_a_second_operator_approves_and_the_erasure_redacts_pii_but_retains_the_financial_records(): void
     {
         Storage::fake(ExemptionCertificateService::DISK);
         $invoice = $this->subjectWithHistory();
@@ -124,8 +160,11 @@ class DsarAndErasureTest extends TestCase
 
         $total = $invoice->total_minor;
 
-        $this->withSession($this->session)->post('/audit/gdpr/org_dsar/erase')
-            ->assertRedirect()->assertSessionHas('status');
+        // Maker initiates (held); a DIFFERENT operator approves — only then is anything destroyed.
+        $this->withSession($this->session)->post('/audit/gdpr/org_dsar/erase');
+        $request = ApprovalRequest::query()->firstOrFail();
+        $this->withSession($this->checker)->post('/approvals/'.$request->id.'/approve', ['note' => 'DSAR verified'])
+            ->assertRedirect('/approvals')->assertSessionHas('status');
 
         $org = Organization::query()->findOrFail('org_dsar');
         $this->assertStringContainsString('[erased organization', (string) $org->name);

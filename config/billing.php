@@ -219,6 +219,17 @@ return [
                 'threshold_minor' => null,
                 'required' => (int) env('CBOX_BILLING_APPROVE_PLAN_ARCHIVE_REQUIRED', 1),
             ],
+            /*
+             * GDPR right-to-be-forgotten erasure hard-deletes the subject's certificate documents
+             * (irreversible), so — unlike the money actions above — it defaults to ENABLED: a DSAR
+             * erase always needs a second operator (maker-checker), never a single-operator destroy.
+             * An operator can still opt out via CBOX_BILLING_APPROVE_DATA_ERASE=false.
+             */
+            'data.erase' => [
+                'enabled' => filter_var(env('CBOX_BILLING_APPROVE_DATA_ERASE', true), FILTER_VALIDATE_BOOL),
+                'threshold_minor' => null,
+                'required' => (int) env('CBOX_BILLING_APPROVE_DATA_ERASE_REQUIRED', 1),
+            ],
         ],
     ],
 

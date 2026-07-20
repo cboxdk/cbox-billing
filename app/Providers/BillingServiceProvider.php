@@ -69,6 +69,7 @@ use App\Billing\Payments\PaymentRetryService;
 use App\Billing\Payments\PaymentService;
 use App\Billing\Payments\StripeCardUpdateVerifier;
 use App\Billing\Refunds\DatabaseRefundRepository;
+use App\Billing\Reporting\Consolidated\ConsolidatedRevenueReport;
 use App\Billing\Retention\BasicCancellationSurvey;
 use App\Billing\Retention\BasicRetentionOffers;
 use App\Billing\Retention\Contracts\ManagesRetention;
@@ -97,9 +98,12 @@ use App\Models\Feature;
 use App\Models\Invoice;
 use App\Models\Meter;
 use App\Models\OrganizationFeatureOverride;
+use App\Models\Plan;
 use App\Models\PlanEntitlement;
 use App\Models\PlanFeature;
+use App\Models\PlanPrice;
 use App\Models\Subscription;
+use App\Models\SubscriptionCoupon;
 use Cbox\Billing\Account\Contracts\AccountStanding;
 use Cbox\Billing\Account\Contracts\BillingCurrencyLock;
 use Cbox\Billing\Account\CurrencyLock\DatabaseBillingCurrencyLock;
@@ -242,6 +246,20 @@ class BillingServiceProvider extends ServiceProvider
         foreach ([Subscription::class, PlanFeature::class, OrganizationFeatureOverride::class, Feature::class] as $model) {
             $model::saved($flushFeatures);
             $model::deleted($flushFeatures);
+        }
+
+        // Bust the consolidated-revenue book-wide aggregate (PERF-1) on any write that can move
+        // reported MRR: a subscription (status/seats/coupon binding), a plan price/tier, or an
+        // invoice (which reassigns a subscription's selling entity of record). The aggregate is
+        // otherwise cached across renders, so the multi-entity/currency console stops rehydrating
+        // the whole subscriptions + invoices tables on every page load.
+        $flushConsolidated = static function (): void {
+            app(ConsolidatedRevenueReport::class)->flush();
+        };
+
+        foreach ([Subscription::class, SubscriptionCoupon::class, Plan::class, PlanPrice::class, Invoice::class] as $model) {
+            $model::saved($flushConsolidated);
+            $model::deleted($flushConsolidated);
         }
 
         // Maintain the materialized console display standing (PERF-3). A subscription write can

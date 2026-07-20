@@ -6,6 +6,7 @@ namespace App\Billing\Reporting\Consolidated;
 
 use App\Billing\Seller\SellerCatalog;
 use App\Models\Invoice;
+use Illuminate\Database\Query\JoinClause;
 use RuntimeException;
 
 /**
@@ -33,12 +34,18 @@ readonly class SubscriptionEntityResolver
         /** @var array<int, string> $map */
         $map = [];
 
-        // Ascending id so a later (newer) invoice's seller overwrites an earlier one — the
-        // subscription's current entity of record.
-        Invoice::query()
+        // The latest invoice per subscription — MAX(id) per subscription_id in one grouped
+        // subquery, joined back to read only that winning row's seller. Bounded to one row per
+        // subscription instead of hydrating the whole invoices table; MAX(id) is exactly the
+        // "newest invoice's seller" the subscription's entity of record is defined as.
+        $latest = Invoice::query()
             ->whereNotNull('subscription_id')
-            ->orderBy('id')
-            ->get(['subscription_id', 'seller'])
+            ->selectRaw('subscription_id, MAX(id) as max_id')
+            ->groupBy('subscription_id');
+
+        Invoice::query()
+            ->joinSub($latest, 'latest', fn (JoinClause $join) => $join->on('invoices.id', '=', 'latest.max_id'))
+            ->get(['invoices.subscription_id', 'invoices.seller'])
             ->each(function (Invoice $invoice) use (&$map): void {
                 if ($invoice->subscription_id !== null) {
                     $map[(int) $invoice->subscription_id] = $invoice->seller;

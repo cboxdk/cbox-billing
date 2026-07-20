@@ -24,6 +24,7 @@ use Cbox\Billing\Reporting\MrrCalculator;
 use Cbox\Billing\Reporting\RetentionCalculator;
 use Cbox\Billing\Reporting\ValueObjects\MrrWaterfall;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
+use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -54,6 +55,12 @@ use Illuminate\Support\Collection;
  */
 readonly class ConsolidatedRevenueReport
 {
+    /** Cross-request TTL (seconds) for the book-wide native aggregate; busted by any write. */
+    private const CACHE_TTL = 120;
+
+    /** The cache key holding the aggregate epoch; bumped whenever the book changes. */
+    public const EPOCH_KEY = 'consolidated-revenue:epoch';
+
     public function __construct(
         private MrrCalculator $mrr,
         private RetentionCalculator $retention,
@@ -63,6 +70,7 @@ readonly class ConsolidatedRevenueReport
         private RevenueAnalytics $analytics,
         private SellerCatalog $sellers,
         private Config $config,
+        private Cache $cache,
     ) {}
 
     /**
@@ -73,8 +81,12 @@ readonly class ConsolidatedRevenueReport
     {
         $reporting = $this->reportingCurrency($reportingCurrency);
         $on = $asOf !== null ? CarbonImmutable::instance($asOf) : CarbonImmutable::now();
-        $map = $this->entities->map();
-        $default = $this->entities->defaultEntity();
+
+        // The book-wide native aggregate (per entity, per currency) depends only on the
+        // subscription/plan/coupon data — not on the reporting currency or as-of date — so it is
+        // computed once, cached across requests, and busted on any billing write. The entity
+        // filter and the (live-rate) FX conversion are applied fresh here on top of it.
+        $aggregate = $this->aggregate();
 
         /** @var array<string, Money> $nativeByCurrency */
         $nativeByCurrency = [];
@@ -85,31 +97,23 @@ readonly class ConsolidatedRevenueReport
         /** @var array<string, array<string, int>> $entityCurrencyCount */
         $entityCurrencyCount = [];
 
-        foreach ($this->subscriptions() as $subscription) {
-            $status = $subscription->isPaused() ? SubscriptionStatus::Paused : $subscription->status;
-
-            if (! $this->mrr->contributes($status)) {
-                continue;
-            }
-
-            $entity = $map[$subscription->id] ?? $default;
-
+        foreach ($aggregate as $entity => $currencies) {
             if ($entityId !== null && $entity !== $entityId) {
                 continue;
             }
 
-            $monthly = SubscriptionRevenue::monthly($subscription);
-            $currency = $monthly->currency();
+            foreach ($currencies as $currency => $line) {
+                $money = Money::ofMinor($line['minor'], $currency);
+                $count = $line['count'];
 
-            $nativeByCurrency[$currency] = isset($nativeByCurrency[$currency])
-                ? $nativeByCurrency[$currency]->plus($monthly)
-                : $monthly;
-            $countByCurrency[$currency] = ($countByCurrency[$currency] ?? 0) + 1;
+                $nativeByCurrency[$currency] = isset($nativeByCurrency[$currency])
+                    ? $nativeByCurrency[$currency]->plus($money)
+                    : $money;
+                $countByCurrency[$currency] = ($countByCurrency[$currency] ?? 0) + $count;
 
-            $entityCurrencyNative[$entity][$currency] = isset($entityCurrencyNative[$entity][$currency])
-                ? $entityCurrencyNative[$entity][$currency]->plus($monthly)
-                : $monthly;
-            $entityCurrencyCount[$entity][$currency] = ($entityCurrencyCount[$entity][$currency] ?? 0) + 1;
+                $entityCurrencyNative[$entity][$currency] = $money;
+                $entityCurrencyCount[$entity][$currency] = $count;
+            }
         }
 
         ksort($nativeByCurrency);
@@ -345,11 +349,85 @@ readonly class ConsolidatedRevenueReport
         return $lines;
     }
 
+    /**
+     * The book-wide native MRR aggregate, per selling entity and native currency: the summed
+     * monthly-equivalent minor amount and the contributing-subscription count. This is the
+     * expensive step (a per-subscription engine pricing + coupon computation), so it is cached
+     * across requests keyed by the epoch and rehydrated as plain ints — no reporting currency,
+     * entity filter or as-of date enters it, so one cached aggregate serves every view.
+     *
+     * @return array<string, array<string, array{minor: int, count: int}>>
+     */
+    private function aggregate(): array
+    {
+        $cached = $this->cache->remember(
+            'consolidated-revenue:aggregate:'.$this->epoch(),
+            self::CACHE_TTL,
+            fn (): array => $this->computeAggregate(),
+        );
+
+        /** @var array<string, array<string, array{minor: int, count: int}>> $cached */
+        return $cached;
+    }
+
+    /**
+     * Fold every serving subscription into (entity → currency → {minor, count}). Identical
+     * arithmetic to summing {@see Money} per currency — same-currency minor units add exactly —
+     * so the consolidated numbers are unchanged, only the recomputation is skipped on a cache hit.
+     *
+     * @return array<string, array<string, array{minor: int, count: int}>>
+     */
+    private function computeAggregate(): array
+    {
+        $map = $this->entities->map();
+        $default = $this->entities->defaultEntity();
+
+        /** @var array<string, array<string, array{minor: int, count: int}>> $aggregate */
+        $aggregate = [];
+
+        foreach ($this->subscriptions() as $subscription) {
+            $status = $subscription->isPaused() ? SubscriptionStatus::Paused : $subscription->status;
+
+            if (! $this->mrr->contributes($status)) {
+                continue;
+            }
+
+            $entity = $map[$subscription->id] ?? $default;
+            $monthly = SubscriptionRevenue::monthly($subscription);
+            $currency = $monthly->currency();
+
+            $line = $aggregate[$entity][$currency] ?? ['minor' => 0, 'count' => 0];
+            $aggregate[$entity][$currency] = [
+                'minor' => $line['minor'] + $monthly->minor(),
+                'count' => $line['count'] + 1,
+            ];
+        }
+
+        return $aggregate;
+    }
+
+    /** Bump the aggregate epoch so the next render recomputes (wired to billing writes). */
+    public function flush(): void
+    {
+        $this->cache->forever(self::EPOCH_KEY, $this->epoch() + 1);
+    }
+
+    /** The current aggregate epoch (0 when never flushed). */
+    private function epoch(): int
+    {
+        $epoch = $this->cache->get(self::EPOCH_KEY, 0);
+
+        return is_numeric($epoch) ? (int) $epoch : 0;
+    }
+
     /** @return Collection<int, Subscription> */
     private function subscriptions(): Collection
     {
+        // Eager-load every relation SubscriptionRevenue::monthly() reads (plan prices/tiers, the
+        // org for its currency, and the recurring-coupon binding) so the fold is a constant
+        // number of queries regardless of how many subscriptions there are — no per-row lazy load.
         return Subscription::query()
-            ->with(['organization', 'plan.prices.tiers'])
+            ->with(['organization', 'plan.prices.tiers', 'coupon'])
             ->get();
     }
 }

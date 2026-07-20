@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Payments\Contracts\PaysInvoices;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\ApiToken;
@@ -127,7 +128,7 @@ class BillingLifecycleTest extends TestCase
         $this->assertSame(99_000, $invoice->subtotal_minor);
         $this->assertSame(24_750, $invoice->tax_minor);
         $this->assertSame(123_750, $invoice->total_minor);
-        $this->assertSame('open', $invoice->status);
+        $this->assertSame(InvoiceStatus::Open, $invoice->status);
         $this->assertStringStartsWith('CBOX-DK-', $invoice->number);
         $this->assertDatabaseHas('invoice_lines', ['invoice_id' => $invoice->id]);
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Metering\CumulativeUsageIngest;
 use App\Models\ApiToken;
 use App\Models\Invoice;
@@ -239,7 +240,7 @@ class EndToEndBillingTest extends TestCase
         $this->assertSame(99_000, $invoice->subtotal_minor);
         $this->assertSame(24_750, $invoice->tax_minor);
         $this->assertSame(123_750, $invoice->total_minor);
-        $this->assertSame('open', $invoice->status);
+        $this->assertSame(InvoiceStatus::Open, $invoice->status);
         // Per-seller legal number sequence (Cbox DK).
         $this->assertSame('CBOX-DK-2026-00001', $invoice->number);
         $this->assertDatabaseHas('invoice_lines', ['invoice_id' => $invoice->id]);

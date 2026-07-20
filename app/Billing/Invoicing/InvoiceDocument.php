@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Invoicing;
 
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\Invoice;
 use App\Models\Organization;
@@ -135,11 +136,11 @@ class InvoiceDocument extends FPDF
     /** A small filled status chip, right-aligned under the invoice number. */
     private function statusPill(float $rightX, float $rightW): void
     {
-        $status = strtoupper($this->invoice->status);
+        $status = strtoupper($this->invoice->status->value);
 
         [$fill, $text] = match ($this->invoice->status) {
-            'paid' => [[230, 244, 234], [30, 126, 52]],
-            'open' => [[253, 240, 227], [181, 105, 26]],
+            InvoiceStatus::Paid => [[230, 244, 234], [30, 126, 52]],
+            InvoiceStatus::Open => [[253, 240, 227], [181, 105, 26]],
             default => [[238, 238, 238], [102, 102, 102]],
         };
 

@@ -40,7 +40,7 @@ class InvoiceController extends ApiController
             'date' => $invoice->issued_at?->toIso8601String(),
             'amount_minor' => $invoice->total_minor,
             'currency' => $invoice->currency,
-            'status' => $invoice->status,
+            'status' => $invoice->status->value,
         ]));
     }
 }

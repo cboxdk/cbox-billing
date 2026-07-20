@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Mail\InvoiceIssuedMail;
 use App\Models\CreditNote;
 use App\Models\Invoice;
@@ -73,7 +74,7 @@ class InvoiceLifecycleConsoleTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('error');
 
-        $this->assertSame('paid', $invoice->fresh()?->status);
+        $this->assertSame(InvoiceStatus::Paid, $invoice->fresh()?->status);
     }
 
     public function test_void_succeeds_on_an_open_invoice(): void
@@ -85,7 +86,7 @@ class InvoiceLifecycleConsoleTest extends TestCase
             ->assertRedirect('/invoices/'.$invoice->id)
             ->assertSessionHas('status');
 
-        $this->assertSame('void', $invoice->fresh()?->status);
+        $this->assertSame(InvoiceStatus::Void, $invoice->fresh()?->status);
     }
 
     public function test_full_refund_issues_a_credit_note_of_the_exact_amount_and_reason(): void
@@ -192,7 +193,7 @@ class InvoiceLifecycleConsoleTest extends TestCase
         $this->assertSame(100_000, $invoice->subtotal_minor);
         $this->assertSame(25_000, $invoice->tax_minor);
         $this->assertSame(125_000, $invoice->total_minor);
-        $this->assertSame('open', $invoice->status);
+        $this->assertSame(InvoiceStatus::Open, $invoice->status);
         $this->assertDatabaseHas('invoice_lines', ['invoice_id' => $invoice->id, 'description' => 'Onboarding fee']);
     }
 

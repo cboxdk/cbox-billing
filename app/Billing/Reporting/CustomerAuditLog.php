@@ -34,7 +34,7 @@ readonly class CustomerAuditLog
 
         foreach (Invoice::query()->where('organization_id', $organizationId)->get() as $invoice) {
             $at = $invoice->issued_at ?? $invoice->created_at;
-            $events[] = $this->event($at, 'invoice', sprintf('Invoice %s — %s', $invoice->number, $invoice->status), null, route('billing.invoices.show', $invoice->id));
+            $events[] = $this->event($at, 'invoice', sprintf('Invoice %s — %s', $invoice->number, $invoice->status->value), null, route('billing.invoices.show', $invoice->id));
         }
 
         foreach (CreditNote::query()->where('organization_id', $organizationId)->get() as $note) {

@@ -8,13 +8,13 @@
 @endsection
 
 @php
+    use App\Billing\Invoicing\Enums\InvoiceStatus;
     use App\Billing\Support\Initials;
     use App\Billing\Support\MoneyFormatter;
     use Cbox\Billing\Refund\Enums\RefundReason;
-    $statusPill = ['paid' => 'success', 'open' => 'warning', 'draft' => 'muted', 'void' => 'muted', 'uncollectible' => 'warning'];
     $c = $invoice->currency;
-    $refundable = in_array($invoice->status, ['open', 'paid', 'uncollectible'], true);
-    $voidable = in_array($invoice->status, ['open', 'uncollectible'], true);
+    $refundable = $invoice->status->isRefundable();
+    $voidable = $invoice->status->isVoidable();
     $refundedMinor = $creditNotes->sum('gross_minor');
     $remainingMinor = max(0, $invoice->total_minor - $refundedMinor);
     $labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500';
@@ -33,8 +33,7 @@
             <p class="cbx-page-desc" style="font-size:13px">Issued by {{ $invoice->seller }} · {{ $invoice->issued_at?->format('Y-m-d') ?? 'draft' }}</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-            @php($v = $statusPill[$invoice->status] ?? 'muted')
-            <span class="cbx-pill cbx-pill--{{ $v }}">@if($invoice->status !== 'draft')<span class="dot"></span>@endif{{ $invoice->status }}</span>
+            <span class="cbx-pill cbx-pill--{{ $invoice->status->tone() }}">@if($invoice->status !== InvoiceStatus::Draft)<span class="dot"></span>@endif{{ $invoice->status->value }}</span>
             <a class="cbx-btn cbx-btn--secondary cbx-btn--sm" href="{{ route('billing.invoices.pdf', $invoice) }}">Download PDF</a>
             <a class="cbx-btn cbx-btn--secondary cbx-btn--sm" href="{{ route('billing.customers.show', $invoice->organization_id) }}">View customer</a>
         </div>
@@ -130,7 +129,7 @@
         <header class="cbx-panel-header" style="padding:12px 20px"><h2 class="cbx-panel-title" style="font-size:14px">Actions</h2></header>
         <div style="padding:16px 20px;display:flex;flex-direction:column;gap:18px">
 
-            @if (! $invoice->isPaid() && $invoice->status !== 'void')
+            @if (! $invoice->isPaid() && $invoice->status !== InvoiceStatus::Void)
                 <form method="POST" action="{{ route('billing.invoices.mark-paid', $invoice) }}" class="cbx-grid-2" style="gap:10px;align-items:end"
                       data-confirm="Record invoice {{ $invoice->number }} as paid offline for {{ MoneyFormatter::money($invoice->total()) }}?"
                       data-confirm-title="Record manual payment?" data-confirm-label="Mark paid" data-confirm-variant="primary">

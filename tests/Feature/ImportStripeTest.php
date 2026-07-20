@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Import\Enums\ImportSource;
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Models\Coupon;
 use App\Models\ImportSourceRef;
 use App\Models\Invoice;
@@ -79,7 +80,7 @@ class ImportStripeTest extends TestCase
         $this->assertSame($org->id, $invoice->organization_id);
         $this->assertSame('USD', $invoice->currency);
         $this->assertSame(1500, $invoice->total_minor);
-        $this->assertSame('paid', $invoice->status);
+        $this->assertSame(InvoiceStatus::Paid, $invoice->status);
         $this->assertSame(1, $invoice->lines()->count());
 
         // The idempotency ledger is populated for every entity.

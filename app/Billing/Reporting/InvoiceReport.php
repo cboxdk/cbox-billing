@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Reporting;
 
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Support\Initials;
 use App\Models\Invoice;
 use App\Models\Organization;
@@ -77,9 +78,9 @@ readonly class InvoiceReport
     {
         return [
             'all' => Invoice::query()->count(),
-            'open' => Invoice::query()->where('status', 'open')->count(),
-            'paid' => Invoice::query()->where('status', 'paid')->count(),
-            'draft' => Invoice::query()->where('status', 'draft')->count(),
+            'open' => Invoice::query()->where('status', InvoiceStatus::Open->value)->count(),
+            'paid' => Invoice::query()->where('status', InvoiceStatus::Paid->value)->count(),
+            'draft' => Invoice::query()->where('status', InvoiceStatus::Draft->value)->count(),
         ];
     }
 
@@ -98,7 +99,7 @@ readonly class InvoiceReport
             'ini' => Initials::of($name),
             'minor' => $invoice->total_minor,
             'currency' => $invoice->currency,
-            'status' => $invoice->status,
+            'status' => $invoice->status->value,
             'date' => $invoice->issued_at?->format('Y-m-d') ?? '—',
         ];
     }

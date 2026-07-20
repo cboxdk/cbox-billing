@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Hosted;
 
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\Coupon;
 use App\Models\CouponRedemption;
@@ -45,14 +46,14 @@ readonly class PortalBillingHistory
                 title: 'Invoice '.$invoice->number,
                 detail: $this->periodLabel($invoice),
                 amount: MoneyFormatter::minor($invoice->total_minor, $invoice->currency),
-                status: $invoice->status,
-                tone: $this->invoiceTone($invoice->status),
+                status: $invoice->status->value,
+                tone: $invoice->status->tone(),
                 invoiceId: $invoice->id,
             );
 
             // A paid invoice also produced a receipt/payment — a distinct history event at the
             // settlement instant, cross-linking back to the same downloadable invoice.
-            if ($invoice->status === 'paid' && $invoice->paid_at !== null) {
+            if ($invoice->status->isPaid() && $invoice->paid_at !== null) {
                 $events[] = $this->row(
                     at: $invoice->paid_at,
                     type: 'payment',
@@ -61,8 +62,8 @@ readonly class PortalBillingHistory
                         ? 'Ref '.$invoice->gateway_reference
                         : 'Invoice '.$invoice->number,
                     amount: MoneyFormatter::minor($invoice->total_minor, $invoice->currency),
-                    status: 'paid',
-                    tone: 'success',
+                    status: InvoiceStatus::Paid->value,
+                    tone: InvoiceStatus::Paid->tone(),
                     invoiceId: $invoice->id,
                 );
             }
@@ -133,15 +134,5 @@ readonly class PortalBillingHistory
         }
 
         return $invoice->period_start->format('Y-m-d').' – '.$invoice->period_end->format('Y-m-d');
-    }
-
-    private function invoiceTone(string $status): string
-    {
-        return match ($status) {
-            'paid' => 'success',
-            'open' => 'warning',
-            'void' => 'muted',
-            default => 'muted',
-        };
     }
 }

@@ -382,7 +382,7 @@ readonly class SubscriptionReport
                 'number' => $invoice->number,
                 'total_minor' => $invoice->total_minor,
                 'currency' => $invoice->currency,
-                'status' => $invoice->status,
+                'status' => $invoice->status->value,
                 'issued' => $invoice->issued_at?->format('Y-m-d') ?? '—',
             ])
             ->all());

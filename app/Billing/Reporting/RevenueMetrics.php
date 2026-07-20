@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Reporting;
 
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Support\SubscriptionRevenue;
 use App\Models\Invoice;
 use App\Models\Subscription;
@@ -84,7 +85,7 @@ readonly class RevenueMetrics
         $total = Money::zero($currency);
 
         $open = Invoice::query()
-            ->where('status', 'open')
+            ->where('status', InvoiceStatus::Open->value)
             ->where('currency', $currency)
             ->get();
 
@@ -97,7 +98,7 @@ readonly class RevenueMetrics
 
     public function openInvoiceCount(): int
     {
-        return Invoice::query()->where('status', 'open')->count();
+        return Invoice::query()->where('status', InvoiceStatus::Open->value)->count();
     }
 
     /**

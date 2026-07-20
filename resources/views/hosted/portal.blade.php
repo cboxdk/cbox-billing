@@ -3,7 +3,6 @@
 
 @php
     use App\Billing\Support\MoneyFormatter;
-    $statusPill = ['paid' => 'success', 'open' => 'warning', 'draft' => 'muted', 'void' => 'muted'];
 @endphp
 
 @push('head')
@@ -295,7 +294,7 @@
                         <td class="num">{{ $invoice->number }}</td>
                         <td class="num">{{ $invoice->issued_at?->format('Y-m-d') ?? '—' }}</td>
                         <td class="right num">{{ MoneyFormatter::minor($invoice->total_minor, $invoice->currency) }}</td>
-                        <td class="right"><span class="cbx-pill cbx-pill--{{ $statusPill[$invoice->status] ?? 'muted' }}">{{ $invoice->status }}</span></td>
+                        <td class="right"><span class="cbx-pill cbx-pill--{{ $invoice->status->tone() }}">{{ $invoice->status->value }}</span></td>
                         <td class="right"><a href="{{ route('hosted.portal.invoice-pdf', ['token' => $session->token, 'invoice' => $invoice->id]) }}">Download</a></td>
                     </tr>
                 @empty

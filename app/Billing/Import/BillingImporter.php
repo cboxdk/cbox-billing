@@ -32,6 +32,7 @@ use App\Billing\Import\Support\ImportState;
 use App\Billing\Import\ValueObjects\ImportPlan;
 use App\Billing\Import\ValueObjects\PlanMapping;
 use App\Billing\Import\ValueObjects\PlannedAction;
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\Coupon;
@@ -720,6 +721,11 @@ readonly class BillingImporter
             ? $this->refs->appIdFor($state->source, ImportEntityType::Subscription, $inv->subscriptionSourceId)
             : null;
 
+        // Normalize the source status onto our vocabulary; an unmappable one lands as Open
+        // (outstanding) rather than being stored raw — the same defensive tryFrom-or-default
+        // the subscription import uses, so the cast can never read back an invalid case.
+        $status = InvoiceStatus::tryFrom($inv->status) ?? InvoiceStatus::Open;
+
         try {
             $invoice = Invoice::query()->create([
                 'organization_id' => $orgApp,
@@ -732,9 +738,9 @@ readonly class BillingImporter
                 'subtotal_minor' => $inv->subtotalMinor,
                 'tax_minor' => $inv->taxMinor,
                 'total_minor' => $inv->totalMinor,
-                'status' => $inv->status,
+                'status' => $status,
                 'issued_at' => $inv->issuedAt !== null ? Carbon::instance($inv->issuedAt) : null,
-                'paid_at' => $inv->status === 'paid' && $inv->issuedAt !== null ? Carbon::instance($inv->issuedAt) : null,
+                'paid_at' => $status->isPaid() && $inv->issuedAt !== null ? Carbon::instance($inv->issuedAt) : null,
             ]);
 
             foreach ($inv->lines as $line) {

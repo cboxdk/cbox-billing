@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Invoicing;
 
 use App\Billing\Invoicing\Contracts\RunsInvoiceOperations;
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Invoicing\Exceptions\InvoiceActionDenied;
 use App\Billing\Invoicing\ValueObjects\ManualLine;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
@@ -47,12 +48,6 @@ use RuntimeException;
  */
 readonly class InvoiceOperations implements RunsInvoiceOperations
 {
-    /** The invoice statuses a refund may reverse (an issued, non-voided invoice). */
-    private const REFUNDABLE = ['open', 'paid', 'uncollectible'];
-
-    /** The invoice statuses that may be voided (issued but not settled). */
-    private const VOIDABLE = ['open', 'uncollectible'];
-
     public function __construct(
         private ConnectionInterface $db,
         private Refunder $refunder,
@@ -65,21 +60,21 @@ readonly class InvoiceOperations implements RunsInvoiceOperations
 
     public function void(Invoice $invoice): void
     {
-        if ($invoice->status === 'void') {
+        if ($invoice->status === InvoiceStatus::Void) {
             throw InvoiceActionDenied::alreadyVoided();
         }
 
-        if (! in_array($invoice->status, self::VOIDABLE, true)) {
-            throw InvoiceActionDenied::notVoidable($invoice->status);
+        if (! $invoice->status->isVoidable()) {
+            throw InvoiceActionDenied::notVoidable($invoice->status->value);
         }
 
-        $invoice->forceFill(['status' => 'void'])->save();
+        $invoice->forceFill(['status' => InvoiceStatus::Void])->save();
     }
 
     public function refund(Invoice $invoice, ?int $netMinor, RefundReason $reason, string $actionId): Refund
     {
-        if (! in_array($invoice->status, self::REFUNDABLE, true)) {
-            throw InvoiceActionDenied::notRefundable($invoice->status);
+        if (! $invoice->status->isRefundable()) {
+            throw InvoiceActionDenied::notRefundable($invoice->status->value);
         }
 
         $engineInvoice = $this->toEngineInvoice($invoice);
@@ -184,7 +179,7 @@ readonly class InvoiceOperations implements RunsInvoiceOperations
             'subtotal_minor' => $totals->net->minor(),
             'tax_minor' => $totals->tax->minor(),
             'total_minor' => $totals->gross->minor(),
-            'status' => 'open',
+            'status' => InvoiceStatus::Open,
             'issued_at' => Carbon::instance($issued->issuedAt),
             'due_at' => Carbon::instance($issued->issuedAt)->addDays(14),
         ]);

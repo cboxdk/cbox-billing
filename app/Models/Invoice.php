@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Mode\Concerns\BelongsToMode;
 use Cbox\Billing\Money\Money;
 use Illuminate\Database\Eloquent\Model;
@@ -13,9 +14,9 @@ use Illuminate\Support\Carbon;
 
 /**
  * A legal invoice issued to an organization by a seller of record. Totals are integer
- * minor units of `currency`, exposed as engine {@see Money}. Status moves
- * draft → open → paid (or void); {@see markPaid()} is the effect the payment seam runs
- * when a settled webhook is applied.
+ * minor units of `currency`, exposed as engine {@see Money}. `status` is cast to the app
+ * {@see InvoiceStatus} and moves draft → open → paid (or void); {@see markPaid()} is the
+ * effect the payment seam runs when a settled webhook is applied.
  *
  * @property int $id
  * @property string $organization_id
@@ -28,7 +29,7 @@ use Illuminate\Support\Carbon;
  * @property int $subtotal_minor
  * @property int $tax_minor
  * @property int $total_minor
- * @property string $status
+ * @property InvoiceStatus $status
  * @property Carbon|null $issued_at
  * @property Carbon|null $due_at
  * @property Carbon|null $paid_at
@@ -52,6 +53,7 @@ class Invoice extends Model
     protected function casts(): array
     {
         return [
+            'status' => InvoiceStatus::class,
             'subtotal_minor' => 'integer',
             'tax_minor' => 'integer',
             'total_minor' => 'integer',
@@ -72,7 +74,7 @@ class Invoice extends Model
     /** Whether this invoice has been settled. */
     public function isPaid(): bool
     {
-        return $this->status === 'paid';
+        return $this->status->isPaid();
     }
 
     /**
@@ -87,7 +89,7 @@ class Invoice extends Model
         }
 
         $this->forceFill([
-            'status' => 'paid',
+            'status' => InvoiceStatus::Paid,
             'paid_at' => now(),
             'gateway_reference' => $gatewayReference,
         ])->save();

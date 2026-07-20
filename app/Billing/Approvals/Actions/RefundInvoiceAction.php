@@ -13,7 +13,7 @@ use App\Billing\Audit\Contracts\RecordsAudit;
 use App\Billing\Audit\Enums\AuditAction;
 use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Invoicing\Contracts\RunsInvoiceOperations;
-use App\Billing\Invoicing\Exceptions\InvoiceActionDenied;
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\Invoice;
 use Cbox\Billing\Refund\Enums\RefundReason;
@@ -30,9 +30,6 @@ use Cbox\Billing\Refund\Enums\RefundReason;
  */
 readonly class RefundInvoiceAction implements ApprovableAction
 {
-    /** Invoice statuses a refund may reverse (mirrors the engine guard). */
-    private const REFUNDABLE = ['open', 'paid', 'uncollectible'];
-
     public function __construct(
         private RunsInvoiceOperations $operations,
         private RecordsAudit $audit,
@@ -70,9 +67,9 @@ readonly class RefundInvoiceAction implements ApprovableAction
 
     public function validate(): void
     {
-        if (! in_array($this->invoice->status, self::REFUNDABLE, true)) {
-            throw InvoiceActionDenied::notRefundable($this->invoice->status);
-        }
+        // The refundable-status guard is NOT duplicated here: RunsInvoiceOperations::refund()
+        // (reached from execute()) is the single authority — it throws InvoiceActionDenied
+        // when the invoice is not refundable, at capture AND at approval time alike.
     }
 
     public function describe(): ApprovalDescription
@@ -82,14 +79,14 @@ readonly class RefundInvoiceAction implements ApprovableAction
 
         return new ApprovalDescription(
             sprintf('%s of invoice %s (%s), reason: %s', $mode, $this->invoice->number, $amount, $this->reason->value),
-            before: ['status' => $this->invoice->status, 'total_minor' => $this->invoice->total_minor],
-            after: ['status' => 'refunded', 'refund_net_minor' => $this->netMinor ?? $this->invoice->total_minor],
+            before: ['status' => $this->invoice->status->value, 'total_minor' => $this->invoice->total_minor],
+            after: ['status' => InvoiceStatus::Refunded->value, 'refund_net_minor' => $this->netMinor ?? $this->invoice->total_minor],
         );
     }
 
     public function execute(): ApprovalOutcome
     {
-        $before = ['status' => $this->invoice->status, 'total_minor' => $this->invoice->total_minor];
+        $before = ['status' => $this->invoice->status->value, 'total_minor' => $this->invoice->total_minor];
 
         $refund = $this->operations->refund(
             $this->invoice,
@@ -104,7 +101,7 @@ readonly class RefundInvoiceAction implements ApprovableAction
             sprintf('Refunded invoice %s as credit note %s (%s).', $this->invoice->number, $refund->creditNote->number, MoneyFormatter::money($refund->gross)),
             [
                 'before' => $before,
-                'after' => ['status' => $this->invoice->fresh()?->status, 'credit_note' => $refund->creditNote->number, 'refund_gross_minor' => $refund->gross->minor()],
+                'after' => ['status' => $this->invoice->fresh()?->status->value, 'credit_note' => $refund->creditNote->number, 'refund_gross_minor' => $refund->gross->minor()],
                 'mode' => $this->netMinor === null ? 'full' : 'partial',
                 'reason' => $this->reason->value,
             ],

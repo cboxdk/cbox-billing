@@ -7,6 +7,7 @@ namespace App\Billing\Invoicing;
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Coupons\CouponDiscounter;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Seller\SellerCatalog;
 use App\Billing\Tax\Exemptions\ExemptionContext;
@@ -293,7 +294,7 @@ readonly class InvoiceService implements GeneratesInvoices
             'subtotal_minor' => $totals->net->minor(),
             'tax_minor' => $totals->tax->minor(),
             'total_minor' => $totals->gross->minor(),
-            'status' => 'open',
+            'status' => InvoiceStatus::Open,
             'issued_at' => Carbon::instance($issued->issuedAt),
             'due_at' => Carbon::instance($issued->issuedAt)->addDays(14),
             // The exemption audit trail: which certificate zero-rated this invoice, if any.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Models\Invoice;
 use App\Models\Organization;
@@ -96,7 +97,7 @@ class RunOrgDunningJob implements ShouldBeUnique, ShouldQueue
             $invoices[] = new DelinquentInvoice(
                 number: $invoice->number,
                 dueAt: $dueAt->toDateTimeImmutable(),
-                state: $this->state($invoice->status),
+                state: $this->state($invoice->status->value),
                 amountDue: $invoice->isPaid()
                     ? Money::zero($invoice->currency)
                     : Money::ofMinor($invoice->total_minor, $invoice->currency),
@@ -118,7 +119,7 @@ class RunOrgDunningJob implements ShouldBeUnique, ShouldQueue
         $total = 0;
 
         foreach ($rows as $invoice) {
-            if ($invoice->isPaid() || $invoice->status === 'void') {
+            if ($invoice->isPaid() || $invoice->status === InvoiceStatus::Void) {
                 continue;
             }
 

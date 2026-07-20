@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Reporting;
 
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Support\Initials;
 use App\Billing\Support\MoneyFormatter;
 use App\Billing\Support\SubscriptionRevenue;
@@ -102,7 +103,7 @@ readonly class CustomerReport
                 'number' => $invoice->number,
                 'minor' => $invoice->total_minor,
                 'currency' => $invoice->currency,
-                'status' => $invoice->status,
+                'status' => $invoice->status->value,
                 'date' => $invoice->issued_at?->format('Y-m-d') ?? '—',
             ])->values()->all();
 
@@ -148,7 +149,7 @@ readonly class CustomerReport
         $outstanding = Money::zero($currency);
 
         foreach ($organization->invoices as $invoice) {
-            if ($invoice->status === 'open' && $invoice->currency === $currency) {
+            if ($invoice->status === InvoiceStatus::Open && $invoice->currency === $currency) {
                 $outstanding = $outstanding->plus($invoice->total());
             }
         }

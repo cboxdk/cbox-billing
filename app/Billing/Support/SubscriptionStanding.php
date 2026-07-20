@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Support;
 
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Models\Invoice;
 use App\Models\Subscription;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
@@ -82,7 +83,7 @@ class SubscriptionStanding
             return false;
         }
 
-        return $organization->invoices->contains(static fn (Invoice $invoice): bool => $invoice->status === 'open'
+        return $organization->invoices->contains(static fn (Invoice $invoice): bool => $invoice->status === InvoiceStatus::Open
             && $invoice->due_at !== null
             && $invoice->due_at->isPast());
     }

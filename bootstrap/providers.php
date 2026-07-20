@@ -1,5 +1,6 @@
 <?php
 
+use App\Providers\ApprovalServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\AuditServiceProvider;
 use App\Providers\BillingServiceProvider;
@@ -23,6 +24,7 @@ return [
     ExportServiceProvider::class,
     ImportServiceProvider::class,
     AuditServiceProvider::class,
+    ApprovalServiceProvider::class,
     LicensingServiceProvider::class,
     CboxIdWebhookServiceProvider::class,
     WebhookServiceProvider::class,

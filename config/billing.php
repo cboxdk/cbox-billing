@@ -174,6 +174,55 @@ return [
     ],
 
     /*
+     * Approvals — the general maker-checker (two-person rule) engine. A sensitive operator
+     * mutation that trips the policy is HELD as an `approval_requests` row and does NOT take
+     * effect until a DIFFERENT operator approves it, at which point the captured action runs
+     * exactly once. It generalizes the CPQ deal-desk approval to every money-sensitive action.
+     *
+     * `permission` — the `feature:action` slug a checker needs to decide (approve/reject). Gated
+     *   by the same flag-held `billing.permission` middleware as the rest of the console.
+     * `expire_after_days` — a pending request auto-expires after this many days (null = never);
+     *   an expired request never executes.
+     * `actions.<type>` — per action-type policy:
+     *   - `enabled` — DEFAULT FALSE. Disabled means the action executes directly, exactly as
+     *     before (no regression). Turn it on to route that action through the gate.
+     *   - `threshold_minor` — when enabled, an amount at or above this floor (minor units) needs
+     *     approval; null means "no amount gate" → every invocation needs approval. Actions with
+     *     no money dimension (customer.suspend, plan.archive) ignore the floor and always hold
+     *     when enabled.
+     *   - `required` — how many DISTINCT operators must approve before it runs (the M in M-of-N;
+     *     default 1). The maker is never counted — self-approval is refused.
+     *
+     * Every action type ships DISABLED so an unconfigured deployment behaves exactly as today.
+     */
+    'approvals' => [
+        'permission' => env('CBOX_BILLING_APPROVALS_PERMISSION', 'approvals:decide'),
+        'expire_after_days' => $intOrNull(env('CBOX_BILLING_APPROVALS_EXPIRE_DAYS')),
+        'actions' => [
+            'invoice.refund' => [
+                'enabled' => (bool) env('CBOX_BILLING_APPROVE_REFUND', false),
+                'threshold_minor' => $intOrNull(env('CBOX_BILLING_APPROVE_REFUND_THRESHOLD_MINOR')),
+                'required' => (int) env('CBOX_BILLING_APPROVE_REFUND_REQUIRED', 1),
+            ],
+            'wallet.adjust' => [
+                'enabled' => (bool) env('CBOX_BILLING_APPROVE_WALLET', false),
+                'threshold_minor' => $intOrNull(env('CBOX_BILLING_APPROVE_WALLET_THRESHOLD_MINOR')),
+                'required' => (int) env('CBOX_BILLING_APPROVE_WALLET_REQUIRED', 1),
+            ],
+            'customer.suspend' => [
+                'enabled' => (bool) env('CBOX_BILLING_APPROVE_SUSPEND', false),
+                'threshold_minor' => null,
+                'required' => (int) env('CBOX_BILLING_APPROVE_SUSPEND_REQUIRED', 1),
+            ],
+            'plan.archive' => [
+                'enabled' => (bool) env('CBOX_BILLING_APPROVE_PLAN_ARCHIVE', false),
+                'threshold_minor' => null,
+                'required' => (int) env('CBOX_BILLING_APPROVE_PLAN_ARCHIVE_REQUIRED', 1),
+            ],
+        ],
+    ],
+
+    /*
      * The organization credit wallet. Under ADR-0013 a plan's included allowances and
      * credits are one unified pool-grant model burned down in one order, so credit
      * balances must survive a restart: `database` binds the durable {@see DatabaseWallet}

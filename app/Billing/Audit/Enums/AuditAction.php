@@ -59,6 +59,14 @@ enum AuditAction: string
     case DunningRetried = 'dunning.retried';
     case DunningStopped = 'dunning.stopped';
 
+    // Approvals — the general maker-checker engine (two-person rule)
+    case ApprovalRequested = 'approval.requested';
+    case ApprovalApproved = 'approval.approved';
+    case ApprovalRejected = 'approval.rejected';
+    case ApprovalExecuted = 'approval.executed';
+    case ApprovalCanceled = 'approval.canceled';
+    case ApprovalExpired = 'approval.expired';
+
     // CPQ — sales quotes
     case QuoteCreated = 'quote.created';
     case QuoteUpdated = 'quote.updated';
@@ -233,6 +241,10 @@ enum AuditAction: string
 
             'billing.subscriptions.dunning.retry' => self::DunningRetried,
             'billing.subscriptions.dunning.stop' => self::DunningStopped,
+
+            'billing.approvals.approve' => self::ApprovalApproved,
+            'billing.approvals.reject' => self::ApprovalRejected,
+            'billing.approvals.cancel' => self::ApprovalCanceled,
 
             'billing.quotes.store' => self::QuoteCreated,
             'billing.quotes.update' => self::QuoteUpdated,

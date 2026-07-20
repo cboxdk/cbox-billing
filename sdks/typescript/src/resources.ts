@@ -66,6 +66,37 @@ export class EnforcementResource {
   }
 }
 
+// ───────────────────── Feature entitlements (product gating) ─────────────────────
+export class EntitlementsResource {
+  constructor(private readonly http: HttpClient) {}
+
+  /**
+   * The org's whole resolved boolean/config feature set — the product-gating sibling of
+   * `enforcement.entitlements`. Deny-by-default: a feature nobody grants is `enabled: false`;
+   * a config feature carries its typed `value`. Cache it (short TTL) and gate capabilities on it.
+   */
+  features(org: string): Promise<T.FeatureSet> {
+    return this.http.request({
+      method: 'GET',
+      path: `/entitlements/${encodeURIComponent(org)}/features`,
+    });
+  }
+
+  /** A single feature check — the full resolved feature (type, value, source, upgrade). */
+  feature(org: string, key: string): Promise<T.FeatureCheck> {
+    return this.http.request({
+      method: 'GET',
+      path: `/entitlements/${encodeURIComponent(org)}/features/${encodeURIComponent(key)}`,
+    });
+  }
+
+  /** The boolean shortcut: does the org have `key` granted? Deny-by-default for an unknown key. */
+  async hasFeature(org: string, key: string): Promise<boolean> {
+    const resolved = await this.feature(org, key);
+    return resolved.enabled;
+  }
+}
+
 // ─────────────────────────────── Plans ───────────────────────────────
 export class PlansResource {
   constructor(private readonly http: HttpClient) {}

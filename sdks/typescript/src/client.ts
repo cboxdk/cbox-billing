@@ -18,6 +18,7 @@ import { HttpClient, type ClientConfig } from './http.js';
 import {
   CheckoutResource,
   EnforcementResource,
+  EntitlementsResource,
   InvoicesResource,
   LicensesResource,
   OrganizationsResource,
@@ -38,6 +39,8 @@ export class CboxBilling {
 
   /** The metered hot path: leases, usage ingest, reserve/commit, entitlements. */
   readonly enforcement: EnforcementResource;
+  /** Boolean / config feature entitlements (product gating): resolve + per-key checks. */
+  readonly entitlements: EntitlementsResource;
   /** The sellable catalog. */
   readonly plans: PlansResource;
   /** Billing organizations (idempotent upsert). */
@@ -66,6 +69,7 @@ export class CboxBilling {
   constructor(config: CboxBillingConfig) {
     this.http = new HttpClient(config);
     this.enforcement = new EnforcementResource(this.http);
+    this.entitlements = new EntitlementsResource(this.http);
     this.plans = new PlansResource(this.http);
     this.organizations = new OrganizationsResource(this.http);
     this.subscriptions = new SubscriptionsResource(this.http);

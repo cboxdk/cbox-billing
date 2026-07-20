@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Billing\Features\Enums\ConfigValueType;
+use App\Billing\Features\Enums\FeatureType;
+use App\Models\Feature;
 use App\Models\Meter;
 use App\Models\Plan;
 use App\Models\PlanCreditGrant;
 use App\Models\PlanEntitlement;
+use App\Models\PlanFeature;
 use App\Models\PlanPrice;
 use App\Models\PlanPriceTier;
 use App\Models\Product;
@@ -16,6 +20,7 @@ use Cbox\Billing\Metering\ValueObjects\MeterPolicy;
 use Cbox\Billing\Wallet\Enums\GrantCadence;
 use Cbox\Billing\Wallet\Enums\GrantKind;
 use Cbox\Billing\Wallet\Support\Pools;
+use Cbox\License\Capabilities;
 use Illuminate\Database\Seeder;
 
 /**
@@ -29,6 +34,7 @@ class CatalogSeeder extends Seeder
     public function run(): void
     {
         $meters = $this->seedMeters();
+        $features = $this->seedFeatures();
 
         $product = Product::query()->updateOrCreate(
             ['key' => 'cbox-billing'],
@@ -67,6 +73,13 @@ class CatalogSeeder extends Seeder
                 PlanEntitlement::query()->updateOrCreate(
                     ['plan_id' => $plan->id, 'meter_id' => $meters[$meterKey]->id],
                     $entitlement,
+                );
+            }
+
+            foreach ($definition['features'] ?? [] as $featureKey => $value) {
+                PlanFeature::query()->updateOrCreate(
+                    ['plan_id' => $plan->id, 'feature_id' => $features[$featureKey]->id],
+                    ['enabled' => true, 'value' => $value === true ? null : (string) $value],
                 );
             }
         }
@@ -191,10 +204,45 @@ class CatalogSeeder extends Seeder
     }
 
     /**
+     * The boolean / config feature catalog. Keys are drawn from the SAME vocabulary the on-prem
+     * license `entitlements` speak ({@see Capabilities}) wherever a licensable capability exists,
+     * so a hosted subscription and a self-hosted license gate on the same names — plus a few
+     * hosted-only product-gating features (`custom_domains`, `api_access`, and the config limit
+     * `max_projects`) that have no license equivalent.
+     *
+     * @return array<string, Feature>
+     */
+    private function seedFeatures(): array
+    {
+        $definitions = [
+            // Aligned with the license capability vocabulary.
+            Capabilities::SSO => ['name' => 'Single sign-on', 'description' => 'OIDC/OAuth single sign-on.', 'type' => FeatureType::Boolean],
+            Capabilities::SAML => ['name' => 'SAML federation', 'description' => 'SAML 2.0 identity federation.', 'type' => FeatureType::Boolean],
+            Capabilities::SCIM => ['name' => 'SCIM provisioning', 'description' => 'SCIM user/group provisioning.', 'type' => FeatureType::Boolean],
+            Capabilities::ANALYTICS => ['name' => 'Analytics', 'description' => 'Advanced analytics & reporting.', 'type' => FeatureType::Boolean],
+            Capabilities::COMPLIANCE => ['name' => 'Compliance tooling', 'description' => 'Audit exports & retention controls.', 'type' => FeatureType::Boolean],
+            Capabilities::SUPPORT => ['name' => 'Priority support', 'description' => 'Priority / commercial support.', 'type' => FeatureType::Boolean],
+            Capabilities::MULTI_TENANT_PLATFORM => ['name' => 'Multi-tenant platform', 'description' => 'Run multiple isolated organizations.', 'type' => FeatureType::Boolean],
+            // Hosted-only product gating (no license equivalent).
+            'custom_domains' => ['name' => 'Custom domains', 'description' => 'Bring your own domain.', 'type' => FeatureType::Boolean],
+            'api_access' => ['name' => 'API access', 'description' => 'Programmatic API access.', 'type' => FeatureType::Boolean],
+            'max_projects' => ['name' => 'Max projects', 'description' => 'The number of projects the plan permits.', 'type' => FeatureType::Config, 'value_type' => ConfigValueType::Integer],
+        ];
+
+        $features = [];
+
+        foreach ($definitions as $key => $attributes) {
+            $features[$key] = Feature::query()->updateOrCreate(['key' => $key], $attributes);
+        }
+
+        return $features;
+    }
+
+    /**
      * The four-plan ladder. Each plan is priced in DKK + EUR + USD (minor units), and
      * each entitlement is a projection-ready {@see MeterPolicy} shape.
      *
-     * @return list<array{key: string, name: string, active?: bool, prices: array<string, int>, included_credits: int, entitlements: array<string, array<string, mixed>>}>
+     * @return list<array{key: string, name: string, active?: bool, prices: array<string, int>, included_credits: int, entitlements: array<string, array<string, mixed>>, features?: array<string, int|string|bool>}>
      */
     private function plans(): array
     {
@@ -210,6 +258,10 @@ class CatalogSeeder extends Seeder
                     'storage.gb' => $this->metered(10, 0.0, OverageBehaviour::Block),
                     'events.ingested' => $this->disabled(),
                 ],
+                'features' => [
+                    'api_access' => true,
+                    'max_projects' => 3,
+                ],
             ],
             [
                 'key' => 'team',
@@ -221,6 +273,12 @@ class CatalogSeeder extends Seeder
                     'seats' => $this->metered(10, 9_900.0, OverageBehaviour::Bill),
                     'storage.gb' => $this->metered(100, 0.0, OverageBehaviour::Block),
                     'events.ingested' => $this->metered(500_000, 0.0002, OverageBehaviour::Bill),
+                ],
+                'features' => [
+                    Capabilities::SSO => true,
+                    Capabilities::ANALYTICS => true,
+                    'api_access' => true,
+                    'max_projects' => 10,
                 ],
             ],
             [
@@ -234,6 +292,16 @@ class CatalogSeeder extends Seeder
                     'storage.gb' => $this->metered(1_000, 0.0, OverageBehaviour::Block),
                     'events.ingested' => $this->metered(5_000_000, 0.00015, OverageBehaviour::Bill),
                 ],
+                'features' => [
+                    Capabilities::SSO => true,
+                    Capabilities::SCIM => true,
+                    Capabilities::ANALYTICS => true,
+                    Capabilities::COMPLIANCE => true,
+                    Capabilities::SUPPORT => true,
+                    'custom_domains' => true,
+                    'api_access' => true,
+                    'max_projects' => 50,
+                ],
             ],
             [
                 'key' => 'scale',
@@ -245,6 +313,18 @@ class CatalogSeeder extends Seeder
                     'seats' => $this->unlimited(),
                     'storage.gb' => $this->metered(10_000, 0.0, OverageBehaviour::Block),
                     'events.ingested' => $this->unlimited(),
+                ],
+                'features' => [
+                    Capabilities::SSO => true,
+                    Capabilities::SAML => true,
+                    Capabilities::SCIM => true,
+                    Capabilities::ANALYTICS => true,
+                    Capabilities::COMPLIANCE => true,
+                    Capabilities::SUPPORT => true,
+                    Capabilities::MULTI_TENANT_PLATFORM => true,
+                    'custom_domains' => true,
+                    'api_access' => true,
+                    'max_projects' => 500,
                 ],
             ],
             // Early Access: a demo/beta plan that LOCKS a generous included allowance behind

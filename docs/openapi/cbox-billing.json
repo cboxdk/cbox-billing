@@ -459,6 +459,141 @@
                 }
             }
         },
+        "/entitlements/{org}/features": {
+            "get": {
+                "operationId": "getFeatureEntitlements",
+                "tags": [
+                    "Enforcement"
+                ],
+                "summary": "An org's resolved boolean/config feature set",
+                "description": "The org's resolved feature entitlements — the boolean / non-metered sibling of\n`/entitlements/{org}` (product gating). Resolved from the org's serving plan's feature\ngrants and any org-level override (the override wins over the plan). Deny-by-default: a\nfeature nobody grants is reported `enabled: false`, never omitted; a config feature carries\nits typed `value`. A not-granted feature with a reachable plan also carries an `upgrade`\noffer.\n",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/OrgPath"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The org's resolved feature set.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FeatureSet"
+                                },
+                                "examples": {
+                                    "default": {
+                                        "value": {
+                                            "features": {
+                                                "sso": {
+                                                    "type": "boolean",
+                                                    "enabled": true,
+                                                    "value": null,
+                                                    "source": "plan"
+                                                },
+                                                "max_projects": {
+                                                    "type": "config",
+                                                    "enabled": true,
+                                                    "value": 10,
+                                                    "source": "plan"
+                                                },
+                                                "saml": {
+                                                    "type": "boolean",
+                                                    "enabled": false,
+                                                    "value": null,
+                                                    "source": "default",
+                                                    "upgrade": {
+                                                        "required_plan": "scale",
+                                                        "checkout_url": "https://billing.example.com/billing/checkout/tok_abc123"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                }
+            }
+        },
+        "/entitlements/{org}/features/{key}": {
+            "get": {
+                "operationId": "getFeatureEntitlement",
+                "tags": [
+                    "Enforcement"
+                ],
+                "summary": "A single boolean/typed feature check",
+                "description": "A single feature check for the org — the boolean/typed answer a capability gates on.\nDeny-by-default: an unknown key resolves to `enabled: false` rather than a 404, so a\nclient can gate on any key uniformly. A not-granted feature carries its `upgrade` offer\nwhen a reachable plan would grant it.\n",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/OrgPath"
+                    },
+                    {
+                        "name": "key",
+                        "in": "path",
+                        "required": true,
+                        "description": "The feature slug (dots allowed, e.g. `sso`, `platform.multi_tenant`).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The resolved feature.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FeatureCheck"
+                                },
+                                "examples": {
+                                    "granted": {
+                                        "value": {
+                                            "key": "sso",
+                                            "type": "boolean",
+                                            "enabled": true,
+                                            "value": null,
+                                            "source": "plan"
+                                        }
+                                    },
+                                    "notGranted": {
+                                        "value": {
+                                            "key": "saml",
+                                            "type": "boolean",
+                                            "enabled": false,
+                                            "value": null,
+                                            "source": "default",
+                                            "upgrade": {
+                                                "required_plan": "scale",
+                                                "checkout_url": "https://billing.example.com/billing/checkout/tok_abc123"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                }
+            }
+        },
         "/plans": {
             "get": {
                 "operationId": "listPlans",
@@ -3468,6 +3603,98 @@
                         }
                     }
                 }
+            },
+            "Feature": {
+                "type": "object",
+                "description": "A resolved boolean/config feature entitlement. `type` is `boolean` (on/off) or `config` (carries a typed `value`); `source` is where the answer came from.",
+                "required": [
+                    "type",
+                    "enabled",
+                    "value",
+                    "source"
+                ],
+                "properties": {
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "boolean",
+                            "config",
+                            null
+                        ],
+                        "description": "The feature's type; null only for an unknown feature on a single check."
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Whether the org has the feature granted."
+                    },
+                    "value": {
+                        "oneOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The typed config value; null for a boolean feature or an ungranted one."
+                    },
+                    "source": {
+                        "type": "string",
+                        "enum": [
+                            "plan",
+                            "override",
+                            "default"
+                        ],
+                        "description": "Where the answer came from — the plan grant, an org override, or the deny-by-default baseline."
+                    },
+                    "upgrade": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/UpgradeOffer"
+                            }
+                        ],
+                        "description": "Present on a not-granted feature that a reachable plan would grant."
+                    }
+                }
+            },
+            "FeatureSet": {
+                "type": "object",
+                "required": [
+                    "features"
+                ],
+                "properties": {
+                    "features": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/Feature"
+                        }
+                    }
+                }
+            },
+            "FeatureCheck": {
+                "allOf": [
+                    {
+                        "type": "object",
+                        "required": [
+                            "key"
+                        ],
+                        "properties": {
+                            "key": {
+                                "type": "string",
+                                "description": "The feature slug that was checked."
+                            }
+                        }
+                    },
+                    {
+                        "$ref": "#/components/schemas/Feature"
+                    }
+                ]
             },
             "Plan": {
                 "type": "object",

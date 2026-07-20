@@ -106,6 +106,32 @@ export interface EntitlementsResponse {
   meters: Record<string, Entitlement>;
 }
 
+// ── Feature entitlements (boolean / config product gating) ──
+export type FeatureType = 'boolean' | 'config';
+export type FeatureSource = 'plan' | 'override' | 'default';
+
+export interface FeatureEntitlement {
+  /** The feature's type; null only for an unknown feature on a single check. */
+  type: FeatureType | null;
+  /** Whether the org has the feature granted. */
+  enabled: boolean;
+  /** The typed config value; null for a boolean feature or an ungranted one. */
+  value: number | string | null;
+  /** Where the answer came from — the plan grant, an org override, or the deny-by-default baseline. */
+  source: FeatureSource;
+  /** Present on a not-granted feature that a reachable plan would grant. */
+  upgrade?: UpgradeOffer;
+}
+
+export interface FeatureSet {
+  features: Record<string, FeatureEntitlement>;
+}
+
+/** A single feature check — the resolved feature plus the key that was checked. */
+export interface FeatureCheck extends FeatureEntitlement {
+  key: string;
+}
+
 // ── Plans ──
 export interface Plan {
   key: string;

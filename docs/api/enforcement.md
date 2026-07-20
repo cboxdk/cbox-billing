@@ -18,6 +18,8 @@ authenticated, per-org scoped, and throttled at the higher `cbox-enforcement` ti
 | `POST` | `/api/v1/reserve` | Reserve meter buckets, all-or-nothing (three-way outcome). |
 | `POST` | `/api/v1/commit` | Settle a reservation to actual usage. |
 | `GET` | `/api/v1/entitlements/{org}` | The org's resolved per-meter entitlements. |
+| `GET` | `/api/v1/entitlements/{org}/features` | The org's resolved boolean/config feature set (product gating). |
+| `GET` | `/api/v1/entitlements/{org}/features/{key}` | A single boolean/typed feature check. |
 
 ## `POST /leases`
 
@@ -97,8 +99,17 @@ Returns the org's resolved per-meter policy (`enabled`, `allowance`, `weight`,
 `overage`). Disabled meters that have a reachable upgrade path are enriched with an
 `upgrade` object (the same enforce→upgrade bridge as `reserve`).
 
+## `GET /entitlements/{org}/features` and `/features/{key}`
+
+The boolean / non-metered sibling for product gating: the whole resolved feature set,
+or a single boolean/typed check. Deny-by-default — an ungranted (or unknown) feature is
+`enabled: false`, never a 404; a config feature carries its typed `value`; a not-granted
+feature with a reachable plan carries the same `upgrade` offer. See
+[Concepts → Feature entitlements](../concepts/feature-entitlements.md).
+
 ## Related documentation
 
 - [Concepts → Metering & enforcement](../concepts/metering-and-enforcement.md)
+- [Concepts → Feature entitlements](../concepts/feature-entitlements.md)
 - [Cookbook → Meter usage on the hot path](../cookbook/meter-usage.md)
 - [Authentication](authentication.md)

@@ -231,3 +231,47 @@ test('a 204 delete resolves to void', async () => {
   await client.paymentMethods.detach('org_1', 'pm_1');
   assert.equal(calls[0]!.method, 'DELETE');
 });
+
+test('entitlements.features returns the resolved boolean/config feature set', async () => {
+  const { fetch, calls } = fakeFetch([
+    {
+      status: 200,
+      body: {
+        features: {
+          sso: { type: 'boolean', enabled: true, value: null, source: 'plan' },
+          max_projects: { type: 'config', enabled: true, value: 10, source: 'plan' },
+          saml: { type: 'boolean', enabled: false, value: null, source: 'default', upgrade: { required_plan: 'scale', checkout_url: 'https://x/y' } },
+        },
+      },
+    },
+  ]);
+  const client = makeClient(fetch);
+
+  const set = await client.entitlements.features('org_1');
+  assert.equal(calls[0]!.method, 'GET');
+  assert.ok(calls[0]!.url.endsWith('/entitlements/org_1/features'));
+  assert.equal(set.features.sso!.enabled, true);
+  assert.equal(set.features.max_projects!.value, 10);
+  assert.equal(set.features.saml!.enabled, false);
+  assert.equal(set.features.saml!.upgrade?.required_plan, 'scale');
+});
+
+test('entitlements.hasFeature returns the boolean and encodes a dotted key', async () => {
+  const { fetch, calls } = fakeFetch([
+    { status: 200, body: { key: 'platform.multi_tenant', type: 'boolean', enabled: true, value: null, source: 'plan' } },
+  ]);
+  const client = makeClient(fetch);
+
+  const has = await client.entitlements.hasFeature('org_1', 'platform.multi_tenant');
+  assert.equal(has, true);
+  assert.ok(calls[0]!.url.endsWith('/entitlements/org_1/features/platform.multi_tenant'));
+});
+
+test('entitlements.feature is deny-by-default for an unknown key', async () => {
+  const { fetch } = fakeFetch([{ status: 200, body: { key: 'nope', type: null, enabled: false, value: null, source: 'default' } }]);
+  const client = makeClient(fetch);
+
+  const resolved = await client.entitlements.feature('org_1', 'nope');
+  assert.equal(resolved.enabled, false);
+  assert.equal(resolved.type, null);
+});

@@ -91,6 +91,20 @@ if (outcome.outcome === 'allowed') {
 }
 ```
 
+## Feature entitlements (product gating)
+
+```ts
+const { features } = await client.entitlements.features('org_acme');
+if (features.sso?.enabled) { /* … */ }
+
+if (await client.entitlements.hasFeature('org_acme', 'custom_domains')) { /* … */ }
+
+const projects = await client.entitlements.feature('org_acme', 'max_projects'); // { enabled, value: 10, … }
+```
+
+Deny-by-default: an ungranted (or unknown) feature resolves to `enabled: false`; a config
+feature carries its typed `value`. See [Concepts → Feature entitlements](../concepts/feature-entitlements.md).
+
 The full method list, configuration reference, and a runnable example script are in the
 SDK's [README](https://github.com/cboxdk/cbox-billing/tree/main/sdks/typescript#readme).
 

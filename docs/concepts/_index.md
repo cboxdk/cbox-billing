@@ -25,6 +25,7 @@ own internals.**
 | [Subscriptions & lifecycle](subscriptions-and-lifecycle.md) | Trials, the state machine, ramps, minimum commitments, pause/resume, quantity, add-ons. |
 | [Seats](seats.md) | Purchased Full seats (the billing driver) vs assignment; Full/Light; the auto-assign toggle; Light is free. |
 | [Metering & enforcement](metering-and-enforcement.md) | The reserve/commit hot path, leases, aggregations, hard limits, the upgrade bridge. |
+| [Feature entitlements](feature-entitlements.md) | Boolean / config product gating — a feature catalog, plan grants aligned with the license vocabulary, deny-by-default resolution, org overrides, and the two API endpoints. |
 | [Wallets & credits](wallets-and-credits.md) | The unified credit pool, cadence grants, and how included allowances are sourced. |
 | [Invoicing & tax](invoicing-and-tax.md) | Per-seller invoice numbering, PDF rendering, credit notes, and tax composition. |
 | [Tax exemption certificates](tax-exemption-certificates.md) | Capturing, verifying and applying US B2B exemption certificates (resale/nonprofit/government) so an exempt customer isn't charged tax where it applies. |

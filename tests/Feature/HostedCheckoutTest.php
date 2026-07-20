@@ -158,6 +158,25 @@ class HostedCheckoutTest extends TestCase
         $this->assertSame(1, Subscription::query()->where('organization_id', 'org_activate')->count());
     }
 
+    public function test_a_settlement_for_the_wrong_amount_does_not_activate_and_is_flagged(): void
+    {
+        $this->fakeGateway();
+        $session = $this->openCheckout('org_wrongamt');
+
+        // The intent stamps the expected gross (362.50 DKK) on the session.
+        $this->postJson('/billing/checkout/'.$session->token.'/intent')->assertOk();
+        $reference = $session->refresh()->payment_reference;
+        $this->assertIsString($reference);
+        $this->assertSame(36_250, $session->refresh()->expected_amount_minor);
+
+        // A settled webhook claiming the WRONG amount must NOT subscribe the org — it is flagged.
+        $this->postSettlement($reference, 1);
+
+        $this->assertSame(0, Subscription::query()->where('organization_id', 'org_wrongamt')->count());
+        $this->assertSame('pending', (string) $session->refresh()->status->value);
+        $this->assertDatabaseHas('operator_audit_events', ['action' => 'checkout.settlement_rejected']);
+    }
+
     public function test_the_status_endpoint_404s_for_an_expired_token(): void
     {
         $session = $this->openCheckout('org_expstatus');

@@ -60,7 +60,7 @@ readonly class CheckoutPaymentFlow
         $currency = $session->currency ?? $this->currencies->for($organization);
         $amount = $this->amount($session, $plan, $currency);
 
-        $reference = $this->stampReference($session);
+        $reference = $this->stampReference($session, $amount);
 
         return $this->gateway->createPaymentIntent(new PaymentIntentRequest(
             account: $this->customers->resolve($organization),
@@ -187,18 +187,33 @@ readonly class CheckoutPaymentFlow
     }
 
     /**
-     * The session's stable settlement reference, minted once. Reusing it across retries
-     * keeps the gateway idempotency key stable and lets the settled webhook find the
-     * session to activate.
+     * The session's stable settlement reference, minted once. Reusing it across retries keeps the
+     * gateway idempotency key stable and lets the settled webhook find the session to activate.
+     *
+     * The tax-aware GROSS the intent is created for is stamped alongside (once), so the settled
+     * webhook can verify the settlement amount + currency against what was actually charged before
+     * activating — money integrity. The expectation is refreshed each time the reference is
+     * (re)stamped so it always reflects the amount the current intent asks the gateway for.
      */
-    private function stampReference(BillingSession $session): string
+    private function stampReference(BillingSession $session, Money $amount): string
     {
         if (is_string($session->payment_reference) && $session->payment_reference !== '') {
-            return $session->payment_reference;
+            $reference = $session->payment_reference;
+
+            $session->forceFill([
+                'expected_amount_minor' => $amount->minor(),
+                'expected_currency' => $amount->currency(),
+            ])->save();
+
+            return $reference;
         }
 
         $reference = 'chk_'.Str::random(24);
-        $session->forceFill(['payment_reference' => $reference])->save();
+        $session->forceFill([
+            'payment_reference' => $reference,
+            'expected_amount_minor' => $amount->minor(),
+            'expected_currency' => $amount->currency(),
+        ])->save();
 
         return $reference;
     }

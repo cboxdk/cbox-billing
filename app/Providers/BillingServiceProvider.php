@@ -8,6 +8,7 @@ use App\Billing\Account\AccountCurrencyResolver;
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Api\Contracts\ApiTokenAuthenticator;
 use App\Billing\Api\DatabaseApiTokenAuthenticator;
+use App\Billing\Audit\Contracts\RecordsAudit;
 use App\Billing\Catalog\Contracts\AuthorsPlanPrices;
 use App\Billing\Catalog\PlanPriceAuthoring;
 use App\Billing\Coupons\Contracts\DiscountsAmounts;
@@ -446,6 +447,7 @@ class BillingServiceProvider extends ServiceProvider
             $app->make(CouponRedeemer::class),
             $app->make(ConversionAttribution::class),
             $app->make(BillingContext::class),
+            $app->make(RecordsAudit::class),
         ));
 
         $this->registerTransitionPolicy();

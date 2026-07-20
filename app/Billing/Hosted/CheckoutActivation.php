@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Hosted;
 
+use App\Billing\Audit\Contracts\RecordsAudit;
+use App\Billing\Audit\Enums\AuditAction;
+use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Experiments\Contracts\AttributesConversions;
@@ -13,6 +16,7 @@ use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\BillingMode;
 use App\Billing\Mode\LivemodeScope;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Support\MoneyFormatter;
 use App\Models\BillingSession;
 use App\Models\Coupon;
 use App\Models\Organization;
@@ -46,17 +50,18 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
         private RedeemsCoupons $coupons,
         private AttributesConversions $attribution,
         private BillingContext $context,
+        private RecordsAudit $audit,
     ) {}
 
     public function markPaid(string $reference, Money $amount, PaymentResult $result): void
     {
-        $this->activateCheckout($reference);
+        $this->activateCheckout($reference, $amount);
 
         // An ordinary invoice/renewal reference still marks its app invoice paid.
         $this->inner->markPaid($reference, $amount, $result);
     }
 
-    private function activateCheckout(string $reference): void
+    private function activateCheckout(string $reference, Money $amount): void
     {
         // The reference is globally unique, so the lookup runs WITHOUT the plane scope — the
         // webhook route carries no credential to set the mode. The matched session's own
@@ -70,6 +75,33 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
             ->first();
 
         if (! $session instanceof BillingSession) {
+            return;
+        }
+
+        // Money integrity: the settlement must match the GROSS the intent was created for (stamped
+        // on the session at intent time). A mismatch — wrong amount or currency on the settled
+        // webhook — does NOT activate; it is flagged for ops (deny-by-default). A legacy session
+        // with no stamped expectation is activated as before (backward-compatible).
+        if (! $this->settlementMatchesExpectation($session, $amount)) {
+            $this->audit->record(
+                AuditAction::CheckoutSettlementRejected,
+                AuditTarget::model($session, $session->organization_id),
+                sprintf(
+                    'Checkout settlement rejected for %s: received %s, expected %s.',
+                    $session->organization_id,
+                    MoneyFormatter::money($amount),
+                    MoneyFormatter::minor((int) $session->expected_amount_minor, (string) $session->expected_currency),
+                ),
+                [
+                    'received_minor' => $amount->minor(),
+                    'received_currency' => $amount->currency(),
+                    'expected_minor' => $session->expected_amount_minor,
+                    'expected_currency' => $session->expected_currency,
+                    'reference' => $reference,
+                ],
+                livemode: $session->livemode,
+            );
+
             return;
         }
 
@@ -90,6 +122,21 @@ readonly class CheckoutActivation implements InvoicePaymentApplier
             // unique conversion index — so a re-delivered settlement never double-counts.
             $this->attribution->recordSettlement($session);
         });
+    }
+
+    /**
+     * Whether the settled `$amount` matches the session's stamped expected charge (same currency
+     * AND exact minor units). A session with no stamped expectation (a legacy pre-migration row)
+     * returns true so it activates as before — only a present, non-matching expectation is refused.
+     */
+    private function settlementMatchesExpectation(BillingSession $session, Money $amount): bool
+    {
+        if ($session->expected_amount_minor === null || $session->expected_currency === null) {
+            return true;
+        }
+
+        return $amount->currency() === $session->expected_currency
+            && $amount->minor() === $session->expected_amount_minor;
     }
 
     /**

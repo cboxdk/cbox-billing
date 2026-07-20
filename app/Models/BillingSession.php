@@ -33,6 +33,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $coupon_code
  * @property string $return_url
  * @property string|null $payment_reference
+ * @property int|null $expected_amount_minor
+ * @property string|null $expected_currency
  * @property SessionStatus $status
  * @property bool $livemode
  * @property Carbon $expires_at
@@ -45,7 +47,8 @@ class BillingSession extends Model
 
     protected $fillable = [
         'token_hash', 'organization_id', 'type', 'plan_key', 'currency', 'coupon_code',
-        'return_url', 'payment_reference', 'status', 'expires_at', 'completed_at',
+        'return_url', 'payment_reference', 'expected_amount_minor', 'expected_currency',
+        'status', 'expires_at', 'completed_at',
     ];
 
     /**
@@ -61,6 +64,7 @@ class BillingSession extends Model
         return [
             'type' => SessionType::class,
             'status' => SessionStatus::class,
+            'expected_amount_minor' => 'integer',
             'expires_at' => 'datetime',
             'completed_at' => 'datetime',
         ];

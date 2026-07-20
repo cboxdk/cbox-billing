@@ -25,6 +25,10 @@ enum AuditAction: string
     case InvoiceRefunded = 'invoice.refunded';
     case InvoiceMarkedPaid = 'invoice.marked_paid';
     case InvoiceResent = 'invoice.resent';
+    // A settled webhook whose amount/currency did NOT match the expected charge — flagged for ops,
+    // never marked paid (money-integrity guard).
+    case InvoiceSettlementRejected = 'invoice.settlement_rejected';
+    case CheckoutSettlementRejected = 'checkout.settlement_rejected';
 
     // Wallet
     case WalletAdjusted = 'wallet.adjusted';

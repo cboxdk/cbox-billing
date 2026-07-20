@@ -78,14 +78,34 @@ class Invoice extends Model
     }
 
     /**
-     * Stamp the invoice paid — the durable effect behind the payment applier seam.
-     * Idempotent at the model layer: a re-apply on an already-paid invoice is a no-op,
-     * so a redelivered settlement never rewrites the settlement record.
+     * Whether a settlement's `$amount` actually settles THIS invoice: same currency AND the exact
+     * gross (integer minor units). This is the money-integrity gate — a settlement for the wrong
+     * amount (a signed webhook claiming 1 minor against a 100 000-minor invoice) or the wrong
+     * currency does NOT match, so it can never be accepted as payment.
      */
-    public function markPaid(Money $amount, ?string $gatewayReference): void
+    public function settlementMatches(Money $amount): bool
+    {
+        return $amount->currency() === $this->currency
+            && $amount->minor() === $this->total_minor;
+    }
+
+    /**
+     * Stamp the invoice paid — the durable effect behind the payment applier seam. Returns whether
+     * the invoice is settled after the call.
+     *
+     * Idempotent at the model layer: a re-apply on an already-paid invoice is a no-op that reports
+     * settled (`true`), so a redelivered settlement never rewrites the record. A settlement whose
+     * `$amount`/currency does NOT match the invoice gross is REFUSED — the invoice is left unpaid
+     * and `false` is returned so the seam can flag it for ops rather than mark a wrong amount paid.
+     */
+    public function markPaid(Money $amount, ?string $gatewayReference): bool
     {
         if ($this->isPaid()) {
-            return;
+            return true;
+        }
+
+        if (! $this->settlementMatches($amount)) {
+            return false;
         }
 
         $this->forceFill([
@@ -93,6 +113,8 @@ class Invoice extends Model
             'paid_at' => now(),
             'gateway_reference' => $gatewayReference,
         ])->save();
+
+        return true;
     }
 
     /** Whether this invoice was zero-rated by a customer exemption certificate. */

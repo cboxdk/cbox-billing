@@ -26,10 +26,20 @@ readonly class ImportSourceRefStore
             ->first();
     }
 
-    /** The app id a provider record was imported as, or null. */
-    public function appIdFor(ImportSource $source, ImportEntityType $type, string $sourceId): ?string
+    /**
+     * Every ledger ref for a source in the current plane, keyed by "type|sourceId" — the whole
+     * idempotency set in ONE query, so an import walk resolves each row's "already imported?"
+     * check from memory instead of a lookup per record.
+     *
+     * @return array<string, ImportSourceRef>
+     */
+    public function snapshot(ImportSource $source): array
     {
-        return $this->find($source, $type, $sourceId)?->app_id;
+        return ImportSourceRef::query()
+            ->where('source', $source->value)
+            ->get()
+            ->keyBy(static fn (ImportSourceRef $ref): string => $ref->source_type.'|'.$ref->source_id)
+            ->all();
     }
 
     /**

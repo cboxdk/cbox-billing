@@ -133,6 +133,12 @@ readonly class BillingImporter
     /** Walk every entity in dependency order. */
     private function walk(ImportState $state, NormalizedDataset $data, PlanMapping $mapping): void
     {
+        // Preload the whole idempotency ledger once, so each row's "already imported?" check is a
+        // memory lookup, not a query per record (the dry-run + commit N+1). Refs recorded during a
+        // commit walk are threaded through the per-entity state maps, so a walk-start snapshot is
+        // always the correct baseline.
+        $state->knownRefs = $this->refs->snapshot($state->source);
+
         foreach ($data->products as $product) {
             $this->product($state, $product);
         }
@@ -168,7 +174,7 @@ readonly class BillingImporter
     {
         $base = new PlannedAction(ImportEntityType::Product, $p->sourceId, $p->name, ImportOutcome::Created);
 
-        $ref = $this->refs->find($state->source, ImportEntityType::Product, $p->sourceId);
+        $ref = $state->refFor(ImportEntityType::Product, $p->sourceId);
         if ($ref !== null) {
             $state->productApp[$p->sourceId] = $ref->app_id;
             $this->emit($state, $base->withOutcome(ImportOutcome::Skipped, 'Already imported.')->resolvedTo('product', $ref->app_id));
@@ -230,7 +236,7 @@ readonly class BillingImporter
         }
 
         // 2. Already imported.
-        $ref = $this->refs->find($state->source, ImportEntityType::Plan, $p->sourceId);
+        $ref = $state->refFor(ImportEntityType::Plan, $p->sourceId);
         if ($ref !== null) {
             $appPlan = Plan::query()->whereKey($ref->app_id)->first();
             if ($appPlan instanceof Plan) {
@@ -353,7 +359,7 @@ readonly class BillingImporter
             return;
         }
 
-        $ref = $this->refs->find($state->source, ImportEntityType::Price, $price->sourceId);
+        $ref = $state->refFor(ImportEntityType::Price, $price->sourceId);
         if ($ref !== null) {
             $this->emit($state, $base->withOutcome(ImportOutcome::Skipped, 'Already imported.')->resolvedTo('plan_price', $ref->app_id));
 
@@ -399,7 +405,7 @@ readonly class BillingImporter
         $code = strtoupper(trim($c->code));
         $base = new PlannedAction(ImportEntityType::Coupon, $c->sourceId, $code, ImportOutcome::Created);
 
-        $ref = $this->refs->find($state->source, ImportEntityType::Coupon, $c->sourceId);
+        $ref = $state->refFor(ImportEntityType::Coupon, $c->sourceId);
         if ($ref !== null) {
             $this->emit($state, $base->withOutcome(ImportOutcome::Skipped, 'Already imported.')->resolvedTo('coupon', $ref->app_id));
 
@@ -466,7 +472,7 @@ readonly class BillingImporter
     {
         $base = new PlannedAction(ImportEntityType::Customer, $c->sourceId, $c->name, ImportOutcome::Created);
 
-        $ref = $this->refs->find($state->source, ImportEntityType::Customer, $c->sourceId);
+        $ref = $state->refFor(ImportEntityType::Customer, $c->sourceId);
         if ($ref !== null) {
             $state->orgApp[$c->sourceId] = $ref->app_id;
             $org = Organization::query()->whereKey($ref->app_id)->first();
@@ -537,15 +543,16 @@ readonly class BillingImporter
         // existing ledger ref. A plan resolvable by none of these is flagged, never invented.
         $planApp = $mapping->for($s->planSourceId)
             ?? $state->planApp[$s->planSourceId]
-            ?? $this->refs->appIdFor($state->source, ImportEntityType::Plan, $s->planSourceId);
+            ?? $state->refFor(ImportEntityType::Plan, $s->planSourceId)?->app_id;
         if ($planApp === null) {
             $this->emit($state, $base->withOutcome(ImportOutcome::Conflict, "Plan {$s->planSourceId} is unmapped — route it to an app plan first."));
 
             return;
         }
 
-        $ref = $this->refs->find($state->source, ImportEntityType::Subscription, $s->sourceId);
+        $ref = $state->refFor(ImportEntityType::Subscription, $s->sourceId);
         if ($ref !== null) {
+            $state->subApp[$s->sourceId] = $ref->app_id;
             $this->emit($state, $base->withOutcome(ImportOutcome::Skipped, 'Already imported.')->resolvedTo('subscription', $ref->app_id));
 
             return;
@@ -577,6 +584,7 @@ readonly class BillingImporter
             return;
         }
 
+        $state->subApp[$s->sourceId] = (string) $subscription->id;
         $this->refs->record($state->source, ImportEntityType::Subscription, $s->sourceId, 'subscription', (string) $subscription->id, $state->runId);
         $this->emit($state, $base->resolvedTo('subscription', (string) $subscription->id));
     }
@@ -704,7 +712,7 @@ readonly class BillingImporter
             return;
         }
 
-        $ref = $this->refs->find($state->source, ImportEntityType::Invoice, $inv->sourceId);
+        $ref = $state->refFor(ImportEntityType::Invoice, $inv->sourceId);
         if ($ref !== null) {
             $this->emit($state, $base->withOutcome(ImportOutcome::Skipped, 'Already imported.')->resolvedTo('invoice', $ref->app_id));
 
@@ -717,8 +725,10 @@ readonly class BillingImporter
             return;
         }
 
+        // The subscription imported in this same walk (state map), else a pre-existing ledger ref.
         $subId = $inv->subscriptionSourceId !== null
-            ? $this->refs->appIdFor($state->source, ImportEntityType::Subscription, $inv->subscriptionSourceId)
+            ? ($state->subApp[$inv->subscriptionSourceId]
+                ?? $state->refFor(ImportEntityType::Subscription, $inv->subscriptionSourceId)?->app_id)
             : null;
 
         // Normalize the source status onto our vocabulary; an unmappable one lands as Open

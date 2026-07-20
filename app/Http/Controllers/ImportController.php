@@ -102,6 +102,19 @@ class ImportController extends Controller
         ]);
 
         $runner->stage($run, $export);
+
+        // Gate the inline dry-run by the SAME threshold the commit queues at: above it, walking the
+        // whole set inside the web request is unbounded work, so stage the run and hand the operator
+        // to the queued commit path instead of rendering an inline preview.
+        if ($dataset->total() > self::QUEUE_THRESHOLD) {
+            return redirect()->route('billing.import.runs.show', $run->id)->with('status', sprintf(
+                '%s staged with %d records — above the %d-record inline-preview limit, so the dry-run preview is skipped. Commit to process it as a queued job.',
+                $adapter->label(),
+                $dataset->total(),
+                self::QUEUE_THRESHOLD,
+            ));
+        }
+
         $plan = $runner->plan($run);
 
         $run->forceFill([

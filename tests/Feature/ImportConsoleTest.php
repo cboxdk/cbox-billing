@@ -108,6 +108,33 @@ class ImportConsoleTest extends TestCase
         $this->assertSame(0, ImportRun::query()->count());
     }
 
+    public function test_a_large_export_skips_the_inline_dry_run_and_routes_to_the_queued_commit(): void
+    {
+        // A synthetic export above the 500-record inline-preview threshold.
+        $customers = [];
+        $subscriptions = [];
+        for ($i = 0; $i < 600; $i++) {
+            $customers[] = ['id' => 'cus_'.$i, 'name' => 'C'.$i, 'email' => 'c'.$i.'@x.test', 'currency' => 'usd', 'address' => ['country' => 'US']];
+            $subscriptions[] = ['id' => 'sub_'.$i, 'customer' => 'cus_'.$i, 'status' => 'active', 'quantity' => 1, 'currency' => 'usd', 'items' => ['data' => [['price' => ['id' => 'price_m'], 'quantity' => 1]]]];
+        }
+        $payload = (string) json_encode([
+            'products' => [['id' => 'prod_x', 'name' => 'X']],
+            'prices' => [['id' => 'price_m', 'product' => 'prod_x', 'unit_amount' => 1500, 'currency' => 'usd', 'recurring' => ['interval' => 'month']]],
+            'customers' => $customers,
+            'subscriptions' => $subscriptions,
+        ]);
+
+        $this->signedInWith()->post('/import/preview', ['source' => 'stripe', 'payload' => $payload])
+            ->assertRedirect()
+            ->assertSessionHas('status', fn (string $status): bool => str_contains($status, 'inline-preview limit'));
+
+        // The run was staged (so it can be committed → queued) but not walked inline.
+        $run = ImportRun::query()->latest('id')->firstOrFail();
+        $this->assertTrue((bool) $run->dry_run);
+        $this->assertNotNull($run->export_path);
+        $this->assertSame(0, Organization::query()->count());
+    }
+
     public function test_import_requires_authentication(): void
     {
         $this->get('/import')->assertRedirect();

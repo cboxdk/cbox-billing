@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Billing\Import\Support;
 
 use App\Billing\Import\BillingImporter;
+use App\Billing\Import\Enums\ImportEntityType;
 use App\Billing\Import\Enums\ImportSource;
 use App\Billing\Import\ValueObjects\PlannedAction;
 use App\Models\Coupon;
+use App\Models\ImportSourceRef;
 use App\Models\Organization;
 use App\Models\Plan;
 
@@ -43,6 +45,19 @@ class ImportState
     /** @var array<string, Coupon> coupon code → app coupon model (commit only) */
     public array $couponModel = [];
 
+    /** @var array<string, string> source subscription id → app subscription id (invoice→sub link) */
+    public array $subApp = [];
+
+    /**
+     * The idempotency ledger snapshot taken once at walk start, keyed by "type|sourceId" — so the
+     * per-row "already imported?" check is a memory lookup, not a query per record. Populated by
+     * {@see BillingImporter::walk()}; refs created DURING a commit walk are threaded through the
+     * per-entity state maps ({@see $subApp} etc.), never re-read from here.
+     *
+     * @var array<string, ImportSourceRef>
+     */
+    public array $knownRefs = [];
+
     public function __construct(
         public readonly bool $commit,
         public readonly ImportSource $source,
@@ -52,5 +67,11 @@ class ImportState
     public function push(PlannedAction $action): void
     {
         $this->actions[] = $action;
+    }
+
+    /** The pre-walk ledger ref for a provider record, or null when it was not previously imported. */
+    public function refFor(ImportEntityType $type, string $sourceId): ?ImportSourceRef
+    {
+        return $this->knownRefs[$type->value.'|'.$sourceId] ?? null;
     }
 }

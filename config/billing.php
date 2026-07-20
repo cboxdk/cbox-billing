@@ -858,6 +858,21 @@ return [
          * embed must load the table from a different public hostname than the app runs on.
          */
         'embed_base_url' => env('CBOX_BILLING_STOREFRONT_EMBED_BASE_URL'),
+
+        /*
+         * The extra hosts a public-paywall `return_url` may point back at, beyond the app's own
+         * origin and the storefront origins above. The paywall is served under no auth, so its
+         * "maybe later" CTA is allow-listed to the seller's known/branding hosts (deny-by-default)
+         * to close the open-redirect: an off-domain `return_url` is refused. Comma-separated bare
+         * hosts (e.g. `app.acme.com,acme.com`); the seller branding's own support/logo hosts are
+         * always allowed in addition to these.
+         *
+         * @var list<string>
+         */
+        'return_url_allowed_hosts' => array_values(array_filter(
+            array_map('trim', explode(',', (string) env('CBOX_BILLING_STOREFRONT_RETURN_URL_HOSTS', ''))),
+            static fn (string $host): bool => $host !== '',
+        )),
     ],
 
     /*

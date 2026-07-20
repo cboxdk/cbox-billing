@@ -85,10 +85,20 @@ body { min-height: 100vh; display: flex; align-items: center; justify-content: c
         @endif
       </div>
       @if ($paywall->checkoutUrl)
+        {{-- The caller supplied an authorized checkout session — deep-link straight to it. --}}
         <a class="pw-cta" href="{{ $paywall->checkoutUrl }}">
           Upgrade to {{ $paywall->requiredPlanName }}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </a>
+      @elseif ($b->supportUrl)
+        {{-- No session was minted for this public page — send the customer to the seller's own
+             authenticated upgrade/checkout entry point rather than a fabricated deep-link. --}}
+        <a class="pw-cta" href="{{ $b->supportUrl }}">
+          Upgrade to {{ $paywall->requiredPlanName }}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+      @else
+        <p class="pw-none">Sign in to your account to upgrade to {{ $paywall->requiredPlanName }}.</p>
       @endif
     @else
       <p class="pw-none">This capability isn’t available on any plan we currently offer. Please contact us if you need it.</p>

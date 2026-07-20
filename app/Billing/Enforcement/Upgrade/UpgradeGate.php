@@ -74,6 +74,26 @@ readonly class UpgradeGate
     }
 
     /**
+     * The required plan key for a gated meter WITHOUT minting a checkout session — the plan a
+     * public/unauthenticated surface (the hosted paywall, #57) needs to name the offer without
+     * creating a real `BillingSession` for an arbitrary org (cross-tenant existence disclosure +
+     * unbounded rows). Null when the org already has the entitlement or no reachable plan grants it.
+     */
+    public function requiredPlanForMeter(string $org, string $meter): ?string
+    {
+        return $this->requiredPlans->resolve($org, $meter)?->key;
+    }
+
+    /**
+     * The required plan key for a gated feature WITHOUT minting a checkout session — the feature
+     * sibling of {@see requiredPlanForMeter()}. Null when the org already has it or nothing grants it.
+     */
+    public function requiredPlanForFeature(string $org, string $feature): ?string
+    {
+        return $this->requiredFeaturePlans->resolve($org, $feature)?->key;
+    }
+
+    /**
      * Attach an `upgrade` key to every not-granted feature in a feature-set payload that has a
      * reachable upgrade path — the enforce→upgrade bridge on the `/entitlements/{org}/features`
      * response. A granted feature, or one with no reachable path, is left untouched.

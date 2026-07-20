@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Hosted\Contracts\ManagesBillingSessions;
+use App\Billing\Hosted\Enums\SessionType;
+use App\Billing\Notifications\Branding\BrandingResolver;
 use App\Billing\Storefront\PaywallPresenter;
+use App\Billing\Storefront\ReturnUrlPolicy;
 use App\Billing\Storefront\ValueObjects\RenderedPaywall;
+use App\Models\BillingSession;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -14,28 +19,51 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
  * The hosted paywall page (#57): a self-contained, branded "upgrade to unlock" panel an app
  * redirects a blocked user to. It is addressed by the org plus the gated capability
  * (`?org=…&feature=…` or `?org=…&meter=…`) and REUSES the {@see PaywallPresenter} — which in
- * turn reuses the {@see App\Billing\Enforcement\Upgrade\UpgradeGate} — so the required plan and
- * the hosted-checkout deep-link are the gate's own output, never recomputed here.
+ * turn reuses the {@see App\Billing\Enforcement\Upgrade\UpgradeGate} — for the required plan.
+ *
+ * PUBLIC + UNAUTHENTICATED, so it is deliberately side-effect-free: it does NOT mint a
+ * `BillingSession` for the query's arbitrary org (that would disclose org existence
+ * cross-tenant and spawn unbounded rows). The upgrade CTA links to an EXISTING checkout
+ * session only when the caller passes a valid `?session=` token it already holds through an
+ * authorized path; otherwise the panel shows a generic offer with no deep-link. The
+ * caller-supplied `return_url` is allow-listed to the seller's known/branding hosts
+ * ({@see ReturnUrlPolicy}) so the "maybe later" CTA cannot be turned into an open redirect.
  *
  * Deny-by-default: with no reachable upgrade path the page still renders, stating the honest
  * "no upgrade available" outcome rather than a fabricated offer. Thin: validate, delegate, render.
  */
 class PaywallController extends Controller
 {
-    public function show(Request $request, PaywallPresenter $presenter): Response
-    {
+    public function show(
+        Request $request,
+        PaywallPresenter $presenter,
+        ReturnUrlPolicy $returnUrls,
+        BrandingResolver $branding,
+        ManagesBillingSessions $sessions,
+    ): Response {
+        $sellerBranding = $branding->forSeller(null);
+
         $request->validate([
             'org' => ['required', 'string', 'max:255'],
             'feature' => ['sometimes', 'nullable', 'string', 'max:255'],
             'meter' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'return_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
+            'session' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'return_url' => [
+                'sometimes', 'nullable', 'url', 'max:2048',
+                function (string $attribute, mixed $value, callable $fail) use ($returnUrls, $sellerBranding): void {
+                    if (is_string($value) && ! $returnUrls->allows($value, $sellerBranding)) {
+                        $fail('The return URL must point to an approved domain.');
+                    }
+                },
+            ],
         ]);
 
         $org = $request->string('org')->toString();
+        $checkoutUrl = $this->existingCheckoutUrl($request, $sessions);
 
         $paywall = $request->filled('meter')
-            ? $presenter->forMeter($org, $request->string('meter')->toString())
-            : $presenter->forFeature($org, $request->string('feature')->toString());
+            ? $presenter->forMeter($org, $request->string('meter')->toString(), $checkoutUrl)
+            : $presenter->forFeature($org, $request->string('feature')->toString(), $checkoutUrl);
 
         return new Response(
             view('storefront.paywall', [
@@ -47,7 +75,28 @@ class PaywallController extends Controller
         );
     }
 
-    /** The "maybe later" destination: the caller-supplied return URL, else the branding support URL. */
+    /**
+     * The deep-link for the CTA: an EXISTING, still-usable checkout session the caller already
+     * holds (possession of the token is its authorization) — resolved, never minted. Null when no
+     * token is supplied or it does not resolve to a usable checkout session.
+     */
+    private function existingCheckoutUrl(Request $request, ManagesBillingSessions $sessions): ?string
+    {
+        if (! $request->filled('session')) {
+            return null;
+        }
+
+        $token = $request->string('session')->toString();
+        $session = $sessions->locate($token, SessionType::Checkout);
+
+        if (! $session instanceof BillingSession || ! $session->isUsable()) {
+            return null;
+        }
+
+        return route('hosted.checkout.show', $token);
+    }
+
+    /** The "maybe later" destination: the (allow-listed) caller return URL, else the branding support URL. */
     private function returnUrl(Request $request, RenderedPaywall $paywall): ?string
     {
         if ($request->filled('return_url')) {

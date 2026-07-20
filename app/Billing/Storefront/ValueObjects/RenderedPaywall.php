@@ -7,11 +7,12 @@ namespace App\Billing\Storefront\ValueObjects;
 use App\Billing\Notifications\Branding\SellerBranding;
 
 /**
- * A resolved paywall panel: the gated capability, the plan that unlocks it, its price, and the
- * checkout deep-link to buy it — all sourced from the {@see App\Billing\Enforcement\Upgrade\UpgradeGate}
- * (the required plan + hosted-checkout URL are the gate's output, not recomputed here). When no
- * reachable plan grants the capability, `available` is false and there is no offer to show (the
- * panel then states the honest "no upgrade path" outcome).
+ * A resolved paywall panel: the gated capability, the plan that unlocks it, its price, and —
+ * only when the caller already holds an authorized checkout session — the deep-link to it. The
+ * required plan comes from the {@see App\Billing\Enforcement\Upgrade\UpgradeGate}'s NON-minting
+ * resolver: the public paywall never mints a session for an arbitrary org, so `checkoutUrl` is
+ * null unless an existing session was supplied (the panel then shows a generic upgrade CTA). When
+ * no reachable plan grants the capability, `available` is false and there is no offer to show.
  */
 readonly class RenderedPaywall
 {

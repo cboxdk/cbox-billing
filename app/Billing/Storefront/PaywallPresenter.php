@@ -17,11 +17,14 @@ use App\Models\PlanPrice;
 
 /**
  * Resolves a drop-in paywall panel (#57): when a feature or metered-limit gate blocks, this turns
- * the block into the branded "upgrade to unlock" offer. It REUSES the {@see UpgradeGate} — the
- * required plan and the hosted-checkout deep-link are the gate's output, never recomputed here —
- * and only enriches it for display: the human label of the gated capability, and the required
- * plan's price in the org's billing currency (formatted through the same {@see MoneyFormatter} as
- * everywhere else).
+ * the block into the branded "upgrade to unlock" offer. It REUSES the {@see UpgradeGate} for the
+ * required plan — but through the NON-minting resolver, because the paywall is public and
+ * unauthenticated: it must NOT create a real `BillingSession` for an arbitrary org (that would
+ * disclose org existence cross-tenant and spawn unbounded rows). The checkout deep-link is passed
+ * in only when the caller already holds an authorized session; otherwise the panel shows a generic
+ * upgrade CTA. The presenter enriches the offer for display: the human label of the gated
+ * capability and the required plan's price in the org's billing currency (formatted through the
+ * same {@see MoneyFormatter} as everywhere else).
  *
  * Deny-by-default: when the gate finds no reachable plan (the org already has the capability, or
  * nothing grants it), the paywall is `available: false` and carries no fabricated offer.
@@ -34,32 +37,35 @@ readonly class PaywallPresenter
         private ResolvesAccountCurrency $currencies,
     ) {}
 
-    /** The paywall for a blocked boolean/config feature the org lacks. */
-    public function forFeature(string $org, string $featureKey): RenderedPaywall
+    /**
+     * The paywall for a blocked boolean/config feature the org lacks. `$checkoutUrl` is the deep-link
+     * to an EXISTING authorized checkout session when the caller supplied one — never minted here.
+     */
+    public function forFeature(string $org, string $featureKey, ?string $checkoutUrl = null): RenderedPaywall
     {
         $feature = Feature::query()->where('key', $featureKey)->first();
         $label = $feature instanceof Feature ? $feature->name : $featureKey;
 
-        return $this->build($org, $label, 'feature', $this->gate->forFeature($org, $featureKey));
+        return $this->build($org, $label, 'feature', $this->gate->requiredPlanForFeature($org, $featureKey), $checkoutUrl);
     }
 
-    /** The paywall for a blocked metered limit (a disabled meter or an exhausted allowance). */
-    public function forMeter(string $org, string $meterKey): RenderedPaywall
+    /**
+     * The paywall for a blocked metered limit (a disabled meter or an exhausted allowance).
+     * `$checkoutUrl` is an existing authorized checkout session's deep-link, when provided — never minted.
+     */
+    public function forMeter(string $org, string $meterKey, ?string $checkoutUrl = null): RenderedPaywall
     {
         $meter = Meter::query()->where('key', $meterKey)->first();
         $label = $meter instanceof Meter ? $meter->name : $meterKey;
 
-        return $this->build($org, $label, 'usage', $this->gate->forMeter($org, $meterKey));
+        return $this->build($org, $label, 'usage', $this->gate->requiredPlanForMeter($org, $meterKey), $checkoutUrl);
     }
 
-    /**
-     * @param  array{required_plan: string, checkout_url: string|null}|null  $offer
-     */
-    private function build(string $org, string $gatedLabel, string $gatedKind, ?array $offer): RenderedPaywall
+    private function build(string $org, string $gatedLabel, string $gatedKind, ?string $requiredPlan, ?string $checkoutUrl): RenderedPaywall
     {
         $branding = $this->branding->forSeller(null);
 
-        if ($offer === null) {
+        if ($requiredPlan === null) {
             return new RenderedPaywall(
                 available: false,
                 gatedLabel: $gatedLabel,
@@ -73,18 +79,18 @@ readonly class PaywallPresenter
             );
         }
 
-        $plan = Plan::query()->with('prices')->where('key', $offer['required_plan'])->first();
+        $plan = Plan::query()->with('prices')->where('key', $requiredPlan)->first();
         [$priceFormatted, $priceInterval] = $this->price($org, $plan);
 
         return new RenderedPaywall(
             available: true,
             gatedLabel: $gatedLabel,
             gatedKind: $gatedKind,
-            requiredPlanKey: $offer['required_plan'],
-            requiredPlanName: $plan instanceof Plan ? $plan->name : ucfirst($offer['required_plan']),
+            requiredPlanKey: $requiredPlan,
+            requiredPlanName: $plan instanceof Plan ? $plan->name : ucfirst($requiredPlan),
             priceFormatted: $priceFormatted,
             priceInterval: $priceInterval,
-            checkoutUrl: $offer['checkout_url'],
+            checkoutUrl: $checkoutUrl,
             branding: $branding,
         );
     }

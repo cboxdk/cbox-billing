@@ -15,7 +15,11 @@ the app to enforce.
 
 The manifest lives in `config/cbox-id-client.php` → `authz`. Every permission is a
 `feature:action` key that maps to a real console screen or management-API operation
-— nothing decorative.
+— nothing decorative. Two capabilities gate the **token-authed** surface rather than a
+console route and so never appear as `billing.permission:` middleware: `usage:ingest`
+(the per-org-scoped reserve/commit/record hot path) and `payments:read` (the read
+counterpart that rounds out the `payments` read/manage matrix). They are declared and
+role-granted all the same, because they are real capabilities Cbox ID assigns.
 
 ### Permission catalog
 
@@ -26,8 +30,12 @@ The manifest lives in `config/cbox-id-client.php` → `authz`. Every permission 
 | `invoices:refund` | Issue refunds and credit notes |
 | `subscriptions:read` | View subscriptions |
 | `subscriptions:manage` | Create, change, pause, cancel, reactivate |
+| `quotes:read` | View sales quotes, contracts and the approval queue |
+| `quotes:manage` | Author, send, expire and clone sales quotes |
+| `quotes:approve` | Approve or reject quotes above the deal-desk threshold |
+| `approvals:decide` | Approve or reject held maker-checker requests (two-person rule) |
 | `usage:read` | View metered usage |
-| `usage:ingest` | Reserve, commit, record usage on the hot path |
+| `usage:ingest` | Reserve, commit, record usage on the hot path (token-API scope, not a console route) |
 | `catalog:read` | View products, plans, prices, meters |
 | `catalog:manage` | Create and edit catalog |
 | `customers:read` | View organizations and entitlements |

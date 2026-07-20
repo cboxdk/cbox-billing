@@ -113,7 +113,14 @@ return [
             ['key' => 'quotes:manage', 'description' => 'Author, send, expire and clone sales quotes'],
             ['key' => 'quotes:approve', 'description' => 'Approve or reject quotes above the deal-desk threshold'],
 
+            // The general maker-checker engine: decide (approve/reject) sensitive money actions
+            // held for a SECOND operator. Gates the whole approval queue + each decision route.
+            ['key' => 'approvals:decide', 'description' => 'Approve or reject held maker-checker requests (two-person rule)'],
+
             ['key' => 'usage:read', 'description' => 'View metered usage'],
+            // Hot-path capability: the token-authed /api/v1 reserve/commit/record surface is gated
+            // by per-org API-token scope, not the console `billing.permission:` middleware — so this
+            // slug is a real granted capability that intentionally never appears as route middleware.
             ['key' => 'usage:ingest', 'description' => 'Reserve, commit and record usage on the enforcement hot path'],
 
             ['key' => 'catalog:read', 'description' => 'View products, plans, prices and meters'],
@@ -124,6 +131,9 @@ return [
 
             ['key' => 'wallet:manage', 'description' => 'Grant and debit organization wallet credit'],
 
+            // The read counterpart to payments:manage — assigned to every role for entitlement /
+            // gateway-state reads; the console mutating routes carry payments:manage, so this
+            // read slug rounds out the read/manage matrix rather than gating a console screen.
             ['key' => 'payments:read', 'description' => 'View payment methods and gateway state'],
             ['key' => 'payments:manage', 'description' => 'Manage payment methods, checkout, portal and intents'],
 
@@ -145,6 +155,7 @@ return [
                     'invoices:read', 'invoices:manage', 'invoices:refund',
                     'subscriptions:read', 'subscriptions:manage',
                     'quotes:read', 'quotes:manage', 'quotes:approve',
+                    'approvals:decide',
                     'usage:read', 'usage:ingest',
                     'catalog:read', 'catalog:manage',
                     'customers:read', 'customers:manage',

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use Illuminate\Routing\Router;
 use Tests\TestCase;
 
 /**
@@ -81,5 +82,91 @@ class CboxIdManifestTest extends TestCase
         // Operator sits between: more than the viewer, less than the admin.
         $this->assertGreaterThan(count($roles['billing-viewer']['permissions']), count($roles['billing-operator']['permissions']));
         $this->assertLessThan(count($roles['billing-admin']['permissions']), count($roles['billing-operator']['permissions']));
+    }
+
+    /**
+     * Capabilities that gate the token-authed surface (per-org API-token scope) rather than a
+     * console `billing.permission:` route — declared and role-granted, but intentionally never
+     * appearing as route middleware. Every OTHER declared permission MUST gate a real route.
+     *
+     * @var list<string>
+     */
+    private const TOKEN_API_ALLOWLIST = ['usage:ingest', 'payments:read'];
+
+    /**
+     * The permission slugs every `billing.permission:<slug>` route middleware enforces,
+     * gathered from the live router — the single source of truth for what the app enforces.
+     *
+     * @return list<string>
+     */
+    private function routePermissionSlugs(): array
+    {
+        $slugs = [];
+
+        /** @var Router $router */
+        $router = app('router');
+
+        foreach ($router->getRoutes() as $route) {
+            foreach ($route->gatherMiddleware() as $middleware) {
+                if (is_string($middleware) && str_starts_with($middleware, 'billing.permission:')) {
+                    $slugs[] = substr($middleware, strlen('billing.permission:'));
+                }
+            }
+        }
+
+        return array_values(array_unique($slugs));
+    }
+
+    public function test_every_route_permission_slug_is_declared_in_the_manifest(): void
+    {
+        $declared = array_column($this->authz()['permissions'], 'key');
+        $used = $this->routePermissionSlugs();
+
+        // Guards the lockout class of bug (#3): a route enforcing an undeclared slug 403s
+        // every principal once RBAC is enforced, since no role can carry a slug the manifest
+        // does not declare — e.g. `approvals:decide` was enforced but never declared.
+        $this->assertNotEmpty($used);
+
+        foreach ($used as $slug) {
+            $this->assertContains(
+                $slug,
+                $declared,
+                "Route middleware enforces 'billing.permission:{$slug}' but the manifest ".
+                'in config/cbox-id-client.php does not declare it — no role can grant it, so '.
+                'every operator is locked out of that route when RBAC enforces.',
+            );
+        }
+    }
+
+    public function test_every_declared_permission_gates_a_route_or_is_an_allowlisted_token_capability(): void
+    {
+        $declared = array_column($this->authz()['permissions'], 'key');
+        $used = $this->routePermissionSlugs();
+
+        // The reverse drift guard: a declared permission that gates no route and is not a
+        // documented token-API capability is dead vocabulary — flag it so the manifest and
+        // the rbac-manifest doc's "every permission maps to a real screen" claim stay honest.
+        foreach ($declared as $slug) {
+            $this->assertTrue(
+                in_array($slug, $used, true) || in_array($slug, self::TOKEN_API_ALLOWLIST, true),
+                "Declared permission '{$slug}' gates no console route and is not in the ".
+                'token-API allowlist — either wire it to a route, add it to TOKEN_API_ALLOWLIST '.
+                'with a documented reason, or remove it.',
+            );
+        }
+    }
+
+    public function test_approvals_decide_is_declared_and_granted_to_the_approver_role(): void
+    {
+        $declared = array_column($this->authz()['permissions'], 'key');
+        $this->assertContains('approvals:decide', $declared);
+
+        $roles = [];
+        foreach ($this->authz()['roles'] as $role) {
+            $roles[$role['key']] = $role['permissions'];
+        }
+
+        // billing-admin is the approver: it must carry the slug the approval queue enforces.
+        $this->assertContains('approvals:decide', $roles['billing-admin']);
     }
 }

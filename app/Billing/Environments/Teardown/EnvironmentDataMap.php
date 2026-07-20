@@ -92,13 +92,20 @@ readonly class EnvironmentDataMap
     }
 
     /**
-     * Every environment-scoped table (config first, then transactional) — the full set a destroy
-     * removes for a plane.
+     * Every environment-scoped table a destroy/reseed removes for a plane, in FK-SAFE DELETION
+     * ORDER: the transactional/tenant CHILDREN first, then the CONFIG they reference.
+     *
+     * The order matters because some transactional rows reference config with `restrictOnDelete`
+     * (`quote_lines.plan_id → plans`, so a `plan` cannot be deleted while a quote line still points
+     * at it). Deleting config first would abort the whole destroy on a plane that has quotes. Within
+     * a category the remaining FKs are `cascade`/`nullOnDelete`, which never block, so the two-group
+     * order (children → parents) is sufficient. Kept adjacent to the two category lists so it stays
+     * correct as tables are added.
      *
      * @return list<string>
      */
     public function allTables(): array
     {
-        return [...$this->configTables(), ...$this->transactionalTables()];
+        return [...$this->transactionalTables(), ...$this->configTables()];
     }
 }

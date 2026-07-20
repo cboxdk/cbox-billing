@@ -9,6 +9,7 @@ use App\Billing\Environments\Contracts\DestroysEnvironments;
 use App\Billing\Environments\Contracts\ResetsEnvironments;
 use App\Billing\Environments\Exceptions\EnvironmentProtectedException;
 use App\Billing\Environments\Gateways\EnvironmentGatewayStore;
+use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Mode\BillingContext;
 use App\Models\Coupon;
 use App\Models\Environment;
@@ -16,9 +17,12 @@ use App\Models\Experiment;
 use App\Models\ExperimentConversion;
 use App\Models\ExperimentImpression;
 use App\Models\ExperimentVariant;
+use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\PricingTable;
+use App\Models\Quote;
+use App\Models\QuoteLine;
 use App\Models\Subscription;
 use App\Models\SubscriptionCoupon;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
@@ -188,6 +192,51 @@ class EnvironmentResetAndTeardownTest extends TestCase
         $this->assertSame(0, Organization::query()->withoutGlobalScopes()->where('environment', 'acme-test')->count());
 
         // Production is untouched.
+        $this->assertGreaterThan(0, $this->inEnvironment('production', fn (): int => Plan::query()->count()));
+    }
+
+    public function test_destroy_succeeds_with_quotes_subscriptions_and_invoices_present(): void
+    {
+        // Finding 6 (P2): a full destroy deletes config (plans) and transactional (quote_lines) rows.
+        // `quote_lines.plan_id → plans` is restrictOnDelete, so deleting config BEFORE the
+        // transactional children that reference it aborts the whole destroy. Build a sandbox that has
+        // a quote LINE pointing at a plan (plus a subscription and an invoice) and prove the destroy
+        // completes and removes everything.
+        $this->sandboxWithBook('acme-test');
+
+        $this->inEnvironment('acme-test', function (): void {
+            $plan = Plan::query()->where('key', 'starter')->firstOrFail();
+
+            $quote = Quote::query()->create([
+                'number' => 'Q-ACME-1', 'organization_id' => 'org_book', 'currency' => 'DKK', 'status' => 'draft',
+            ]);
+            // The restrictOnDelete edge: this line references a config plane row (plans).
+            QuoteLine::query()->create([
+                'quote_id' => $quote->id, 'sort_order' => 0, 'type' => 'plan', 'plan_id' => $plan->id,
+                'quantity' => 1, 'unit_amount_minor' => 29_000, 'recurring' => true,
+            ]);
+
+            Invoice::query()->create([
+                'organization_id' => 'org_book', 'seller' => 'seller_x', 'number' => 'INV-ACME-1', 'currency' => 'DKK',
+                'subtotal_minor' => 29_000, 'tax_minor' => 7_250, 'total_minor' => 36_250,
+                'status' => InvoiceStatus::Open, 'issued_at' => now(), 'due_at' => now()->addDays(14),
+            ]);
+        });
+
+        // Without the FK-safe order this aborts with a foreign-key violation; it must succeed.
+        $result = app(DestroysEnvironments::class)->destroy($this->environment('acme-test'));
+
+        $this->assertTrue($result->environmentRemoved);
+        $this->assertNull(Environment::query()->where('key', 'acme-test')->first());
+
+        // Everything of the plane is gone — the config plans, the referencing quote lines, and the book.
+        $this->assertSame(0, Quote::query()->withoutGlobalScopes()->where('environment', 'acme-test')->count());
+        $this->assertSame(0, QuoteLine::query()->withoutGlobalScopes()->where('environment', 'acme-test')->count());
+        $this->assertSame(0, Invoice::query()->withoutGlobalScopes()->where('environment', 'acme-test')->count());
+        $this->assertSame(0, Plan::query()->withoutGlobalScopes()->where('environment', 'acme-test')->count());
+        $this->assertSame(0, Subscription::query()->withoutGlobalScopes()->where('environment', 'acme-test')->count());
+
+        // Production's catalog is untouched.
         $this->assertGreaterThan(0, $this->inEnvironment('production', fn (): int => Plan::query()->count()));
     }
 

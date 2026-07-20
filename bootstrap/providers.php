@@ -6,6 +6,7 @@ use App\Providers\BillingServiceProvider;
 use App\Providers\CboxIdWebhookServiceProvider;
 use App\Providers\ConsoleServiceProvider;
 use App\Providers\ExportServiceProvider;
+use App\Providers\ImportServiceProvider;
 use App\Providers\LicensingServiceProvider;
 use App\Providers\TaxExemptionServiceProvider;
 use App\Providers\TestModeServiceProvider;
@@ -18,6 +19,7 @@ return [
     BillingServiceProvider::class,
     TaxExemptionServiceProvider::class,
     ExportServiceProvider::class,
+    ImportServiceProvider::class,
     AuditServiceProvider::class,
     LicensingServiceProvider::class,
     CboxIdWebhookServiceProvider::class,

@@ -140,6 +140,7 @@ enum AuditAction: string
     case WarehouseSinkDeleted = 'warehouse_sink.deleted';
     case WarehouseSinkRun = 'warehouse_sink.run';
     case DataExported = 'data.exported';
+    case DataImported = 'data.imported';
 
     // GDPR / DSAR / compliance
     case DsarExported = 'dsar.exported';
@@ -304,6 +305,8 @@ enum AuditAction: string
             'billing.exports.warehouse.toggle' => self::WarehouseSinkToggled,
             'billing.exports.warehouse.destroy' => self::WarehouseSinkDeleted,
             'billing.exports.warehouse.run' => self::WarehouseSinkRun,
+
+            'billing.import.commit' => self::DataImported,
         ];
     }
 

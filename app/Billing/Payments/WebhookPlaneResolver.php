@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Payments;
 
 use App\Billing\Environments\EnvironmentRegistry;
+use App\Billing\Environments\PlaneDocumentPrefix;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\EnvironmentScope;
 use App\Billing\Payments\ValueObjects\SettlementSignals;
@@ -47,13 +48,26 @@ use Illuminate\Support\Facades\DB;
  *      invoice or a dunning retry attempt — a gateway never mints one twice;
  *   2. the gateway CUSTOMER handle (`cus_…`) in `gateway_customers`, which environment cloning does
  *      not copy, so a matching row names the owning plane outright;
- *   3. only then the settlement reference — and only when it is UNAMBIGUOUS. A reference that
- *      matches rows in more than one plane resolves to the ambient plane if that is one of the
- *      candidates and otherwise refuses to guess, rather than silently picking a plane.
+ *   3. only then the settlement reference — and only when it is UNAMBIGUOUS. When no strong signal
+ *      matched and the reference addresses SEVERAL planes, {@see forSignals()} REFUSES (returns
+ *      null) and the controller rejects the payload with the ordinary verification-failure response.
+ *      It never falls back to the ambient plane there — that fallback is what let a reference-only
+ *      payload settle production's identically-numbered invoice.
  *
- * Preferring the ambient plane among ambiguous candidates is what keeps the pre-verify peek and the
- * post-verify apply in agreement: the ingest re-resolves the plane INSIDE the plane the controller
- * already pushed, so an ambiguous number resolves back to the same plane the strong signal chose.
+ * The refusal is deliberately indistinguishable from a bad signature (same status, same body), so it
+ * cannot be used to probe which references exist, or in how many planes.
+ *
+ * Preferring the ambient plane among ambiguous candidates in {@see forReference()} is what keeps the
+ * pre-verify peek and the post-verify apply in agreement: the ingest re-resolves the plane INSIDE the
+ * plane the controller already pushed from a STRONG signal, so an ambiguous number resolves back to
+ * that same plane rather than jumping to another one. That preference is safe only there, after a
+ * strong signal has already decided.
+ *
+ * Cross-plane number collisions are also closed at the root: a cloned or config-fallback seller
+ * numbers its legal documents under a plane-distinct prefix
+ * ({@see PlaneDocumentPrefix}), and the counters behind those numbers are
+ * keyed by `(seller, environment)`. Step 3's refusal is the backstop for what remains — e.g. an
+ * operator hand-authoring the same prefix in two planes.
  *
  * The lookups here bypass {@see EnvironmentScope} (the settlement route has no ambient plane to
  * trust) and fall back to the ambient plane when nothing matches — under which nothing will match
@@ -118,8 +132,12 @@ readonly class WebhookPlaneResolver
      * The owning plane for a raw (UNVERIFIED) settlement payload — peeks every plane signal the body
      * carries and resolves on the most globally-unique one that matches, so the controller can set
      * the plane before the signature is verified.
+     *
+     * NULL means REFUSE: the payload's only signal is a settlement reference that addresses more than
+     * one plane, so there is no honest answer and the caller must reject the payload outright (see
+     * {@see forSignals()}).
      */
-    public function forSettlementPayload(WebhookPayload $payload): Environment
+    public function forSettlementPayload(WebhookPayload $payload): ?Environment
     {
         return $this->forSignals($this->settlementSignals($payload));
     }
@@ -127,8 +145,17 @@ readonly class WebhookPlaneResolver
     /**
      * Resolve the owning plane from a set of settlement signals, strongest first: the gateway object
      * id, then the gateway customer, then (only if unambiguous) the settlement reference.
+     *
+     * FAIL CLOSED. When a strong (globally-unique) gateway signal names exactly one plane, that plane
+     * wins — unchanged. When NO strong signal matches and the reference alone addresses SEVERAL
+     * planes, this returns null instead of falling back to the ambient plane. Defaulting to ambient
+     * meant an invoice-number-only payload settled PRODUCTION's identically-numbered invoice whenever
+     * the event was meant for a sandbox; refusing means neither plane's invoice moves. (Cloned and
+     * config-fallback sellers now number their documents per plane — see
+     * {@see PlaneDocumentPrefix} — so this is a backstop for residual
+     * ambiguity, e.g. an operator who hand-authored the same prefix in two planes.)
      */
-    public function forSignals(SettlementSignals $signals): Environment
+    public function forSignals(SettlementSignals $signals): ?Environment
     {
         $planes = $this->planesForGatewayObject($signals->gatewayObject);
 
@@ -136,11 +163,19 @@ readonly class WebhookPlaneResolver
             $planes = $this->planesForGatewayCustomer($signals->gateway, $signals->gatewayCustomer);
         }
 
-        if (count($planes) !== 1) {
-            $planes = $this->planesForReference($signals->reference);
+        if (count($planes) === 1) {
+            return $this->pick($planes);
         }
 
-        return $this->pick($planes);
+        $references = $this->planesForReference($signals->reference);
+
+        // The reference is the last and weakest signal: if it names more than one plane it names
+        // none of them. Refuse rather than settle an arbitrary (in practice: the production) invoice.
+        if (count($references) > 1) {
+            return null;
+        }
+
+        return $this->pick($references);
     }
 
     /**
@@ -168,6 +203,10 @@ readonly class WebhookPlaneResolver
      * among them means the signal simply cannot tell the planes apart: the ambient plane is returned
      * unchanged rather than guessing, so the payload fails verification / no-ops instead of being
      * applied to an arbitrary plane's row.
+     *
+     * The pre-verify peek does NOT reach here with an ambiguous reference — {@see forSignals()} has
+     * already refused by then. This collapse is for the post-verify re-resolution, which runs inside
+     * the plane a strong signal already chose.
      *
      * @param  list<string>  $keys
      */

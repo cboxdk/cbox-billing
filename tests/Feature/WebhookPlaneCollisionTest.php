@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Billing\Environments\Contracts\CreatesEnvironments;
 use App\Billing\Environments\Gateways\EnvironmentGatewayStore;
+use App\Billing\Environments\PlaneDocumentPrefix;
 use App\Billing\Invoicing\Enums\InvoiceStatus;
 use App\Billing\Mode\BillingContext;
 use App\Models\Environment;
@@ -23,12 +24,16 @@ use Tests\TestCase;
  *
  * The settlement webhook must resolve its owning plane BEFORE the signature is verified (so the
  * plane-aware verifier picks the right secret). That resolution used to key off the invoice `number`
- * ALONE, unscoped — but invoice numbers are unique only per `(seller, number)`, and cloning an
- * environment duplicates the seller entities together with their invoice prefix. So
- * `CBOX-DK-2026-00001` can legitimately exist in production AND in a sandbox, and an unscoped
- * `where('number', …)->first()` picked whichever row came back first: a sandbox settlement could be
- * verified against, and applied to, the PRODUCTION invoice, or a valid sandbox event could be
- * rejected against the wrong plane's secret.
+ * ALONE, unscoped — but invoice numbers are unique only per `(seller, number)`, so the same number
+ * can exist in production AND in a sandbox, and an unscoped `where('number', …)->first()` picked
+ * whichever row came back first: a sandbox settlement could be verified against, and applied to, the
+ * PRODUCTION invoice, or a valid sandbox event could be rejected against the wrong plane's secret.
+ *
+ * Cloning is no longer what produces that collision — a cloned seller now numbers under a
+ * plane-distinct prefix ({@see PlaneDocumentPrefix}) — so the colliding
+ * invoices here are seeded directly, which is the shape an operator can still hand-author. The
+ * reference-only half of that case is covered by {@see AmbiguousSettlementPlaneTest}; this file
+ * covers the strong gateway signals resolving the right plane regardless.
  *
  * The plane is now resolved from a GLOBALLY-UNIQUE gateway signal first — the gateway object id
  * (`pi_…`, recorded on the checkout session / settled invoice / dunning retry attempt) and then the
@@ -86,11 +91,11 @@ class WebhookPlaneCollisionTest extends TestCase
      * customer `$customer` and whose settlement will arrive as gateway object `$object`. The object
      * id is pre-recorded on the invoice, mirroring an intent created for it before settlement.
      *
-     * `$seller` is what makes the collision reproducible rather than hypothetical: cloning gives the
-     * copied seller a plane-namespaced PRIMARY key (`<plane>__<id>`) but copies its invoice PREFIX
-     * verbatim, and each seller id draws from its own `invoice_sequences` counter starting at 1. So
-     * the two planes issue the byte-identical number `CBOX-DK-2026-00001` while still satisfying the
-     * `(seller, number)` unique index.
+     * `$seller` is what makes the collision reproducible rather than hypothetical: the two planes
+     * hold DIFFERENT seller ids (a cloned seller is stored under `<plane>__<id>`) issuing the
+     * byte-identical number `CBOX-DK-2026-00001`, which the `(seller, number)` unique index allows.
+     * The cloner no longer creates that state by itself, but an operator authoring the same invoice
+     * prefix in two planes still can.
      */
     private function seedPlane(string $plane, string $seller, string $org, string $customer, string $object): void
     {
@@ -223,9 +228,8 @@ class WebhookPlaneCollisionTest extends TestCase
 
     /**
      * DENY-BY-DEFAULT on a genuinely ambiguous payload: the number collides and the body carries no
-     * gateway object or customer we know, so the resolver refuses to guess a plane. It stays on the
-     * ambient (production) plane, where only a production-secret signature authenticates — and a
-     * sandbox-secret one is rejected outright rather than being applied to the wrong plane.
+     * gateway object or customer we know, so the resolver refuses to name a plane at all and the
+     * payload is rejected — it is applied to NEITHER plane, whichever secret signed it.
      */
     public function test_an_unresolvable_payload_never_crosses_into_another_plane(): void
     {

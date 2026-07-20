@@ -27,6 +27,9 @@ use Symfony\Component\HttpFoundation\Response;
  * Thin: it marshals the HTTP request into a {@see WebhookPayload}, resolves the reference's owning
  * plane and sets it BEFORE verifying, wraps the ingest in one transaction, and maps the
  * {@see IngestOutcome} to a response. All idempotency logic lives in the engine.
+ *
+ * A payload whose only plane signal is AMBIGUOUS (a settlement reference that exists in more than one
+ * plane) is refused outright, in the gateway verifier's own words — see {@see refuse()}.
  */
 class WebhookController extends Controller
 {
@@ -52,11 +55,18 @@ class WebhookController extends Controller
         // the signature check below.
         $plane = $planes->forSettlementPayload($payload);
 
+        // FAIL CLOSED. No globally-unique gateway signal matched and the settlement reference alone
+        // addresses more than one plane, so there is no honest owner: refuse rather than settle an
+        // arbitrary (in practice the ambient/production) plane's identically-numbered invoice.
+        if ($plane === null) {
+            return $this->refuse($verifier, $payload);
+        }
+
         return $context->runInEnvironment($plane, function () use ($verifier, $ingest, $db, $gateway, $payload): JsonResponse {
             try {
                 $event = $verifier->verify($payload);
             } catch (WebhookVerificationFailed $e) {
-                return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+                return $this->failed($e);
             }
 
             // The effect and its settle-once/processed guards commit atomically.
@@ -69,6 +79,45 @@ class WebhookController extends Controller
                 'applied' => $outcome->wasApplied(),
             ]);
         });
+    }
+
+    /**
+     * Refuse a payload whose owning plane is ambiguous, WITHOUT telling the caller that is why.
+     *
+     * An unauthentic payload — which is every payload a prober can produce, since it holds no
+     * signing secret — is answered with the gateway verifier's OWN rejection, byte-identical to what
+     * the same request would get for any other reference: the route can therefore not be used to ask
+     * "does this reference exist in more than one plane?". A payload that DOES carry a valid
+     * signature (only a secret holder can mint one) is refused with the verifier's own
+     * missing-signature rejection, produced by re-running it over the same body with the signature
+     * stripped, so even that answer is a string the route already emits and never a bespoke
+     * "ambiguous" marker.
+     *
+     * Verifying here decides nothing plane-sensitive — the payload is refused either way; it only
+     * shapes the error. The verification that GATES a settlement still runs after the plane is
+     * resolved, in that plane.
+     */
+    private function refuse(WebhookVerifier $verifier, WebhookPayload $payload): JsonResponse
+    {
+        try {
+            $verifier->verify($payload);
+        } catch (WebhookVerificationFailed $e) {
+            return $this->failed($e);
+        }
+
+        try {
+            $verifier->verify(new WebhookPayload(body: $payload->body, headers: []));
+        } catch (WebhookVerificationFailed $e) {
+            return $this->failed($e);
+        }
+
+        return $this->failed(WebhookVerificationFailed::unsigned());
+    }
+
+    /** The one shape every refusal on this route takes. */
+    private function failed(WebhookVerificationFailed $e): JsonResponse
+    {
+        return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
     }
 
     /**

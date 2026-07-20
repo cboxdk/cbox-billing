@@ -66,6 +66,26 @@ refuses every payload rather than trusting it. The gateway is reported "connecte
 in Settings once the secret is present. The ingest is exactly-once, so a
 re-delivery is a safe no-op.
 
+## Which environment an inbound settlement belongs to
+
+`POST /webhooks/{gateway}` carries no credential, so the owning **environment** is
+resolved from the payload itself *before* the signature is verified — the verifier
+must use that plane's secret. Resolution takes the most globally-unique signal
+available: the gateway's own object id (`pi_…`), then the gateway customer handle
+(`cus_…`), and only then the settlement reference (the invoice number).
+
+The reference is the weakest signal, because an invoice number is unique per seller
+rather than globally. If it is the **only** signal and it matches invoices in more
+than one environment, the payload is **refused** — it settles nothing, in any
+plane, rather than defaulting to production. The refusal is returned as an ordinary
+verification failure, so it reveals nothing about which references exist.
+
+In practice this is a backstop: environments number their documents under
+[plane-distinct prefixes](../concepts/invoicing-and-tax.md#numbering-is-plane-distinct),
+so the same number in two planes only arises if an operator authors the same
+`invoice_prefix` in both. If you see settlements rejected, check for a duplicated
+prefix across environments first.
+
 ## The Settings → Payment gateways panel
 
 `config/billing.php` → `gateways` drives the console panel. Each gateway is listed

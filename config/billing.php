@@ -482,6 +482,29 @@ return [
     'export' => [
         'chunk_size' => (int) env('CBOX_BILLING_EXPORT_CHUNK_SIZE', 500),
         'default_disk' => env('CBOX_BILLING_EXPORT_DISK', 's3'),
+
+        /*
+         * The filesystem disks a warehouse sink is ALLOWED to stage to (deny-by-default). A sink's
+         * `disk` is operator input that becomes `Storage::disk($disk)`, so it is allow-listed to
+         * the object-store disks intended for export rather than accepting any disk name in
+         * config/filesystems.php (e.g. a local/private disk). Comma-separated disk names.
+         *
+         * @var list<string>
+         */
+        'allowed_disks' => array_values(array_filter(
+            array_map('trim', explode(',', (string) env('CBOX_BILLING_EXPORT_ALLOWED_DISKS', 's3'))),
+            static fn (string $disk): bool => $disk !== '',
+        )),
+
+        /*
+         * The URI schemes a sink's `external_base` (the warehouse-addressable staged location) may
+         * use. Deny-by-default: an `external_base` with any other scheme is refused, so a manifest
+         * can never phrase a load statement against a `file://`/`http://` or otherwise unexpected
+         * location.
+         *
+         * @var list<string>
+         */
+        'warehouse_uri_schemes' => ['s3', 's3a', 'gs', 'gcs', 'azure', 'abfss', 'https'],
     ],
 
     /*

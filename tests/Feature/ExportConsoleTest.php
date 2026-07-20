@@ -75,6 +75,7 @@ class ExportConsoleTest extends TestCase
     public function test_operator_can_configure_run_and_inspect_a_sink(): void
     {
         Storage::fake('wh');
+        config(['billing.export.allowed_disks' => ['wh']]);
 
         // Create a sink.
         $this->withSession($this->session)->post('/exports/warehouse', [
@@ -99,6 +100,34 @@ class ExportConsoleTest extends TestCase
             ->assertOk()
             ->assertSee('MERGE INTO analytics_billing.invoices', false)
             ->assertSee('COPY INTO', false);
+    }
+
+    public function test_a_non_allowlisted_disk_is_rejected(): void
+    {
+        // The allow-list is the export default (s3); a local/arbitrary disk is refused.
+        config(['billing.export.allowed_disks' => ['s3']]);
+
+        $this->withSession($this->session)->post('/exports/warehouse', [
+            'key' => 'evil', 'name' => 'Evil', 'warehouse' => 'none', 'disk' => 'local',
+            'format' => 'ndjson', 'datasets' => ['invoices'],
+        ])->assertSessionHasErrors('disk');
+
+        $this->assertSame(0, WarehouseSink::query()->count());
+    }
+
+    public function test_an_injection_identifier_and_bad_uri_scheme_are_rejected(): void
+    {
+        config(['billing.export.allowed_disks' => ['wh']]);
+
+        // A SQL-injection-y schema, a bad external_base scheme: all refused up front.
+        $this->withSession($this->session)->post('/exports/warehouse', [
+            'key' => 'inj', 'name' => 'Inj', 'warehouse' => 'snowflake', 'disk' => 'wh',
+            'format' => 'ndjson', 'datasets' => ['invoices'],
+            'target_schema' => 'analytics; DROP TABLE invoices; --',
+            'external_base' => 'file:///etc/passwd',
+        ])->assertSessionHasErrors(['target_schema', 'external_base']);
+
+        $this->assertSame(0, WarehouseSink::query()->count());
     }
 
     public function test_manifest_route_404s_for_unknown_dataset(): void

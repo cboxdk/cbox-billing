@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Subscriptions;
 
+use App\Billing\Audit\Contracts\RecordsAudit;
+use App\Billing\Audit\Enums\AuditAction;
+use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
@@ -67,6 +70,7 @@ readonly class CycleRenewalService
         private GeneratesInvoices $invoices,
         private SubscriptionMrrMovementRecorder $movements,
         private BillingClock $clock,
+        private RecordsAudit $audit,
     ) {}
 
     /**
@@ -174,6 +178,22 @@ readonly class CycleRenewalService
         $invoice = $outcome['baseRenewed']
             ? $this->invoiceRenewal($subscription, true)
             : $this->completeLeakedRenewalInvoice($subscription);
+
+        // A real cycle rollover is an accountable system action: record it under the `system`
+        // actor (this runs unattended in the scheduled RenewSubscriptionJob), so an advanced
+        // period + its renewal invoice are on the tamper-evident trail like any operator change.
+        if ($outcome['baseRenewed']) {
+            $this->audit->record(
+                AuditAction::SubscriptionRenewed,
+                AuditTarget::model($subscription->refresh()),
+                sprintf('Renewed subscription %d for its next cycle.', $subscription->id),
+                [
+                    'period_end' => $subscription->current_period_end?->toDateTimeImmutable()->format(DateTimeImmutable::ATOM),
+                    'invoice' => $invoice?->number,
+                    'add_ons_renewed' => $outcome['addOnsRenewed'],
+                ],
+            );
+        }
 
         return RenewalOutcome::processed(
             $outcome['baseRenewed'],

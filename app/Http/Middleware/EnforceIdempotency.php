@@ -34,6 +34,13 @@ class EnforceIdempotency
     private const string HEADER = 'Idempotency-Key';
 
     /**
+     * Set on a replayed response so a downstream side-effect middleware (the operator-audit
+     * recorder) can tell a stored-response replay — which ran NO effect — from a first, real
+     * attempt, and so never appends a second audit event for the same idempotent mutation.
+     */
+    public const string REPLAYED_HEADER = 'Idempotency-Replayed';
+
+    /**
      * A response may declare secret JSON fields via this header (comma-separated). Those
      * fields are stripped from the copy PERSISTED for replay (SEC-2), so a show-once artifact
      * such as a signed license `key` never lands at rest in `idempotency_keys`. The original
@@ -190,7 +197,7 @@ class EnforceIdempotency
 
         $response->headers->set('Content-Type', 'application/json');
         $response->headers->set(self::HEADER, $record->idempotency_key);
-        $response->headers->set('Idempotency-Replayed', 'true');
+        $response->headers->set(self::REPLAYED_HEADER, 'true');
 
         return $response;
     }

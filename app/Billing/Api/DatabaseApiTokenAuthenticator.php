@@ -38,7 +38,7 @@ readonly class DatabaseApiTokenAuthenticator implements ApiTokenAuthenticator
         }
 
         if ($this->staticToken !== null && $this->staticToken !== '' && hash_equals($this->staticToken, $bearer)) {
-            return ApiIdentity::operator();
+            return ApiIdentity::operator(actorSub: 'api-token:static', actorName: 'Static operator token');
         }
 
         $token = ApiToken::query()
@@ -54,10 +54,12 @@ readonly class DatabaseApiTokenAuthenticator implements ApiTokenAuthenticator
 
         $productId = $token->product_id !== null ? (int) $token->product_id : null;
         $mode = $token->billingMode();
+        $actorSub = 'api-token:'.$token->id;
+        $actorName = $token->name;
 
         return $token->organization_id === null
-            ? ApiIdentity::operator($productId, $mode)
-            : ApiIdentity::forOrganization($token->organization_id, $productId, $mode);
+            ? ApiIdentity::operator($productId, $mode, $actorSub, $actorName)
+            : ApiIdentity::forOrganization($token->organization_id, $productId, $mode, $actorSub, $actorName);
     }
 
     /**

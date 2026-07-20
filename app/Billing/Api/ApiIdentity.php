@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Api;
 
+use App\Billing\Audit\ValueObjects\AuditActor;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\BillingMode;
 
@@ -29,16 +30,24 @@ readonly class ApiIdentity
         public ?string $organizationId,
         public ?int $productId = null,
         public BillingMode $mode = BillingMode::Live,
+        public string $actorSub = 'api-token',
+        public ?string $actorName = null,
     ) {}
 
-    public static function operator(?int $productId = null, BillingMode $mode = BillingMode::Live): self
+    public static function operator(?int $productId = null, BillingMode $mode = BillingMode::Live, string $actorSub = 'api-token', ?string $actorName = null): self
     {
-        return new self(true, null, $productId, $mode);
+        return new self(true, null, $productId, $mode, $actorSub, $actorName);
     }
 
-    public static function forOrganization(string $organizationId, ?int $productId = null, BillingMode $mode = BillingMode::Live): self
+    public static function forOrganization(string $organizationId, ?int $productId = null, BillingMode $mode = BillingMode::Live, string $actorSub = 'api-token', ?string $actorName = null): self
     {
-        return new self(false, $organizationId, $productId, $mode);
+        return new self(false, $organizationId, $productId, $mode, $actorSub, $actorName);
+    }
+
+    /** The audit actor this API credential attributes its mutations to (the token identity). */
+    public function auditActor(?string $ip = null): AuditActor
+    {
+        return new AuditActor($this->actorSub, $this->actorName, $ip);
     }
 
     /** Whether this identity is permitted to act for `$org`. */

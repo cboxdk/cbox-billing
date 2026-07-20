@@ -44,6 +44,9 @@ enum AuditAction: string
 
     // Subscriptions
     case SubscriptionCreated = 'subscription.created';
+    case SubscriptionRenewed = 'subscription.renewed';
+    case SubscriptionPaused = 'subscription.paused';
+    case SubscriptionResumed = 'subscription.resumed';
     case SubscriptionPlanChanged = 'subscription.plan_changed';
     case SubscriptionQuantityChanged = 'subscription.quantity_changed';
     case SubscriptionAddOnAdded = 'subscription.addon_added';
@@ -357,18 +360,53 @@ enum AuditAction: string
             'billing.exports.warehouse.run' => self::WarehouseSinkRun,
 
             'billing.import.commit' => self::DataImported,
+
+            // Token-authed management API (/api/v1/*, prefixed `api.v1.`). The console records
+            // these via its own middleware; the API surface records them through the SAME
+            // central seam now attached to the management group. The route name carries the
+            // intent (a seat-set vs a quantity-change), so mapping here — not the shared depth
+            // service both call — is what keeps the recorded action correct.
+            'api.v1.organizations.upsert' => self::CustomerUpdated,
+            'api.v1.subscriptions.store' => self::SubscriptionCreated,
+            'api.v1.subscriptions.change' => self::SubscriptionPlanChanged,
+            'api.v1.subscriptions.cancel' => self::SubscriptionCanceled,
+            'api.v1.subscriptions.reactivate' => self::SubscriptionReactivated,
+            'api.v1.subscriptions.pause' => self::SubscriptionPaused,
+            'api.v1.subscriptions.resume' => self::SubscriptionResumed,
+            'api.v1.subscriptions.quantity' => self::SubscriptionQuantityChanged,
+            'api.v1.subscriptions.addons.add' => self::SubscriptionAddOnAdded,
+            'api.v1.subscriptions.addons.remove' => self::SubscriptionAddOnRemoved,
+            'api.v1.subscriptions.seats.set' => self::SubscriptionSeatsSet,
+            'api.v1.subscriptions.seats.assign' => self::SubscriptionSeatAssigned,
+            'api.v1.subscriptions.seats.unassign' => self::SubscriptionSeatUnassigned,
+            'api.v1.payment-methods.default' => self::CustomerPaymentMethodDefaulted,
+            'api.v1.payment-methods.destroy' => self::CustomerPaymentMethodRemoved,
+            'api.v1.licenses.store' => self::LicenseIssued,
+            'api.v1.licenses.renew' => self::LicenseRenewed,
+            'api.v1.licenses.revoke' => self::LicenseRevoked,
         ];
     }
 
     /**
-     * Console mutation routes that are deliberately NOT audit-worthy: the persistent
-     * test-mode toggle is a per-session UI preference, and auth routes are session lifecycle.
+     * Mutation routes that are deliberately NOT audit-worthy: the persistent test-mode toggle
+     * is a per-session UI preference, auth routes are session lifecycle, and on the API the
+     * read-only preview and the session/intent-minting endpoints (checkout, portal, setup and
+     * payment intents) are not operator mutations, while the sandbox test-clock advance is
+     * test tooling.
      *
      * @return list<string>
      */
     private static function nonAuditableRoutes(): array
     {
-        return ['billing.test-mode.toggle', 'logout', 'auth.demo'];
+        return [
+            'billing.test-mode.toggle', 'logout', 'auth.demo',
+            'api.v1.subscriptions.preview',
+            'api.v1.checkout-sessions.create',
+            'api.v1.portal-sessions.create',
+            'api.v1.setup-intents.create',
+            'api.v1.payment-intents.create',
+            'api.v1.test.clocks.advance',
+        ];
     }
 
     /** A short human label for the console filter and the event row. */

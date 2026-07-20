@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Billing\Licensing;
 
+use App\Billing\Audit\Contracts\RecordsAudit;
+use App\Billing\Audit\Enums\AuditAction;
+use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Licensing\Contracts\IssuesLicenses;
 use App\Billing\Licensing\Contracts\LicenseRevocationRegistry;
 use App\Billing\Licensing\Exceptions\LicensingException;
@@ -40,6 +43,7 @@ readonly class LicenseIssuanceService implements IssuesLicenses
         private LicenseRevocationRegistry $revocations,
         private Config $config,
         private NotifiesCustomers $notifier,
+        private RecordsAudit $audit,
     ) {}
 
     public function issue(
@@ -69,6 +73,15 @@ readonly class LicenseIssuanceService implements IssuesLicenses
 
         $this->store->save($issued);
 
+        // Record the FACT + references — never the signed license key. Covers every surface
+        // (console, token API, scheduled issuance) through this one shared seam.
+        $this->audit->record(
+            AuditAction::LicenseIssued,
+            AuditTarget::of('license', $issued->id, $customerId),
+            sprintf('Issued license %s for plan %s.', $issued->id, $planId),
+            ['plan' => $planId, 'deployment_id' => $deployment, 'expires_at' => $issued->expiresAt->format(DateTimeImmutable::ATOM)],
+        );
+
         $this->deliver($issued, reissued: false);
 
         return $issued;
@@ -90,6 +103,13 @@ readonly class LicenseIssuanceService implements IssuesLicenses
 
         $this->store->save($renewed);
 
+        $this->audit->record(
+            AuditAction::LicenseRenewed,
+            AuditTarget::of('license', $renewed->id, $renewed->customerId),
+            sprintf('Renewed license %s.', $renewed->id),
+            ['expires_at' => $renewed->expiresAt->format(DateTimeImmutable::ATOM)],
+        );
+
         $this->deliver($renewed, reissued: true);
 
         return $renewed;
@@ -98,6 +118,13 @@ readonly class LicenseIssuanceService implements IssuesLicenses
     public function revoke(string $licenseId, ?string $reason = null): void
     {
         $this->revocations->revoke($licenseId, $reason);
+
+        $this->audit->record(
+            AuditAction::LicenseRevoked,
+            AuditTarget::of('license', $licenseId),
+            sprintf('Revoked license %s.', $licenseId),
+            ['reason' => $reason],
+        );
     }
 
     /**

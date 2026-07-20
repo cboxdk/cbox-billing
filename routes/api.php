@@ -55,7 +55,7 @@ Route::middleware('throttle:cbox-enforcement')->group(function (): void {
  * calls. The mutating writes additionally honour an `Idempotency-Key` header (see the
  * `idempotency` middleware) so a retried subscribe/issue can't double-apply.
  */
-Route::middleware('throttle:cbox-management')->group(function (): void {
+Route::middleware(['throttle:cbox-management', 'billing.audit'])->group(function (): void {
     Route::get('plans', [PlanController::class, 'index'])->name('plans.index');
 
     // Merchant platforms provision the orgs they bill for on demand (idempotent upsert).

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Management;
 
 use App\Billing\Api\CursorPaginator;
+use App\Billing\Audit\Contracts\RecordsAudit;
+use App\Billing\Audit\Enums\AuditAction;
+use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization;
@@ -84,7 +87,7 @@ class PaymentMethodController extends ApiController
         return new JsonResponse(['data' => $methods]);
     }
 
-    public function destroy(Request $request, string $org, string $id, PaymentGateway $gateway, ResolvesGatewayCustomer $customers): JsonResponse
+    public function destroy(Request $request, string $org, string $id, PaymentGateway $gateway, ResolvesGatewayCustomer $customers, RecordsAudit $audit): JsonResponse
     {
         if ($denied = $this->denyUnlessMayActFor($request, $org)) {
             return $denied;
@@ -101,6 +104,16 @@ class PaymentMethodController extends ApiController
         }
 
         $gateway->detachPaymentMethod($customers->resolve($organization), $id);
+
+        // The console detach is audited by the central console-audit middleware; the token API
+        // has none, so record the fact here (actor resolves to the token identity). No secret:
+        // only the opaque method id is stored, never card data.
+        $audit->record(
+            AuditAction::CustomerPaymentMethodRemoved,
+            AuditTarget::of('organization', $organization->id, $organization->id),
+            sprintf('Removed payment method %s for organization %s.', $id, $organization->id),
+            ['payment_method_id' => $id],
+        );
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }

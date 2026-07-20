@@ -23,7 +23,8 @@ use App\Billing\Environments\EnvironmentCloner;
  * TRANSACTIONAL ({@see transactionalTables()}) — wiped by BOTH reset and destroy: the runtime
  * book and tenant state (subscriptions, invoices, customers, ledger/wallet, dunning STATE,
  * redemptions, licenses, webhook DELIVERIES, seats, quotes, import runs, dedup/settlement stores,
- * the sandbox's own audit/test-clock rows, …) — everything that is not config.
+ * the sandbox's own test-clock rows, …) — everything that is not config. The global, append-only
+ * audit trail (`operator_audit_events`) is NOT in either list — see {@see transactionalTables()}.
  *
  * Every table is listed with its `environment` partition column so a teardown is a plain
  * `DELETE … WHERE environment = ?` (bypassing the model scope); callers guard each with a
@@ -77,9 +78,14 @@ readonly class EnvironmentDataMap
             'notification_preferences',
             // Dunning + standing runtime state.
             'account_standings', 'dunning_states',
-            // Approvals, imports, test clocks, and the plane's own audit trail.
+            // Approvals, imports, and test clocks.
             'approval_requests', 'import_runs', 'import_run_entries', 'import_source_refs',
-            'test_clocks', 'operator_audit_events',
+            'test_clocks',
+            // NOTE: operator_audit_events is deliberately NOT here. It is a GLOBAL, hash-chained,
+            // append-only trail (a BEFORE DELETE trigger refuses any delete); bulk-deleting a
+            // plane's slice would both raise an uncaught QueryException (→ 500 on reset/destroy) and
+            // break the chain's sequence/prev_hash continuity. A sandbox's audit rows are stamped
+            // with its environment key and simply RETAINED after the plane is torn down.
         ];
     }
 

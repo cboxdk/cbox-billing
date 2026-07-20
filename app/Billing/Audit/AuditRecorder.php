@@ -12,7 +12,6 @@ use App\Billing\Audit\Support\AuditRequestTally;
 use App\Billing\Audit\ValueObjects\AuditActor;
 use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Mode\BillingContext;
-use App\Models\Environment;
 use App\Models\OperatorAuditEvent;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
@@ -124,7 +123,10 @@ readonly class AuditRecorder implements RecordsAudit
                 'organization_id' => $target->organizationId,
                 'summary' => $summary,
                 'metadata' => $metadata === [] ? null : $metadata,
-                'environment' => $livemode ? Environment::PRODUCTION : Environment::SANDBOX,
+                // Stamp the actual named plane, not a binary collapse of the livemode mirror —
+                // otherwise every named sandbox ('ci-42', …) folds to 'sandbox' and its audit rows
+                // are mis-attributed. `livemode` stays as the byte-stable true/false mirror.
+                'environment' => $this->context->environmentKey(),
                 'livemode' => $livemode,
                 'prev_hash' => $prevHash,
                 'created_at' => $now,

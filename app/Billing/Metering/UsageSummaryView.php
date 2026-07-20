@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Metering;
 
+use App\Billing\Subscriptions\SubscriptionPeriods;
 use App\Models\Organization;
 use App\Models\Subscription;
 use Cbox\Billing\Metering\Contracts\EventLog;
@@ -113,8 +114,8 @@ readonly class UsageSummaryView
 
         if ($subscription instanceof Subscription) {
             return [
-                $subscription->current_period_start ?? Carbon::now()->startOfMonth(),
-                $subscription->current_period_end ?? Carbon::now()->endOfMonth(),
+                SubscriptionPeriods::currentStart($subscription, Carbon::now()),
+                SubscriptionPeriods::currentEnd($subscription, Carbon::now()),
             ];
         }
 

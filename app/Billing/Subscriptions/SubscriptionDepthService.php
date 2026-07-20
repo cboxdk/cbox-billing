@@ -123,8 +123,8 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         $previousMrr = $this->movements->contributing($subscription);
 
         $this->db->transaction(function () use ($subscription, $plan, $seats): void {
-            $periodStart = $subscription->current_period_start ?? $this->clock->now()->startOfMonth();
-            $periodEnd = $subscription->current_period_end ?? $this->clock->now()->endOfMonth();
+            $periodStart = SubscriptionPeriods::currentStart($subscription, $this->clock->now());
+            $periodEnd = SubscriptionPeriods::currentEnd($subscription, $this->clock->now());
 
             $subscription->forceFill(['seats' => $seats])->save();
 
@@ -244,7 +244,7 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
 
         $subscription->forceFill([
             'pending_plan_id' => $newPlan->id,
-            'pending_effective_at' => $subscription->current_period_end ?? $this->clock->now()->endOfMonth(),
+            'pending_effective_at' => SubscriptionPeriods::currentEnd($subscription, $this->clock->now()),
         ])->save();
 
         return $preview;
@@ -302,8 +302,8 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
     private function basePeriod(Subscription $subscription): BillingPeriod
     {
         return new BillingPeriod(
-            ($subscription->current_period_start ?? $this->clock->now()->startOfMonth())->toDateTimeImmutable(),
-            ($subscription->current_period_end ?? $this->clock->now()->endOfMonth())->toDateTimeImmutable(),
+            (SubscriptionPeriods::currentStart($subscription, $this->clock->now()))->toDateTimeImmutable(),
+            (SubscriptionPeriods::currentEnd($subscription, $this->clock->now()))->toDateTimeImmutable(),
         );
     }
 

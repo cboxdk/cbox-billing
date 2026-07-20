@@ -16,7 +16,6 @@ use App\Models\Invoice;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\SubscriptionAddOn;
-use Cbox\Billing\Subscription\Enums\BillingInterval;
 use Cbox\Billing\Subscription\Enums\CreditGrantMode;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Cbox\Billing\Subscription\ValueObjects\BillingCycle;
@@ -30,7 +29,6 @@ use Cbox\Billing\Wallet\Support\Pools;
 use Cbox\Billing\Wallet\ValueObjects\CreditGrant;
 use Cbox\Billing\Wallet\ValueObjects\Denomination;
 use DateTimeImmutable;
-use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
 use RuntimeException;
@@ -277,8 +275,8 @@ readonly class CycleRenewalService
      */
     private function advanceBase(Subscription $subscription, Plan $plan, DateTimeImmutable $now): BillingPeriod
     {
-        $cycle = $this->cycleFor($subscription, $plan);
-        $currentStart = $this->toImmutable($subscription->current_period_start ?? $this->nowCarbon()->startOfMonth());
+        $cycle = SubscriptionPeriods::cycleFor($subscription, $plan, $now);
+        $currentStart = $this->toImmutable(SubscriptionPeriods::currentStart($subscription, $now));
 
         // Anchor the advance on the period START (never the possibly-inclusive end) so the
         // step is exactly one cycle onto clean, month-end-clamped boundaries.
@@ -374,32 +372,9 @@ readonly class CycleRenewalService
     private function basePeriod(Subscription $subscription): BillingPeriod
     {
         return new BillingPeriod(
-            $this->toImmutable($subscription->current_period_start ?? $this->nowCarbon()->startOfMonth()),
-            $this->toImmutable($subscription->current_period_end ?? $this->nowCarbon()->endOfMonth()),
+            $this->toImmutable(SubscriptionPeriods::currentStart($subscription, $this->nowCarbon())),
+            $this->toImmutable(SubscriptionPeriods::currentEnd($subscription, $this->nowCarbon())),
         );
-    }
-
-    /**
-     * The subscription's {@see BillingCycle}: its anchor day (and month) read from the
-     * current period start, its interval from the plan, in UTC. Renewals advance on this
-     * real, month-end-clamped cycle rather than an assumed 30-day window.
-     */
-    private function cycleFor(Subscription $subscription, Plan $plan): BillingCycle
-    {
-        $start = $subscription->current_period_start ?? $this->nowCarbon()->startOfMonth();
-
-        return new BillingCycle(
-            anchorDay: (int) $start->format('j'),
-            anchorMonth: (int) $start->format('n'),
-            interval: $this->intervalFor($plan),
-            zone: new DateTimeZone('UTC'),
-        );
-    }
-
-    /** Map the plan's stored interval onto the engine's {@see BillingInterval}. */
-    private function intervalFor(Plan $plan): BillingInterval
-    {
-        return $plan->billingInterval();
     }
 
     /** The plan with the collections the provisioner and invoicer read, eager-loaded. */

@@ -12,24 +12,22 @@ use App\Billing\Retirement\ValueObjects\SunsetNotice;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Billing\Subscriptions\CycleRenewalService;
+use App\Billing\Subscriptions\SubscriptionPeriods;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\PlanRetirementEvent;
 use App\Models\Subscription;
 use Cbox\Billing\Catalog\Contracts\Catalog;
-use Cbox\Billing\Subscription\Enums\BillingInterval;
 use Cbox\Billing\Subscription\Retirement\Enums\RetirementOutcome;
 use Cbox\Billing\Subscription\Retirement\Exceptions\RetirementNotResolved;
 use Cbox\Billing\Subscription\Retirement\PlanRetirementResolver;
 use Cbox\Billing\Subscription\Retirement\RetirementRenewalPolicy;
 use Cbox\Billing\Subscription\Retirement\RetirementResolution;
-use Cbox\Billing\Subscription\ValueObjects\BillingCycle;
 use Cbox\Billing\Subscription\ValueObjects\BillingPeriod;
 use Cbox\Billing\Subscription\ValueObjects\ScheduledChange;
 use Cbox\Billing\Subscription\ValueObjects\Subscription as EngineSubscription;
 use DateTimeImmutable;
-use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -320,8 +318,8 @@ readonly class PlanRetirementService
     private function engineSubscription(Subscription $subscription, Plan $plan, string $currency): EngineSubscription
     {
         $period = new BillingPeriod(
-            $this->toImmutable($subscription->current_period_start ?? Carbon::now()->startOfMonth()),
-            $this->toImmutable($subscription->current_period_end ?? Carbon::now()->endOfMonth()),
+            $this->toImmutable(SubscriptionPeriods::currentStart($subscription, Carbon::now())),
+            $this->toImmutable(SubscriptionPeriods::currentEnd($subscription, Carbon::now())),
         );
 
         return new EngineSubscription(
@@ -333,7 +331,7 @@ readonly class PlanRetirementService
             status: $subscription->status,
             cancelAtPeriodEnd: $subscription->cancel_at_period_end,
             pendingChange: $this->scheduledChange($subscription, $currency),
-            cycle: $this->cycleFor($subscription, $plan),
+            cycle: SubscriptionPeriods::cycleFor($subscription, $plan, Carbon::now()),
         );
     }
 
@@ -348,7 +346,7 @@ readonly class PlanRetirementService
 
         return new ScheduledChange(
             newPriceId: $this->priceId($successor, $currency),
-            effectiveAt: $this->toImmutable($subscription->pending_effective_at ?? $subscription->current_period_end ?? Carbon::now()->endOfMonth()),
+            effectiveAt: $this->toImmutable($subscription->pending_effective_at ?? SubscriptionPeriods::currentEnd($subscription, Carbon::now())),
             newProductId: $successor->key,
         );
     }
@@ -457,30 +455,10 @@ readonly class PlanRetirementService
 
     private function nextPeriod(Subscription $subscription, Plan $plan): BillingPeriod
     {
-        $cycle = $this->cycleFor($subscription, $plan);
-        $start = $this->toImmutable($subscription->current_period_start ?? Carbon::now()->startOfMonth());
+        $cycle = SubscriptionPeriods::cycleFor($subscription, $plan, Carbon::now());
+        $start = $this->toImmutable(SubscriptionPeriods::currentStart($subscription, Carbon::now()));
 
         return $cycle->nextPeriod($start);
-    }
-
-    private function cycleFor(Subscription $subscription, Plan $plan): BillingCycle
-    {
-        $start = $subscription->current_period_start ?? Carbon::now()->startOfMonth();
-
-        return new BillingCycle(
-            anchorDay: (int) $start->format('j'),
-            anchorMonth: (int) $start->format('n'),
-            interval: $this->intervalFor($plan),
-            zone: new DateTimeZone('UTC'),
-        );
-    }
-
-    private function intervalFor(Plan $plan): BillingInterval
-    {
-        return match (strtolower($plan->interval)) {
-            'year', 'yearly', 'annual', 'annually' => BillingInterval::Yearly,
-            default => BillingInterval::Monthly,
-        };
     }
 
     private function label(DateTimeImmutable $at): string

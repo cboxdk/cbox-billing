@@ -10,6 +10,7 @@ use App\Billing\Retention\Exceptions\RetentionException;
 use App\Billing\Retention\ValueObjects\CancellationRequest;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Subscriptions\SubscriptionPeriods;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -122,8 +123,8 @@ readonly class RetentionService implements ManagesRetention
         $plan = $subscription->plan;
 
         $period = new BillingPeriod(
-            ($subscription->current_period_start ?? Carbon::now()->startOfMonth())->toDateTimeImmutable(),
-            ($subscription->current_period_end ?? Carbon::now()->endOfMonth())->toDateTimeImmutable(),
+            (SubscriptionPeriods::currentStart($subscription, Carbon::now()))->toDateTimeImmutable(),
+            (SubscriptionPeriods::currentEnd($subscription, Carbon::now()))->toDateTimeImmutable(),
         );
 
         return new EngineSubscription(

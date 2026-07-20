@@ -109,6 +109,10 @@ return [
             ['key' => 'subscriptions:read', 'description' => 'View subscriptions'],
             ['key' => 'subscriptions:manage', 'description' => 'Create, change, pause, cancel and reactivate subscriptions'],
 
+            ['key' => 'quotes:read', 'description' => 'View sales quotes, contracts and the approval queue'],
+            ['key' => 'quotes:manage', 'description' => 'Author, send, expire and clone sales quotes'],
+            ['key' => 'quotes:approve', 'description' => 'Approve or reject quotes above the deal-desk threshold'],
+
             ['key' => 'usage:read', 'description' => 'View metered usage'],
             ['key' => 'usage:ingest', 'description' => 'Reserve, commit and record usage on the enforcement hot path'],
 
@@ -140,6 +144,7 @@ return [
                 'permissions' => [
                     'invoices:read', 'invoices:manage', 'invoices:refund',
                     'subscriptions:read', 'subscriptions:manage',
+                    'quotes:read', 'quotes:manage', 'quotes:approve',
                     'usage:read', 'usage:ingest',
                     'catalog:read', 'catalog:manage',
                     'customers:read', 'customers:manage',
@@ -157,6 +162,7 @@ return [
                 'permissions' => [
                     'invoices:read', 'invoices:manage', 'invoices:refund',
                     'subscriptions:read', 'subscriptions:manage',
+                    'quotes:read', 'quotes:manage',
                     'usage:read', 'usage:ingest',
                     'catalog:read',
                     'customers:read', 'customers:manage',
@@ -174,6 +180,7 @@ return [
                 'permissions' => [
                     'invoices:read',
                     'subscriptions:read',
+                    'quotes:read',
                     'usage:read',
                     'catalog:read',
                     'customers:read',

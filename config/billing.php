@@ -27,6 +27,19 @@ $csv = static function (?string $value): array {
     return $out;
 };
 
+/**
+ * Parse an env value into an int, or null when it is unset/blank/the literal "null" — so an
+ * operator can DISABLE a numeric threshold (the CPQ approval amount gate) rather than only
+ * lower it. A present numeric value is cast to int.
+ */
+$intOrNull = static function (int|string|null $value): ?int {
+    if ($value === null || (is_string($value) && (trim($value) === '' || strtolower(trim($value)) === 'null'))) {
+        return null;
+    }
+
+    return (int) $value;
+};
+
 return [
 
     /*
@@ -126,6 +139,38 @@ return [
      */
     'rbac' => [
         'enforce' => (bool) env('CBOX_ID_RBAC_ENFORCE', false),
+    ],
+
+    /*
+     * CPQ — sales quoting + contracts (Wave 5). A rep authors a quote, it is (optionally)
+     * approved above a threshold, sent to the customer as a branded order form, accepted by
+     * e-signature-by-acceptance, and provisions a subscription through the engine.
+     *
+     * `approval` — the deal-desk threshold. A quote whose first-invoice gross (in the seller's
+     *   reporting/default currency, minor units) is at or above `amount_minor`, OR whose largest
+     *   line discount is at or above `discount_percent`, must be approved by an operator holding
+     *   `quotes:approve` before it can be sent. `amount_minor => null` disables the amount gate
+     *   (only the discount gate applies); both null → every quote is auto-approvable.
+     * `valid_days` — the default validity window stamped on a new quote's `valid_until`.
+     * `token_bytes` — entropy (raw bytes) of the opaque order-form URL token.
+     * `number_prefix` — the human quote-number prefix (`Q-00001`).
+     * `signature.provider` — the e-signature seam. `null` (default) is in-house
+     *   e-sign-by-acceptance (typed full name + explicit agree + captured timestamp/IP → an
+     *   immutable acceptance record). A host binds a real provider (DocuSign, etc.) to the
+     *   {@see \App\Billing\Cpq\Contracts\CapturesSignature} contract; this app ships ONLY the
+     *   null provider and does NOT fabricate a third-party integration.
+     */
+    'quotes' => [
+        'approval' => [
+            'amount_minor' => $intOrNull(env('CBOX_BILLING_QUOTE_APPROVAL_AMOUNT_MINOR', 5_000_00)),
+            'discount_percent' => (int) env('CBOX_BILLING_QUOTE_APPROVAL_DISCOUNT_PERCENT', 25),
+        ],
+        'valid_days' => (int) env('CBOX_BILLING_QUOTE_VALID_DAYS', 30),
+        'token_bytes' => (int) env('CBOX_BILLING_QUOTE_TOKEN_BYTES', 32),
+        'number_prefix' => env('CBOX_BILLING_QUOTE_NUMBER_PREFIX', 'Q-'),
+        'signature' => [
+            'provider' => env('CBOX_BILLING_QUOTE_SIGNATURE_PROVIDER', 'null'),
+        ],
     ],
 
     /*

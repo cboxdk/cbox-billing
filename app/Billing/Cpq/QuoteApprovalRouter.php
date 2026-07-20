@@ -87,6 +87,21 @@ readonly class QuoteApprovalRouter
 
         $operator = $this->current->user();
 
+        // Two-person (maker-checker) rule: the operator who owns the quote can never be its
+        // approver. Server-side, deny-by-default — a holder of both `quotes:manage` and
+        // `quotes:approve` still cannot self-approve their own binding deal. The quote stays
+        // pending for a second operator to decide.
+        if ($operator?->sub !== null && $quote->owner_sub !== null && $operator->sub === $quote->owner_sub) {
+            $this->audit->record(
+                AuditAction::QuoteApproved,
+                AuditTarget::model($quote, $quote->organization_id),
+                sprintf('Refused self-approval of quote %s by its owner %s.', $quote->number, $operator->name),
+                ['approver' => $operator->name, 'reason' => 'self-approval refused (two-person rule)', 'refused' => true],
+            );
+
+            throw QuoteActionDenied::selfApproval();
+        }
+
         $quote->forceFill([
             'status' => QuoteStatus::Approved,
             'approved_by_sub' => $operator?->sub,

@@ -32,6 +32,11 @@ class QuoteActionDenied extends RuntimeException
         return new self('Only a quote pending approval can be approved or rejected.');
     }
 
+    public static function selfApproval(): self
+    {
+        return new self('You cannot approve your own quote — approval requires a second operator (two-person rule).');
+    }
+
     public static function notSendable(): self
     {
         return new self('Only an approved quote can be sent.');

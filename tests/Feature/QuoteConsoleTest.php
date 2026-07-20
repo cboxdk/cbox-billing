@@ -28,6 +28,12 @@ class QuoteConsoleTest extends TestCase
         'sub' => 'demo|rep', 'name' => 'Rep One', 'email' => 'rep@example.test', 'org' => 'Cbox Systems', 'picture' => null,
     ]];
 
+    /** A SECOND operator (not the quote owner) who approves — the two-person rule needs a distinct approver. */
+    /** @var array<string, mixed> */
+    private array $approver = ['auth.user' => [
+        'sub' => 'demo|approver', 'name' => 'Approver Two', 'email' => 'approver@example.test', 'org' => 'Cbox Systems', 'picture' => null,
+    ]];
+
     private function plan(): Plan
     {
         $product = Product::query()->create(['key' => 'cpq-prod', 'name' => 'CPQ Product', 'shape' => 'recurring']);
@@ -94,10 +100,11 @@ class QuoteConsoleTest extends TestCase
         $quote = Quote::query()->latest('id')->firstOrFail();
         $this->withSession($this->session)->post("/quotes/{$quote->id}/submit")->assertRedirect();
 
-        $this->withSession($this->session)->post("/quotes/{$quote->id}/approve")->assertRedirect();
+        // A SECOND operator (not the owner) approves — the two-person rule forbids self-approval.
+        $this->withSession($this->approver)->post("/quotes/{$quote->id}/approve")->assertRedirect();
         $quote->refresh();
         $this->assertSame(QuoteStatus::Approved, $quote->status);
-        $this->assertSame('Rep One', $quote->approved_by_name);
+        $this->assertSame('Approver Two', $quote->approved_by_name);
 
         $this->assertSame(1, OperatorAuditEvent::query()->where('action', 'quote.approved')->count());
 
@@ -105,6 +112,58 @@ class QuoteConsoleTest extends TestCase
         $quote->refresh();
         $this->assertSame(QuoteStatus::Sent, $quote->status);
         $this->assertNotNull($quote->token);
+    }
+
+    public function test_the_owner_cannot_approve_their_own_quote(): void
+    {
+        $plan = $this->plan();
+
+        // The owner authors + submits an above-threshold quote (owner_sub = demo|rep).
+        $this->withSession($this->session)->post('/quotes', $this->payload($plan))->assertRedirect();
+        $quote = Quote::query()->latest('id')->firstOrFail();
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/submit")->assertRedirect();
+        $this->assertSame(QuoteStatus::PendingApproval, $quote->refresh()->status);
+
+        // The SAME operator (the owner) tries to approve — the two-person rule refuses it,
+        // server-side. The quote stays pending and no approver is stamped.
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/approve")
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $quote->refresh();
+        $this->assertSame(QuoteStatus::PendingApproval, $quote->status);
+        $this->assertNull($quote->approved_by_sub);
+        $this->assertNull($quote->approved_at);
+
+        // ...but a DIFFERENT operator with quotes:approve can approve it.
+        $this->withSession($this->approver)->post("/quotes/{$quote->id}/approve")->assertRedirect();
+        $quote->refresh();
+        $this->assertSame(QuoteStatus::Approved, $quote->status);
+        $this->assertSame('demo|approver', $quote->approved_by_sub);
+    }
+
+    public function test_the_self_approval_guard_holds_even_with_the_approve_permission(): void
+    {
+        config()->set('billing.rbac.enforce', true);
+        $plan = $this->plan();
+
+        // An operator who holds BOTH quotes:manage AND quotes:approve authors + submits.
+        $owner = ['auth.user' => [
+            'sub' => 'demo|superrep', 'name' => 'Super Rep', 'email' => 'super@example.test', 'org' => 'org_hverdag',
+            'picture' => null, 'permissions' => ['quotes:read', 'quotes:manage', 'quotes:approve'],
+        ]];
+
+        $this->withSession($owner)->post('/quotes', $this->payload($plan))->assertRedirect();
+        $quote = Quote::query()->latest('id')->firstOrFail();
+        $this->withSession($owner)->post("/quotes/{$quote->id}/submit")->assertRedirect();
+
+        // The RBAC gate lets them through (they hold quotes:approve), but the maker-checker
+        // guard still refuses — the quote is theirs. The refusal is enforced server-side.
+        $this->withSession($owner)->post("/quotes/{$quote->id}/approve")
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertSame(QuoteStatus::PendingApproval, $quote->refresh()->status);
     }
 
     public function test_below_threshold_quote_is_auto_approved_on_submit(): void

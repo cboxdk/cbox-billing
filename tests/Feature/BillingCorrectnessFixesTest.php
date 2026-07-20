@@ -305,6 +305,78 @@ class BillingCorrectnessFixesTest extends TestCase
         Carbon::setTestNow();
     }
 
+    // --- HP3: seat/add-on preview shows the tax-aware GROSS the apply collects -------------
+
+    public function test_hp3_seat_preview_gross_equals_the_taxed_charge_and_is_clock_stable(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-01 00:00:00', 'UTC'));
+        $plan = $this->plan('month', 'per_unit', 1_000);
+        $sub = $this->subscription('hp3_qty', $plan, seats: 2, start: '2026-05-01', end: '2026-06-01');
+
+        $depth = app(ManagesSubscriptionDepth::class);
+        $preview = $depth->previewQuantity($sub->fresh(), 5);
+
+        // The engine NET proration: (5−2) × 1 000 = 3 000, full period ahead.
+        $this->assertSame(3_000, $preview->charge->minor());
+        // The tax-aware GROSS actually collected — 3 000 net + 25% DK VAT = 3 750 (preview == charge).
+        $this->assertSame(3_750, $preview->grossDueNow->minor());
+
+        // Clock-stable: a second preview at the same fixed BillingClock is identical (no drift).
+        $again = $depth->previewQuantity($sub->fresh(), 5);
+        $this->assertSame($preview->grossDueNow->minor(), $again->grossDueNow->minor());
+
+        // The apply issues a taxed proration invoice whose GROSS total equals the previewed gross.
+        $depth->changeQuantity($sub->fresh()->loadMissing('plan.prices.tiers', 'organization'), 5);
+        $invoice = Invoice::query()->where('subscription_id', $sub->id)->whereNull('period_start')->latest('id')->firstOrFail();
+        $this->assertSame($preview->grossDueNow->minor(), $invoice->total_minor);
+        $this->assertSame(3_000, $invoice->subtotal_minor);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_hp3_seat_reduction_previews_a_zero_gross_due_now(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-01 00:00:00', 'UTC'));
+        $plan = $this->plan('month', 'per_unit', 1_000);
+        $sub = $this->subscription('hp3_credit', $plan, seats: 5, start: '2026-05-01', end: '2026-06-01');
+
+        // A reduction nets a wallet credit (net negative) and owes nothing now: gross due-now = 0.
+        $preview = app(ManagesSubscriptionDepth::class)->previewQuantity($sub->fresh(), 2);
+        $this->assertTrue($preview->isCredit());
+        $this->assertSame(0, $preview->grossDueNow->minor());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_hp3_addon_preview_gross_equals_the_taxed_charge(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-01 00:00:00', 'UTC'));
+        $plan = $this->plan('month', 'flat', 100_000);
+        $sub = $this->subscription('hp3_addon', $plan, seats: 1, start: '2026-05-01', end: '2026-06-01');
+
+        $request = new AddOnRequest(
+            key: 'extra-pack',
+            priceMinor: 6_000,
+            currency: 'DKK',
+            alignment: AddOnAlignment::Aligned,
+            creditAllotment: 0,
+        );
+
+        $depth = app(ManagesSubscriptionDepth::class);
+        $preview = $depth->previewAddOn($sub->fresh()->loadMissing('plan', 'organization'), $request);
+
+        // NET 6 000 (full period ahead); GROSS 6 000 + 25% VAT = 7 500 (preview == charge).
+        $this->assertSame(6_000, $preview['charge_minor']);
+        $this->assertSame(7_500, $preview['gross_minor']);
+
+        $depth->addAddOn($sub->fresh()->loadMissing('plan', 'organization'), $request);
+        $invoice = Invoice::query()->where('subscription_id', $sub->id)->whereNull('period_start')->latest('id')->firstOrFail();
+        $this->assertSame($preview['gross_minor'], $invoice->total_minor);
+        $this->assertSame(6_000, $invoice->subtotal_minor);
+
+        Carbon::setTestNow();
+    }
+
     // --- M3: seat-change proration uses the pricing model ---------------------------------
 
     public function test_m3_flat_plan_seat_change_nets_zero_and_charges_nothing(): void

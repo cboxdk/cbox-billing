@@ -589,7 +589,8 @@ class SubscriptionController extends ApiController
             'applied' => ! $isPreview,
             'from_seats' => $preview->fromSeats,
             'to_seats' => $preview->toSeats,
-            'due_now_minor' => $preview->isCredit() ? 0 : $charge->minor(),
+            // The tax-aware GROSS actually collected (preview == charge), not bare net.
+            'due_now_minor' => $preview->grossDueNow->minor(),
             'credit_minor' => $preview->isCredit() ? $charge->negated()->minor() : 0,
             'currency' => $charge->currency(),
         ];

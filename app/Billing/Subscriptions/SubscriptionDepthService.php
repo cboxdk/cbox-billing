@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Billing\Subscriptions;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
+use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
 use App\Billing\Subscriptions\Contracts\CollectsProration;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
@@ -16,6 +18,7 @@ use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\SubscriptionAddOn;
+use Cbox\Billing\Money\Money;
 use Cbox\Billing\Subscription\Enums\CreditGrantMode;
 use Cbox\Billing\Subscription\Enums\GatewayRounding;
 use Cbox\Billing\Subscription\PlanChange\PlanChangePreview;
@@ -56,6 +59,8 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         private SubscribesOrganizations $subscriptions,
         private SubscriptionMrrMovementRecorder $movements,
         private CollectsProration $collector,
+        private GeneratesInvoices $invoices,
+        private BillingClock $clock,
     ) {}
 
     public function pause(Subscription $subscription): Subscription
@@ -107,7 +112,7 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
             GatewayRounding::HalfUp,
         );
 
-        return new QuantityPreview($charge, $subscription->seats, $seats);
+        return new QuantityPreview($charge, $subscription->seats, $seats, $this->grossDueNow($subscription, $charge));
     }
 
     public function changeQuantity(Subscription $subscription, int $seats): QuantityPreview
@@ -118,8 +123,8 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         $previousMrr = $this->movements->contributing($subscription);
 
         $this->db->transaction(function () use ($subscription, $plan, $seats): void {
-            $periodStart = $subscription->current_period_start ?? Carbon::now()->startOfMonth();
-            $periodEnd = $subscription->current_period_end ?? Carbon::now()->endOfMonth();
+            $periodStart = $subscription->current_period_start ?? $this->clock->now()->startOfMonth();
+            $periodEnd = $subscription->current_period_end ?? $this->clock->now()->endOfMonth();
 
             $subscription->forceFill(['seats' => $seats])->save();
 
@@ -163,7 +168,11 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         $period = $addOn->periodFor($basePeriod, $at);
 
         return [
+            // The NET proration the engine computed (what the collector feeds the invoicer).
             'charge_minor' => $charge->minor(),
+            // The tax-aware GROSS actually collected (the net taxed through the same quote the
+            // apply path issues) — the "Due now" a preview must show so it equals the charge.
+            'gross_minor' => $this->grossDueNow($subscription, $charge)->minor(),
             'currency' => $charge->currency(),
             'allotment' => $allotment,
             'alignment' => $request->alignment->value,
@@ -235,7 +244,7 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
 
         $subscription->forceFill([
             'pending_plan_id' => $newPlan->id,
-            'pending_effective_at' => $subscription->current_period_end ?? Carbon::now()->endOfMonth(),
+            'pending_effective_at' => $subscription->current_period_end ?? $this->clock->now()->endOfMonth(),
         ])->save();
 
         return $preview;
@@ -243,7 +252,7 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
 
     public function applyDueScheduledChanges(): int
     {
-        $now = Carbon::now();
+        $now = $this->clock->now();
 
         $due = Subscription::query()
             ->whereNotNull('pending_plan_id')
@@ -293,8 +302,8 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
     private function basePeriod(Subscription $subscription): BillingPeriod
     {
         return new BillingPeriod(
-            ($subscription->current_period_start ?? Carbon::now()->startOfMonth())->toDateTimeImmutable(),
-            ($subscription->current_period_end ?? Carbon::now()->endOfMonth())->toDateTimeImmutable(),
+            ($subscription->current_period_start ?? $this->clock->now()->startOfMonth())->toDateTimeImmutable(),
+            ($subscription->current_period_end ?? $this->clock->now()->endOfMonth())->toDateTimeImmutable(),
         );
     }
 
@@ -322,14 +331,29 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         return $organization;
     }
 
+    /**
+     * The tax-aware GROSS a positive proration will actually collect — the same figure the
+     * apply path's collector charges, run through the shared invoice quote seam so preview ==
+     * charge by construction. A non-positive proration (a credit / net-zero change) owes
+     * nothing now, so its gross due-now is zero.
+     */
+    private function grossDueNow(Subscription $subscription, Money $charge): Money
+    {
+        if (! $charge->isPositive()) {
+            return Money::zero($charge->currency());
+        }
+
+        return $this->invoices->grossDueNow($subscription->loadMissing('organization'), $charge);
+    }
+
     private function now(): DateTimeImmutable
     {
-        return Carbon::now()->toDateTimeImmutable();
+        return $this->clock->now()->toDateTimeImmutable();
     }
 
     private function nowMillis(): int
     {
-        return (int) (Carbon::now()->getTimestamp() * 1000);
+        return $this->clock->now()->getTimestampMs();
     }
 
     private function toMillis(DateTimeImmutable $at): int

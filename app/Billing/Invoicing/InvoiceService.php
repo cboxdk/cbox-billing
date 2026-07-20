@@ -137,15 +137,20 @@ readonly class InvoiceService implements GeneratesInvoices
      * cycle). The amount is taxed through the same {@see QuoteBuilder} the period invoice
      * uses, so the charged gross equals the previewed due-now by construction (H6).
      */
+    public function grossDueNow(Subscription $subscription, Money $dueNow): Money
+    {
+        // The same quote the charge builds — but read only for its gross, never issued. Tax
+        // is per-line, so the description does not affect the total; a fixed label keeps this
+        // pure. A tax-pending org has no rate, so gross == net.
+        return $this->dueNowQuote($subscription, $dueNow, 'Due now')->totals->gross;
+    }
+
     public function issueDueNow(Subscription $subscription, Money $dueNow, string $description): Invoice
     {
         $organization = $this->organizationOf($subscription);
         $seller = $this->sellers->default();
 
-        $quote = $this->quotes->build(
-            [new LineInput($description, 1, $dueNow)],
-            $this->taxContexts->forOrganization($organization),
-        );
+        $quote = $this->dueNowQuote($subscription, $dueNow, $description);
 
         if (! $quote->isTaxResolved()) {
             throw new RuntimeException(sprintf(
@@ -166,6 +171,20 @@ readonly class InvoiceService implements GeneratesInvoices
         $this->notifier->invoiceIssued($invoice, $subscription);
 
         return $invoice;
+    }
+
+    /**
+     * The engine quote for a mid-cycle amount due now — one line at `$dueNow`, taxed for the
+     * org's place of supply. Shared by {@see issueDueNow()} (which issues it) and
+     * {@see grossDueNow()} (which reads only its gross), so a preview and its charge are the
+     * same computation by construction.
+     */
+    private function dueNowQuote(Subscription $subscription, Money $dueNow, string $description): Quote
+    {
+        return $this->quotes->build(
+            [new LineInput($description, 1, $dueNow)],
+            $this->taxContexts->forOrganization($this->organizationOf($subscription)),
+        );
     }
 
     /**

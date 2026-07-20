@@ -145,7 +145,11 @@ class SubscriptionOpsController extends Controller
         $subscription->loadMissing(['plan.prices.tiers', 'organization']);
         $seats = $request->integer('seats');
         $preview = $depth->previewQuantity($subscription, $seats);
-        $charge = $preview->charge;
+        // A credit shows the signed NET returned to the wallet; a charge shows the tax-aware
+        // GROSS actually collected from the card (preview == charge).
+        $dueValue = $preview->isCredit()
+            ? MoneyFormatter::money($preview->charge->negated())
+            : MoneyFormatter::money($preview->grossDueNow);
 
         return $this->review($subscription, [
             'title' => sprintf('Change quantity to %d', $seats),
@@ -156,7 +160,7 @@ class SubscriptionOpsController extends Controller
             'stats' => [
                 ['label' => 'From', 'value' => (string) $preview->fromSeats],
                 ['label' => 'To', 'value' => (string) $preview->toSeats],
-                ['label' => $preview->isCredit() ? 'Credit' : 'Due now', 'value' => MoneyFormatter::money($preview->isCredit() ? $charge->negated() : $charge)],
+                ['label' => $preview->isCredit() ? 'Credit' : 'Due now', 'value' => $dueValue],
             ],
         ]);
     }
@@ -189,7 +193,8 @@ class SubscriptionOpsController extends Controller
                 'interval' => $data['interval'] ?? '',
             ],
             'stats' => [
-                ['label' => 'Charge now', 'value' => MoneyFormatter::minor($preview['charge_minor'], $preview['currency'])],
+                // The tax-aware GROSS the apply will collect (preview == charge), not bare net.
+                ['label' => 'Charge now', 'value' => MoneyFormatter::minor($preview['gross_minor'], $preview['currency'])],
                 ['label' => 'Credit allotment', 'value' => (string) $preview['allotment']],
                 ['label' => 'Alignment', 'value' => $preview['alignment']],
             ],

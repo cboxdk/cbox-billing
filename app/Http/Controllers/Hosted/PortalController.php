@@ -785,7 +785,8 @@ class PortalController extends HostedController
     {
         $currency = $preview->charge->currency();
         $credit = $preview->isCredit();
-        $dueNowMinor = $credit ? 0 : $preview->charge->minor();
+        // The tax-aware GROSS actually collected (preview == charge); zero on a credit.
+        $dueNowMinor = $preview->grossDueNow->minor();
 
         return [
             'from_seats' => $preview->fromSeats,
@@ -793,7 +794,7 @@ class PortalController extends HostedController
             'is_credit' => $credit,
             'due_now_minor' => $dueNowMinor,
             'due_now' => MoneyFormatter::minor($dueNowMinor, $currency),
-            // The signed proration (negative when a reduction credits the wallet).
+            // The signed NET proration (negative when a reduction credits the wallet).
             'charge' => MoneyFormatter::money($preview->charge),
             'currency' => $currency,
         ];

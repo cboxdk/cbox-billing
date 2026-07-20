@@ -41,4 +41,12 @@ interface GeneratesInvoices
      * quote is tax-pending.
      */
     public function issueDueNow(Subscription $subscription, Money $dueNow, string $description): Invoice;
+
+    /**
+     * The tax-aware GROSS an {@see issueDueNow()} of `$dueNow` would collect, computed through
+     * the SAME engine quote path but WITHOUT issuing anything. This is the seam a seat/add-on
+     * preview reads so what the customer confirms equals what the apply charges (preview ==
+     * charge). A tax-pending org yields gross == net (no rate to add). Pure — no persistence.
+     */
+    public function grossDueNow(Subscription $subscription, Money $dueNow): Money;
 }

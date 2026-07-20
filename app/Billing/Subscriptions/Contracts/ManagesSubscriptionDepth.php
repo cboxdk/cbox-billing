@@ -44,7 +44,7 @@ interface ManagesSubscriptionDepth
      * still to run (aligned to the base period or its own independent cycle) and the
      * credit allotment it would grant — WITHOUT attaching it (preview == charge).
      *
-     * @return array{charge_minor: int, currency: string, allotment: int, alignment: string, period_end: string}
+     * @return array{charge_minor: int, gross_minor: int, currency: string, allotment: int, alignment: string, period_end: string}
      */
     public function previewAddOn(Subscription $subscription, AddOnRequest $request): array;
 

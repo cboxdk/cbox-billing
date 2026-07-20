@@ -79,6 +79,7 @@ use App\Billing\Seats\Contracts\ManagesSeats;
 use App\Billing\Seats\SeatManager;
 use App\Billing\Seller\ConfiguredEntityRouter;
 use App\Billing\Seller\SellerCatalog;
+use App\Billing\Storefront\CheckoutLinkBuilder;
 use App\Billing\Subscriptions\Contracts\CollectsProration;
 use App\Billing\Subscriptions\Contracts\ConvertsTrials;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
@@ -170,6 +171,7 @@ class BillingServiceProvider extends ServiceProvider
         $this->registerGatewayCustomers();
         $this->registerHostedSessions();
         $this->registerUpgradeGate();
+        $this->registerStorefront();
         $this->registerApi();
         $this->registerRetentionSeam();
         $this->registerFx();
@@ -273,6 +275,27 @@ class BillingServiceProvider extends ServiceProvider
                 $app->make(EntitlementsView::class),
                 $app->make(UsageSummaryView::class),
                 is_string($returnUrl) && $returnUrl !== '' ? $returnUrl : $app->make(UrlGenerator::class)->to('/'),
+            );
+        });
+    }
+
+    /**
+     * Bind the embeddable storefront (#57). The {@see CheckoutLinkBuilder} needs the default CTA
+     * hand-off target — the operator's checkout entry a pricing table's CTA deep-links into when
+     * it sets no `cta_url_template` of its own — which falls back to the app root so a CTA is
+     * always a valid link. The presenter/report/authoring resolve straight from the container.
+     */
+    private function registerStorefront(): void
+    {
+        $this->app->singleton(CheckoutLinkBuilder::class, static function (Application $app): CheckoutLinkBuilder {
+            $checkoutUrl = $app->make(Config::class)->get('billing.storefront.checkout_url');
+
+            // Falls back to the app-root PATH (relative) rather than an absolute URL so a table
+            // with no configured checkout target stays fully self-contained (no external host in
+            // its CTA hrefs); an operator points it at their real checkout via the config or the
+            // table's own cta_url_template.
+            return new CheckoutLinkBuilder(
+                is_string($checkoutUrl) && $checkoutUrl !== '' ? $checkoutUrl : '/',
             );
         });
     }

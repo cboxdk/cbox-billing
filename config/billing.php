@@ -744,6 +744,29 @@ return [
     ],
 
     /*
+     * Embeddable pricing tables + paywall (#57). The public, branded storefront a marketing
+     * site drops in (`/pricing/{key}`, `/pricing/{key}/embed`, `/pricing/{key}.js`) and the
+     * hosted paywall (`/paywall`). These surfaces are self-contained and served under no auth.
+     */
+    'storefront' => [
+        /*
+         * The default CTA hand-off target for a pricing table that sets no `cta_url_template`:
+         * the operator's checkout / signup entry point, which receives the chosen
+         * plan+currency+interval (as `{plan}`/`{currency}`/`{interval}`/`{price}` placeholders,
+         * or an appended query string) and mints the real, org-scoped hosted checkout session.
+         * Defaults to the app root so a CTA is always a valid link.
+         */
+        'checkout_url' => env('CBOX_BILLING_STOREFRONT_CHECKOUT_URL'),
+
+        /*
+         * The canonical, publicly reachable origin the embed snippets point back at (the host
+         * that serves `/pricing/{key}`). Defaults to `APP_URL`; override when the marketing
+         * embed must load the table from a different public hostname than the app runs on.
+         */
+        'embed_base_url' => env('CBOX_BILLING_STOREFRONT_EMBED_BASE_URL'),
+    ],
+
+    /*
      * On-prem / self-hosted licensing (the issuer side). Billing mints a signed,
      * offline-verifiable license from a licensable plan; a self-hosted cbox-id
      * deployment bundles the PUBLIC key and verifies the artifact with no call home.

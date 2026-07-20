@@ -37,6 +37,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $pending_effective_at
  * @property string|null $display_standing
  * @property int|null $test_clock_id
+ * @property string $environment
  * @property bool $livemode
  */
 class Subscription extends Model

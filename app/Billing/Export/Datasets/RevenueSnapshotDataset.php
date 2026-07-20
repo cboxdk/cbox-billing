@@ -84,7 +84,7 @@ class RevenueSnapshotDataset implements ExportDataset
 
         $subscriptions = Subscription::query()
             ->withoutGlobalScope(EnvironmentScope::class)
-            ->where('livemode', $query->livemode)
+            ->where('environment', $query->environment)
             ->with(['plan.prices', 'coupon'])
             ->orderBy('id')
             ->lazyById($this->chunkSize());

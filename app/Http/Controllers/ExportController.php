@@ -67,7 +67,7 @@ class ExportController extends Controller
         $from = $this->date($request->query('from'), startOfDay: true);
         $to = $this->date($request->query('to'), startOfDay: false);
 
-        $query = ExportQuery::window($this->context->livemode(), $from, $to);
+        $query = ExportQuery::window($this->context->environmentKey(), $this->context->livemode(), $from, $to);
 
         return $exporter->download($dataset, $format, $query);
     }

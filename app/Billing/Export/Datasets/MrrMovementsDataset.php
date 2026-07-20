@@ -68,9 +68,9 @@ class MrrMovementsDataset extends AbstractDataset
         ];
     }
 
-    protected function scopePlane(Builder $builder, bool $livemode): void
+    protected function scopePlane(Builder $builder, string $environment): void
     {
-        $builder->whereIn('subscription_mrr_movements.organization_id', $this->planeIds('organizations', $livemode));
+        $builder->whereIn('subscription_mrr_movements.organization_id', $this->planeIds('organizations', $environment));
     }
 
     protected function projectRow(array $record): array

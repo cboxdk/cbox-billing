@@ -70,7 +70,7 @@ class DataExportStreamTest extends TestCase
         app(DataExporter::class)->pump(
             app(DatasetRegistry::class)->get($dataset),
             app(RowEncoderFactory::class)->for(ExportFormat::Ndjson),
-            $query ?? ExportQuery::plane(true),
+            $query ?? ExportQuery::plane('production', true),
             function (string $chunk) use (&$out): void {
                 $out .= $chunk;
             },
@@ -92,7 +92,7 @@ class DataExportStreamTest extends TestCase
         app(DataExporter::class)->pump(
             app(DatasetRegistry::class)->get($dataset),
             app(RowEncoderFactory::class)->for(ExportFormat::Csv),
-            ExportQuery::plane(true),
+            ExportQuery::plane('production', true),
             function (string $chunk) use (&$out): void {
                 $out .= $chunk;
             },

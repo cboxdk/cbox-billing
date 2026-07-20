@@ -72,12 +72,12 @@ class ExportScopingTest extends TestCase
             Invoice::create(['organization_id' => 'org_test', 'seller' => 's', 'number' => 'TEST-1', 'currency' => 'DKK', 'subtotal_minor' => 200, 'tax_minor' => 0, 'total_minor' => 200, 'status' => 'paid', 'issued_at' => Carbon::parse('2026-06-01')]);
         });
 
-        $live = $this->ndjson('invoices', ExportQuery::plane(true));
+        $live = $this->ndjson('invoices', ExportQuery::plane('production', true));
         $this->assertCount(1, $live);
         $this->assertSame('LIVE-1', $live[0]['number']);
         $this->assertTrue($live[0]['livemode']);
 
-        $test = $this->ndjson('invoices', ExportQuery::plane(false));
+        $test = $this->ndjson('invoices', ExportQuery::plane('sandbox', false));
         $this->assertCount(1, $test);
         $this->assertSame('TEST-1', $test[0]['number']);
         $this->assertFalse($test[0]['livemode']);
@@ -95,10 +95,10 @@ class ExportScopingTest extends TestCase
             new UsageEvent('test-evt', 'org_test', 'm', 's', 20, 1_700_000_000_000),
         ]);
 
-        $live = $this->ndjson('usage_events', ExportQuery::plane(true));
+        $live = $this->ndjson('usage_events', ExportQuery::plane('production', true));
         $this->assertSame(['live-evt'], array_column($live, 'event_id'));
 
-        $test = $this->ndjson('usage_events', ExportQuery::plane(false));
+        $test = $this->ndjson('usage_events', ExportQuery::plane('sandbox', false));
         $this->assertSame(['test-evt'], array_column($test, 'event_id'));
     }
 
@@ -111,6 +111,7 @@ class ExportScopingTest extends TestCase
         }
 
         $rows = $this->ndjson('invoices', ExportQuery::window(
+            'production',
             true,
             CarbonImmutable::parse('2026-06-01')->startOfDay(),
             CarbonImmutable::parse('2026-06-30')->endOfDay(),

@@ -29,6 +29,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $organization_id
  * @property string $summary
  * @property array<string, mixed>|null $metadata
+ * @property string $environment
  * @property bool $livemode
  * @property string $prev_hash
  * @property string $hash

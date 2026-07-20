@@ -15,15 +15,15 @@ use Illuminate\Support\LazyCollection;
 
 /**
  * The shared streaming machinery every table-backed dataset builds on. It applies the three
- * scopings uniformly — the plane partition (`livemode`), the optional inclusive business-date
- * range, and the incremental watermark — then streams the result with a CHUNKED cursor so an
- * export never holds more than one chunk in memory regardless of table size.
+ * scopings uniformly — the plane partition (by `environment` key), the optional inclusive
+ * business-date range, and the incremental watermark — then streams the result with a CHUNKED
+ * cursor so an export never holds more than one chunk in memory regardless of table size.
  *
  * Rows are read through the query builder (not hydrated models) for a lean, plane-explicit
  * projection: the plane filter is applied HERE, deliberately, rather than trusting an Eloquent
- * global scope — an export must be able to name the plane it emits (test data never leaks into
- * a live export). Each concrete dataset supplies only its table, schema, cursor, date column,
- * plane scoping, and a per-row projector.
+ * global scope — an export must be able to name the plane it emits (one named sandbox's rows
+ * never leak into another's, nor into a live export). Each concrete dataset supplies only its
+ * table, schema, cursor, date column, plane scoping, and a per-row projector.
  */
 abstract class AbstractDataset implements ExportDataset
 {
@@ -90,7 +90,7 @@ abstract class AbstractDataset implements ExportDataset
     {
         $builder = DB::table($this->table());
 
-        $this->scopePlane($builder, $query->livemode);
+        $this->scopePlane($builder, $query->environment);
 
         if ($query->hasRange()) {
             $this->applyRange($builder, $query);
@@ -161,13 +161,14 @@ abstract class AbstractDataset implements ExportDataset
     }
 
     /**
-     * Constrain the query to a single billing plane. The default is the direct `livemode`
-     * column; datasets on child/unpartitioned tables override this to filter by the plane of
-     * their parent (a `whereIn` sub-select), so test rows never appear in a live export.
+     * Constrain the query to a single billing plane by its `environment` key. The default is the
+     * direct `environment` column; datasets on child/unpartitioned tables override this to filter
+     * by the plane of their parent (a `whereIn` sub-select), so one plane's rows never appear in
+     * another's export.
      */
-    protected function scopePlane(Builder $builder, bool $livemode): void
+    protected function scopePlane(Builder $builder, string $environment): void
     {
-        $builder->where($this->table().'.livemode', $livemode);
+        $builder->where($this->table().'.environment', $environment);
     }
 
     /**
@@ -197,12 +198,12 @@ abstract class AbstractDataset implements ExportDataset
 
     /**
      * Sub-select of the ids in the current plane for a partitioned parent table — the seam
-     * child datasets scope through.
+     * child datasets scope through (by the parent's `environment` key).
      */
-    protected function planeIds(string $parentTable, bool $livemode, string $idColumn = 'id'): \Closure
+    protected function planeIds(string $parentTable, string $environment, string $idColumn = 'id'): \Closure
     {
-        return static function (Builder $sub) use ($parentTable, $livemode, $idColumn): void {
-            $sub->select($idColumn)->from($parentTable)->where('livemode', $livemode);
+        return static function (Builder $sub) use ($parentTable, $environment, $idColumn): void {
+            $sub->select($idColumn)->from($parentTable)->where('environment', $environment);
         };
     }
 }

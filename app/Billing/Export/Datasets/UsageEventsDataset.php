@@ -68,9 +68,9 @@ class UsageEventsDataset extends AbstractDataset
         ];
     }
 
-    protected function scopePlane(Builder $builder, bool $livemode): void
+    protected function scopePlane(Builder $builder, string $environment): void
     {
-        $builder->whereIn('billing_usage_events.org', $this->planeIds('organizations', $livemode));
+        $builder->whereIn('billing_usage_events.org', $this->planeIds('organizations', $environment));
     }
 
     protected function applyRange(Builder $builder, ExportQuery $query): void

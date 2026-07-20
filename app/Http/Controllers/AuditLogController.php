@@ -51,7 +51,7 @@ class AuditLogController extends Controller
     {
         $format = ExportFormat::parse(is_string($request->query('format')) ? $request->query('format') : null);
 
-        return $exporter->download('audit_events', $format, ExportQuery::plane($context->livemode()));
+        return $exporter->download('audit_events', $format, ExportQuery::plane($context->environmentKey(), $context->livemode()));
     }
 
     /**

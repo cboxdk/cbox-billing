@@ -9,6 +9,7 @@ use App\Billing\Export\Contracts\WarehousePush;
 use App\Billing\Export\Contracts\WarehouseSink;
 use App\Billing\Export\ValueObjects\ExportQuery;
 use App\Billing\Export\ValueObjects\WrittenPartition;
+use App\Models\Environment;
 use App\Models\WarehouseSink as SinkConfig;
 use App\Models\WarehouseSyncCursor;
 use App\Models\WarehouseSyncRun;
@@ -61,7 +62,10 @@ class WarehouseSyncService
         $mode = $dataset->syncMode();
         $watermark = $mode->usesWatermark() ? $cursorRow->value() : null;
 
-        $query = ExportQuery::plane($sink->livemode === true)->after($watermark);
+        // The sink's `livemode` field is the operator's choice of WHICH plane's data to export (the
+        // external warehouse partition contract), so map it to the canonical plane key the datasets
+        // now filter on — keeping environment and livemode consistent for the output partition.
+        $query = ExportQuery::plane($sink->livemode ? Environment::PRODUCTION : Environment::SANDBOX, $sink->livemode === true)->after($watermark);
         $startedAt = CarbonImmutable::now();
 
         try {

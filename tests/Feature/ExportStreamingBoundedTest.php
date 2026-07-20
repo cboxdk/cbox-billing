@@ -48,7 +48,7 @@ class ExportStreamingBoundedTest extends TestCase
         app(DataExporter::class)->pump(
             app(DatasetRegistry::class)->get('usage_events'),
             app(RowEncoderFactory::class)->for(ExportFormat::Ndjson),
-            ExportQuery::plane(true),
+            ExportQuery::plane('production', true),
             function () use (&$rows): void {
                 $rows++;
             },

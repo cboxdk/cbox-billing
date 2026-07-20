@@ -11,6 +11,7 @@ use App\Billing\Export\DatasetRegistry;
 use App\Billing\Export\Encoders\RowEncoderFactory;
 use App\Billing\Export\Enums\ExportFormat;
 use App\Billing\Export\ValueObjects\ExportQuery;
+use App\Billing\Mode\BillingContext;
 use App\Models\Organization;
 use Illuminate\Support\Carbon;
 use PharData;
@@ -44,12 +45,16 @@ readonly class DsarBundleBuilder implements AssemblesDsarBundle
         private DatasetRegistry $registry,
         private DataExporter $exporter,
         private RowEncoderFactory $encoders,
+        private BillingContext $context,
     ) {}
 
     public function build(Organization $organization, bool $livemode): DsarBundle
     {
         $encoder = $this->encoders->for(ExportFormat::Ndjson);
-        $query = ExportQuery::forOrganization($livemode, $organization->id);
+        // Partition by the CURRENT named plane (not the binary livemode), so a DSAR built in one
+        // named sandbox never spans another sandbox's rows for the same org id. `$livemode` remains
+        // the byte-stable plane label the manifest and filename carry.
+        $query = ExportQuery::forOrganization($this->context->environmentKey(), $livemode, $organization->id);
 
         $workDir = $this->workDir($organization->id);
         $counts = [];

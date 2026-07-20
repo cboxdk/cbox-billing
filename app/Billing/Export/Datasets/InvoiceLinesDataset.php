@@ -57,9 +57,9 @@ class InvoiceLinesDataset extends AbstractDataset
         ];
     }
 
-    protected function scopePlane(Builder $builder, bool $livemode): void
+    protected function scopePlane(Builder $builder, string $environment): void
     {
-        $builder->whereIn('invoice_lines.invoice_id', $this->planeIds('invoices', $livemode));
+        $builder->whereIn('invoice_lines.invoice_id', $this->planeIds('invoices', $environment));
     }
 
     /**

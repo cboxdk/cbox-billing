@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Audit;
 
+use App\Billing\Mode\BillingContext;
 use App\Models\OperatorAuditEvent;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,10 +13,17 @@ use Illuminate\Database\Eloquent\Builder;
  * The console read model for the audit-log area: a filtered, paginated view over the immutable
  * trail. Read-only — it never writes. Filters compose (AND) and are all optional: free-text on
  * actor/summary/target, an exact action, an actor sub, a target type/id, an organization, an
- * inclusive date range, and a plane. Results are newest-first by sequence.
+ * inclusive date range. Results are newest-first by sequence.
+ *
+ * The global trail is append-only and unscoped (one hash chain across every plane), so this view
+ * ALWAYS constrains to the CURRENT environment key — the console shows only the active plane's
+ * events, and two named sandboxes never co-mingle in the log (a binary `livemode` filter could not
+ * tell them apart).
  */
 readonly class AuditLogQuery
 {
+    public function __construct(private BillingContext $context) {}
+
     /**
      * @param  array{
      *     q?: ?string, action?: ?string, actor?: ?string, target_type?: ?string,
@@ -37,7 +45,8 @@ readonly class AuditLogQuery
      */
     private function build(array $filters): Builder
     {
-        $query = OperatorAuditEvent::query();
+        // Deny-by-default cross-plane: only the current environment's events are ever shown.
+        $query = OperatorAuditEvent::query()->where('environment', $this->context->environmentKey());
 
         $q = $this->str($filters['q'] ?? null);
         if ($q !== null) {
@@ -102,7 +111,9 @@ readonly class AuditLogQuery
     public function distinctActions(): array
     {
         /** @var list<string> $actions */
-        $actions = OperatorAuditEvent::query()->distinct()->orderBy('action')->pluck('action')->all();
+        $actions = OperatorAuditEvent::query()
+            ->where('environment', $this->context->environmentKey())
+            ->distinct()->orderBy('action')->pluck('action')->all();
 
         return $actions;
     }

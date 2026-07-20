@@ -91,6 +91,9 @@ The app is organized around a few load-bearing ideas:
 - **[Console UI](console-ui/_index.md)** — the reusable console UX conventions
   (confirm dialog, pagination, breadcrumbs, accessible rows, flash, responsive
   utilities) every provider-console screen follows.
+- **[Storefront: pricing tables & paywall](storefront/_index.md)** — the embeddable,
+  seller-branded, self-contained pricing table a marketing site drops in, the embed
+  snippet (iframe vs script), the drop-in paywall, and the checkout deep-link contract.
 - **[Testing & sandbox](testing/_index.md)** — test mode's isolated `livemode` plane,
   the fake gateway with no real charges or emails, and fast-forwardable test clocks
   for simulating renewals, trials and dunning in seconds.

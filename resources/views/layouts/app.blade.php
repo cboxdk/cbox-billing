@@ -146,6 +146,35 @@
                 @elseif (! empty($testMode))
                     <span class="cbx-pill cbx-pill--warning" title="The console is scoped to a sandbox dataset"><span class="dot"></span>{{ $activeEnvironment->name }}</span>
                 @endif
+                {{-- Clone environment: create a fresh sandbox plane that deep-copies a source
+                     plane's CONFIG (catalog, branding, templates, storefront) — never its tenant
+                     data. The clone starts with an empty book and test gateway keys. --}}
+                @if (! empty($environments))
+                    <details class="cbx-env-clone" style="position:relative">
+                        <summary class="cbx-btn cbx-btn--sm cbx-btn--ghost" style="height:28px;list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px" title="Clone an environment's config into a new sandbox">@include('partials.icon', ['name' => 'copy', 'size' => 13, 'sw' => 1.7])<span>Clone</span></summary>
+                        <form method="POST" action="{{ route('billing.environment.clone') }}" class="cbx-card"
+                              style="position:absolute;top:calc(100% + 6px);right:0;z-index:40;width:280px;padding:12px;display:flex;flex-direction:column;gap:8px">
+                            @csrf
+                            <div style="font-size:11px;font-weight:600;color:var(--muted-foreground)">Clone environment config</div>
+                            <label style="font-size:11px;display:flex;flex-direction:column;gap:3px">Copy config from
+                                <select name="source" class="cbx-input cbx-input--sm" style="height:28px">
+                                    @foreach ($environments as $env)
+                                        <option value="{{ $env->key }}" @selected($env->isProduction())>{{ $env->name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label style="font-size:11px;display:flex;flex-direction:column;gap:3px">New environment key
+                                <input type="text" name="new_key" required maxlength="40" placeholder="acme-test" pattern="[a-z0-9][a-z0-9-]{1,39}"
+                                       class="cbx-input cbx-input--sm" style="height:28px">
+                            </label>
+                            <label style="font-size:11px;display:flex;flex-direction:column;gap:3px">Name (optional)
+                                <input type="text" name="name" maxlength="120" placeholder="Acme Test" class="cbx-input cbx-input--sm" style="height:28px">
+                            </label>
+                            <button type="submit" class="cbx-btn cbx-btn--sm cbx-btn--primary" style="height:28px">Clone into new sandbox</button>
+                            <div style="font-size:10px;color:var(--muted-foreground)">Copies catalog, branding, templates &amp; storefront only — no subscriptions, invoices or customers.</div>
+                        </form>
+                    </details>
+                @endif
                 <button class="cbx-search" id="palbtn" style="width:200px;height:28px">@include('partials.icon', ['name' => 'search', 'size' => 14, 'sw' => 1.7])<span class="label">Search or jump to…</span><kbd>⌘K</kbd></button>
                 <button class="iconbtn" id="modebtn" title="Toggle light/dark">@include('partials.icon', ['name' => 'moon', 'size' => 14, 'sw' => 1.7])</button>
                 <button class="iconbtn" title="Cbox apps">@include('partials.icon', ['name' => 'grid', 'size' => 14, 'sw' => 1.7])</button>

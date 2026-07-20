@@ -22,6 +22,8 @@ use App\Billing\Enforcement\EventLogUsageBuffer;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredFeaturePlan;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredPlan;
 use App\Billing\Enforcement\Upgrade\UpgradeGate;
+use App\Billing\Environments\Contracts\ClonesEnvironments;
+use App\Billing\Environments\EnvironmentCloner;
 use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Experiments\Contracts\AttributesConversions;
 use App\Billing\Experiments\ConversionAttribution;
@@ -192,6 +194,9 @@ class BillingServiceProvider extends ServiceProvider
         $this->registerApi();
         $this->registerRetentionSeam();
         $this->registerFx();
+
+        // The environment cloner: creates a sandbox plane and deep-copies a source plane's config.
+        $this->app->singleton(ClonesEnvironments::class, EnvironmentCloner::class);
 
         // The per-org opt-out store for the OPTIONAL lifecycle mails; the notifier consults it
         // before an optional send and the portal reads/writes it from the toggle UI.

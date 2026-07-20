@@ -16,6 +16,7 @@ use App\Http\Controllers\CustomerOpsController;
 use App\Http\Controllers\DsarController;
 use App\Http\Controllers\DunningController;
 use App\Http\Controllers\DunningStrategyController;
+use App\Http\Controllers\EnvironmentController;
 use App\Http\Controllers\ExemptionCertificateController;
 use App\Http\Controllers\ExperimentController;
 use App\Http\Controllers\ExportController;
@@ -74,6 +75,8 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     // subscriptions to it. Reads carry `settings:read`, writes `settings:manage`.
     Route::post('/test-mode/toggle', [TestModeController::class, 'toggle'])->name('billing.test-mode.toggle');
     Route::post('/environment/switch', [TestModeController::class, 'switchEnvironment'])->name('billing.environment.switch');
+    // Clone an environment's config into a fresh sandbox plane (deep config copy, empty book).
+    Route::post('/environment/clone', [EnvironmentController::class, 'clone'])->middleware('billing.permission:settings:manage')->name('billing.environment.clone');
     Route::get('/test-mode/clocks', [TestModeController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.test-mode.clocks');
     Route::post('/test-mode/clocks', [TestModeController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.test-mode.clocks.store');
     Route::get('/test-mode/clocks/{testClock}', [TestModeController::class, 'show'])->middleware('billing.permission:settings:read')->name('billing.test-mode.clocks.show');

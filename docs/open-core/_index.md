@@ -1,13 +1,15 @@
 ---
 title: Open core
-description: The open-core model — a complete MIT base app, a console-kit plugin socket with deny-by-default capability gating, five commercial plugins, and the cloud overlay that composes them.
+description: The open-core model — a complete ELv2 base app, a console-kit plugin socket with deny-by-default capability gating, five commercial plugins, and the cloud overlay that composes them.
 weight: 60
 ---
 
 # Open core
 
-Cbox Billing is **open core**. The base app (`cboxdk/cbox-billing`, MIT) is complete
-and self-hostable on its own. A private composition (`cbox-billing-cloud`) overlays
+Cbox Billing is **open core**. The base app (`cboxdk/cbox-billing`, Elastic License
+2.0) is source-available and complete on its own: you may use, modify, and self-host
+it freely — including commercially — but you may not provide it to third parties as
+a hosted or managed service. A private composition (`cbox-billing-cloud`) overlays
 five commercial plugins on top of the base image — and it does so with **zero edits
 to the app**, purely through Laravel auto-discovery and a console-kit runtime socket.
 
@@ -15,7 +17,7 @@ to the app**, purely through Laravel auto-discovery and a console-kit runtime so
 
 | | Open base | Commercial composition |
 | --- | --- | --- |
-| Repo | `cboxdk/cbox-billing` (public, MIT) | `cbox-billing-cloud` (private, proprietary) |
+| Repo | `cboxdk/cbox-billing` (public, ELv2) | `cbox-billing-cloud` (private, proprietary) |
 | Contains | The app + its public vendor tree | No app source, no plugin source — just the overlay + prod config |
 | Image | `ghcr.io/cboxdk/cbox-billing` | `ghcr.io/cboxdk/cbox-billing-cloud` (FROM the base) |
 

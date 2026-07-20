@@ -4,7 +4,7 @@
     "type": "project",
     "description": "Cbox Billing — the self-hostable billing, metering and entitlement application (provider console + self-service portal) built on cboxdk/laravel-billing and cboxdk/laravel-id.",
     "keywords": ["billing", "metering", "entitlements", "subscriptions"],
-    "license": "MIT",
+    "license": "Elastic-2.0",
     "require": {
         "php": "^8.4",
         "cboxdk/laravel-billing": "^0.8",

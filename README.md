@@ -75,4 +75,9 @@ records:
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[Elastic License 2.0](LICENSE) (ELv2). You are free to use, modify, and
+self-host Cbox Billing — including inside your own commercial products — but you
+may not provide it to third parties as a hosted or managed service.
+
+The TypeScript SDK under [`sdks/typescript`](sdks/typescript) remains MIT so it
+can be embedded freely in customer applications.

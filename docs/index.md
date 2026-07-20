@@ -18,7 +18,7 @@ you want to run billing without building the UI, the OIDC wiring, the hosted
 checkout, and the API surface yourself; reach for the **engine package** when you
 want to embed billing primitives in your own Laravel app.
 
-- **Repository:** `cboxdk/cbox-billing` — Laravel 13, PHP 8.4+, MIT.
+- **Repository:** `cboxdk/cbox-billing` — Laravel 13, PHP 8.4+, [Elastic License 2.0](https://github.com/cboxdk/cbox-billing/blob/main/LICENSE).
 - **Base image:** `ghcr.io/cboxdk/cbox-billing` (open, source-available).
 - **Commercial composition:** the private `cbox-billing-cloud` overlay adds five
   feature-gated plugins on top of the base image — see [Open core](open-core/_index.md).
@@ -41,7 +41,7 @@ The app is organized around a few load-bearing ideas:
 | **Identity is external** | Users sign in against **Cbox ID** over OIDC. One billing account maps to one identity organization, so entitlements are enforced at the org level on the hot path — not by inflating identity tokens. |
 | **Deny-by-default** | No gateway secret ⇒ webhooks refuse every payload. No consume-license ⇒ commercial plugins stay locked. No CORS allow-list ⇒ no cross-origin browser call. No API token match ⇒ 401. |
 | **Two API tiers** | The **enforcement** API (`reserve`/`commit`/`usage`) runs on every metered operation and gets the higher throttle; the **management** API (subscribe/change/cancel/invoices/licenses) is human-paced, mutating, and idempotency-keyed. |
-| **Open core** | The base app is MIT and complete on its own. Five private plugins compose onto it purely through Laravel auto-discovery + a console-kit socket — zero edits to the app. |
+| **Open core** | The base app is source-available under the Elastic License 2.0 — free to use, modify, and self-host, but not to offer to third parties as a hosted service — and complete on its own. Five private plugins compose onto it purely through Laravel auto-discovery + a console-kit socket — zero edits to the app. |
 
 ## What's inside
 

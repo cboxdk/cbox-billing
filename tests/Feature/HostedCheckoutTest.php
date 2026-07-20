@@ -148,6 +148,21 @@ class HostedCheckoutTest extends TestCase
         $this->assertSame(1, Subscription::query()->where('organization_id', 'org_activate')->count());
     }
 
+    public function test_the_status_endpoint_404s_for_an_expired_token(): void
+    {
+        $session = $this->openCheckout('org_expstatus');
+
+        // While pending and within TTL the poll returns status.
+        $this->getJson('/billing/checkout/'.$session->token.'/status')->assertOk();
+
+        // Age it past its TTL: the status poll must 404 like the page, never leaking the
+        // session status or return_url for a lapsed token (it used the non-enforcing resolver).
+        BillingSession::query()->where('organization_id', 'org_expstatus')
+            ->update(['expires_at' => now()->subMinute()]);
+
+        $this->getJson('/billing/checkout/'.$session->token.'/status')->assertNotFound();
+    }
+
     public function test_a_taxable_checkout_charges_the_tax_aware_gross_shown_on_the_page(): void
     {
         $this->fakeGateway();

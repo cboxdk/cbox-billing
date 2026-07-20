@@ -76,14 +76,14 @@ class CheckoutController extends HostedController
     /**
      * `GET` — the poll the page runs after a client-side success: the session's authoritative
      * status (flipped complete only by the settled webhook) and where to return to.
+     *
+     * Resolved through the expiry-enforcing {@see HostedController::require()} — an expired token
+     * 404s here exactly as it does on the page itself, so a lapsed token can no longer read back
+     * its status or its `return_url`. A completed session still resolves (it is not expired).
      */
     public function status(string $token): JsonResponse
     {
-        $session = $this->sessions->locate($token, SessionType::Checkout);
-
-        if ($session === null) {
-            return new JsonResponse(['error' => 'Unknown session.'], 404);
-        }
+        $session = $this->require($token, SessionType::Checkout);
 
         return new JsonResponse([
             'status' => $session->status->value,

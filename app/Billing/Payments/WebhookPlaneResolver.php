@@ -7,12 +7,15 @@ namespace App\Billing\Payments;
 use App\Billing\Environments\EnvironmentRegistry;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\EnvironmentScope;
+use App\Billing\Payments\ValueObjects\SettlementSignals;
 use App\Models\BillingSession;
 use App\Models\Environment;
 use App\Models\GatewayCustomer;
 use App\Models\Invoice;
 use Cbox\Billing\Payment\ValueObjects\WebhookPayload;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The single source of truth for "which billing PLANE owns this inbound webhook" — the unscoped
@@ -29,11 +32,32 @@ use Illuminate\Database\Eloquent\Model;
  * authenticate against a sandbox reference (its secret differs), while a sandbox's own DB-secret
  * webhook verifies and applies in that sandbox.
  *
- * Peeking the reference out of the raw bytes to PICK the plane is safe: it only selects which
- * secret to verify against; authenticity is still proved by the signature check that follows. The
- * lookups here bypass {@see EnvironmentScope} (the settlement route has no ambient plane to trust)
- * and fall back to the ambient plane when nothing matches — under which nothing will match either,
- * so a stray payload simply no-ops rather than crossing planes.
+ * WHY THE INVOICE NUMBER IS NOT ENOUGH. Resolving the plane from the settlement reference alone was
+ * a cross-plane COLLISION: invoice numbers are unique only per `(seller, number)`, and cloning an
+ * environment duplicates the seller entities together with their invoice prefix — so
+ * `CBOX-DK-2026-00001` can exist in production and in a sandbox simultaneously. An unscoped
+ * `where('number', …)->first()` then picked whichever row the storage engine returned first,
+ * which meant a sandbox settlement could verify against, and apply to, the PRODUCTION invoice (or a
+ * legitimate sandbox event could be rejected against the wrong plane's secret).
+ *
+ * The plane is therefore resolved from the most GLOBALLY-UNIQUE signal available, in order (see
+ * {@see SettlementSignals}):
+ *
+ *   1. the gateway's own OBJECT id (`pi_…`/`ch_…`) recorded against a checkout session, a settled
+ *      invoice or a dunning retry attempt — a gateway never mints one twice;
+ *   2. the gateway CUSTOMER handle (`cus_…`) in `gateway_customers`, which environment cloning does
+ *      not copy, so a matching row names the owning plane outright;
+ *   3. only then the settlement reference — and only when it is UNAMBIGUOUS. A reference that
+ *      matches rows in more than one plane resolves to the ambient plane if that is one of the
+ *      candidates and otherwise refuses to guess, rather than silently picking a plane.
+ *
+ * Preferring the ambient plane among ambiguous candidates is what keeps the pre-verify peek and the
+ * post-verify apply in agreement: the ingest re-resolves the plane INSIDE the plane the controller
+ * already pushed, so an ambiguous number resolves back to the same plane the strong signal chose.
+ *
+ * The lookups here bypass {@see EnvironmentScope} (the settlement route has no ambient plane to
+ * trust) and fall back to the ambient plane when nothing matches — under which nothing will match
+ * either, so a stray payload simply no-ops rather than crossing planes.
  *
  * The verified-path ingest ({@see PlaneAwareWebhookIngest}) and card-updater
  * ({@see DunningCardUpdater}) resolve the plane through the SAME methods here, so the pre-verify
@@ -47,9 +71,18 @@ readonly class WebhookPlaneResolver
     ) {}
 
     /**
-     * The plane a settlement reference lives in — the invoice (settlements/renewals) or the pending
-     * checkout session (hosted activation) that owns it, resolved UNSCOPED. The ambient plane when
-     * the reference matches neither.
+     * The plane a settlement reference lives in, resolved UNSCOPED from the reference ALONE — the
+     * invoice number (settlements/renewals) or the pending checkout session's payment reference
+     * (hosted activation).
+     *
+     * The reference is the weakest of the plane signals (see the class docblock): a cloned
+     * environment can carry the same invoice number as production. So this deliberately does NOT
+     * pick a winner when the reference is ambiguous — it prefers the AMBIENT plane when that is one
+     * of the candidates (which is how the ingest re-resolves back onto the plane the controller
+     * already chose from a stronger signal) and otherwise returns the ambient plane untouched.
+     *
+     * Callers holding the raw body should prefer {@see forSettlementPayload()}, which consults the
+     * globally-unique gateway signals first.
      */
     public function forReference(string $reference): Environment
     {
@@ -57,20 +90,7 @@ readonly class WebhookPlaneResolver
             return $this->context->environment();
         }
 
-        $owner = Invoice::query()
-            ->withoutGlobalScope(EnvironmentScope::class)
-            ->where('number', $reference)
-            ->first();
-
-        if (! $owner instanceof Invoice) {
-            $owner = BillingSession::query()
-                ->withoutGlobalScope(EnvironmentScope::class)
-                ->where('payment_reference', $reference)
-                ->where('type', 'checkout')
-                ->first();
-        }
-
-        return $this->planeFor($owner);
+        return $this->pick($this->planesForReference($reference));
     }
 
     /**
@@ -95,12 +115,32 @@ readonly class WebhookPlaneResolver
     }
 
     /**
-     * The owning plane for a raw (UNVERIFIED) settlement payload — peeks the settlement reference
-     * out of the body so the controller can set the plane before the signature is verified.
+     * The owning plane for a raw (UNVERIFIED) settlement payload — peeks every plane signal the body
+     * carries and resolves on the most globally-unique one that matches, so the controller can set
+     * the plane before the signature is verified.
      */
     public function forSettlementPayload(WebhookPayload $payload): Environment
     {
-        return $this->forReference($this->referenceFromPayload($payload));
+        return $this->forSignals($this->settlementSignals($payload));
+    }
+
+    /**
+     * Resolve the owning plane from a set of settlement signals, strongest first: the gateway object
+     * id, then the gateway customer, then (only if unambiguous) the settlement reference.
+     */
+    public function forSignals(SettlementSignals $signals): Environment
+    {
+        $planes = $this->planesForGatewayObject($signals->gatewayObject);
+
+        if (count($planes) !== 1) {
+            $planes = $this->planesForGatewayCustomer($signals->gateway, $signals->gatewayCustomer);
+        }
+
+        if (count($planes) !== 1) {
+            $planes = $this->planesForReference($signals->reference);
+        }
+
+        return $this->pick($planes);
     }
 
     /**
@@ -113,6 +153,153 @@ readonly class WebhookPlaneResolver
         [$gateway, $account] = $this->accountFromPayload($payload, $routeGateway);
 
         return $this->forAccount($gateway, $account);
+    }
+
+    /**
+     * Collapse a candidate set of environment keys to one plane.
+     *
+     * The AMBIENT plane wins whenever it is among the candidates. That is what keeps the two
+     * resolutions of a single webhook in agreement: the controller picks the plane from the strong
+     * gateway signals and pushes it, and the ingest — which only has the (weak, possibly colliding)
+     * settlement reference to go on — then re-resolves back onto that very plane instead of jumping
+     * to a same-numbered invoice in another one.
+     *
+     * Otherwise exactly one candidate wins outright. Several candidates with the ambient plane not
+     * among them means the signal simply cannot tell the planes apart: the ambient plane is returned
+     * unchanged rather than guessing, so the payload fails verification / no-ops instead of being
+     * applied to an arbitrary plane's row.
+     *
+     * @param  list<string>  $keys
+     */
+    private function pick(array $keys): Environment
+    {
+        if (in_array($this->context->environmentKey(), $keys, true)) {
+            return $this->context->environment();
+        }
+
+        if (count($keys) === 1) {
+            return $this->environments->resolve($keys[0]);
+        }
+
+        return $this->context->environment();
+    }
+
+    /**
+     * The distinct plane keys a GATEWAY OBJECT id addresses: the checkout session it paid, the
+     * invoice it settled, or the dunning retry attempt that produced it. Every one of these columns
+     * holds an id the gateway itself minted, so a match is unambiguous by construction — the set is
+     * still collapsed to distinct keys so a single object recorded in two places still resolves.
+     *
+     * @return list<string>
+     */
+    private function planesForGatewayObject(string $object): array
+    {
+        if ($object === '') {
+            return [];
+        }
+
+        $keys = [
+            ...$this->keys(BillingSession::query()
+                ->withoutGlobalScope(EnvironmentScope::class)
+                ->where('payment_reference', $object)),
+            ...$this->keys(Invoice::query()
+                ->withoutGlobalScope(EnvironmentScope::class)
+                ->where('gateway_reference', $object)),
+            // `payment_retry_attempts` is not plane-partitioned itself; its parent retry is.
+            ...$this->strings(DB::table('payment_retry_attempts')
+                ->join('payment_retries', 'payment_retries.id', '=', 'payment_retry_attempts.payment_retry_id')
+                ->where('payment_retry_attempts.gateway_reference', $object)
+                ->distinct()
+                ->pluck('payment_retries.environment')
+                ->all()),
+        ];
+
+        return $this->distinct($keys);
+    }
+
+    /**
+     * The distinct plane keys a GATEWAY CUSTOMER handle addresses. `gateway_customers` is not copied
+     * when an environment is cloned and the handle is minted by the gateway, so in practice this
+     * resolves to exactly one plane.
+     *
+     * @return list<string>
+     */
+    private function planesForGatewayCustomer(string $gateway, string $customer): array
+    {
+        if ($gateway === '' || $customer === '') {
+            return [];
+        }
+
+        return $this->distinct($this->keys(
+            GatewayCustomer::query()
+                ->withoutGlobalScope(EnvironmentScope::class)
+                ->where('gateway', $gateway)
+                ->where('gateway_customer_id', $customer),
+        ));
+    }
+
+    /**
+     * The distinct plane keys a SETTLEMENT REFERENCE addresses — the invoice number (which is only
+     * unique per seller, so this can legitimately return more than one) or the checkout session's
+     * payment reference (globally unique).
+     *
+     * @return list<string>
+     */
+    private function planesForReference(string $reference): array
+    {
+        if ($reference === '') {
+            return [];
+        }
+
+        $keys = $this->distinct($this->keys(
+            Invoice::query()->withoutGlobalScope(EnvironmentScope::class)->where('number', $reference),
+        ));
+
+        if ($keys !== []) {
+            return $keys;
+        }
+
+        return $this->distinct($this->keys(
+            BillingSession::query()
+                ->withoutGlobalScope(EnvironmentScope::class)
+                ->where('payment_reference', $reference)
+                ->where('type', 'checkout'),
+        ));
+    }
+
+    /**
+     * The `environment` values a query matches, unfiltered.
+     *
+     * @param  Builder<covariant Model>  $query
+     * @return list<string>
+     */
+    private function keys(Builder $query): array
+    {
+        return $this->strings($query->toBase()->distinct()->pluck('environment')->all());
+    }
+
+    /**
+     * Narrow a plucked column to a list of strings (a null/!string value becomes '' and is dropped
+     * by {@see distinct()}).
+     *
+     * @param  array<array-key, mixed>  $values
+     * @return list<string>
+     */
+    private function strings(array $values): array
+    {
+        return array_map(
+            static fn (mixed $value): string => is_string($value) ? $value : '',
+            array_values($values),
+        );
+    }
+
+    /**
+     * @param  list<string>  $keys
+     * @return list<string>
+     */
+    private function distinct(array $keys): array
+    {
+        return array_values(array_unique(array_filter($keys, static fn (string $key): bool => $key !== '')));
     }
 
     /** Resolve the owning row's stamped `environment` key to a plane, or the ambient plane. */
@@ -130,24 +317,29 @@ readonly class WebhookPlaneResolver
     }
 
     /**
-     * Peek the settlement reference out of the untrusted body: the Stripe shape
-     * (`data.object.metadata.reference`) first, then the manual shape (`reference` at the root).
+     * Peek every plane signal out of the untrusted settlement body: the Stripe shape
+     * (`data.object.id`, `data.object.customer`, `data.object.metadata.reference`) and the manual
+     * shape (`reference` / `account` at the root).
      */
-    private function referenceFromPayload(WebhookPayload $payload): string
+    private function settlementSignals(WebhookPayload $payload): SettlementSignals
     {
         $data = $this->decode($payload);
-
         $object = $this->arrayAt($data, ['data', 'object']);
-        $metadata = $this->arrayAt($object, ['metadata']);
-        $stripeReference = $metadata['reference'] ?? null;
 
-        if (is_string($stripeReference) && $stripeReference !== '') {
-            return $stripeReference;
+        $stripeObject = $this->str($object, 'id');
+        $stripeCustomer = $this->str($object, 'customer');
+        $stripeReference = $this->str($this->arrayAt($object, ['metadata']), 'reference');
+
+        if ($stripeObject !== '' || $stripeCustomer !== '' || $stripeReference !== '') {
+            return new SettlementSignals(
+                reference: $stripeReference,
+                gatewayObject: $stripeObject,
+                gatewayCustomer: $stripeCustomer,
+                gateway: 'stripe',
+            );
         }
 
-        $manualReference = $data['reference'] ?? null;
-
-        return is_string($manualReference) ? $manualReference : '';
+        return new SettlementSignals(reference: $this->str($data, 'reference'));
     }
 
     /**
@@ -161,18 +353,25 @@ readonly class WebhookPlaneResolver
     {
         $data = $this->decode($payload);
 
-        $object = $this->arrayAt($data, ['data', 'object']);
-        $stripeCustomer = $object['customer'] ?? null;
+        $stripeCustomer = $this->str($this->arrayAt($data, ['data', 'object']), 'customer');
 
-        if (is_string($stripeCustomer) && $stripeCustomer !== '') {
+        if ($stripeCustomer !== '') {
             return ['stripe', $stripeCustomer];
         }
 
-        $manualAccount = $data['account'] ?? null;
+        $manualAccount = $this->str($data, 'account');
 
-        return is_string($manualAccount) && $manualAccount !== ''
-            ? [$routeGateway, $manualAccount]
-            : ['', ''];
+        return $manualAccount !== '' ? [$routeGateway, $manualAccount] : ['', ''];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $data
+     */
+    private function str(array $data, string $key): string
+    {
+        $value = $data[$key] ?? null;
+
+        return is_string($value) ? $value : '';
     }
 
     /**

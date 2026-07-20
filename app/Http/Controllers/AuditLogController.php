@@ -37,8 +37,15 @@ class AuditLogController extends Controller
         ]);
     }
 
-    public function show(OperatorAuditEvent $event): View
+    public function show(OperatorAuditEvent $event, BillingContext $context): View
     {
+        // The audit trail is a single global, append-only hash chain across every plane, so the
+        // model carries NO environment global scope — an unscoped route-model binding would let an
+        // event from one plane be read from another. The console view is per-plane (like the index),
+        // so assert the event belongs to the current environment; anything else is a 404
+        // (deny-by-default: never confirm an out-of-plane event exists).
+        abort_unless($event->getAttribute('environment') === $context->environmentKey(), 404);
+
         return view('billing.audit.show', [
             'activeArea' => 'audit',
             'activeNav' => 'log',

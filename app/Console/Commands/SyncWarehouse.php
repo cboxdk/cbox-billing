@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Billing\Export\DatasetRegistry;
 use App\Billing\Export\WarehouseSyncService;
+use App\Billing\Mode\EnvironmentScope;
 use App\Models\WarehouseSink;
 use App\Models\WarehouseSyncRun;
 use Illuminate\Console\Command;
@@ -66,7 +67,11 @@ class SyncWarehouse extends Command
     }
 
     /**
-     * The sinks to sync: one by key when `--sink` is given, else every enabled sink.
+     * The sinks to sync: one by key when `--sink` is given, else every enabled sink — across ALL
+     * planes. The scheduled command runs in the ambient (production) plane, but a sink is
+     * operator-infra of the plane it was created in, and each sink partitions/scopes the export by
+     * its OWN environment (see {@see WarehouseSyncService}); so the selection must bypass the
+     * {@see EnvironmentScope}, or a named sandbox's sink would never be synced.
      *
      * @return list<WarehouseSink>
      */
@@ -74,7 +79,9 @@ class SyncWarehouse extends Command
     {
         $key = $this->option('sink');
 
-        $query = WarehouseSink::query()->where('enabled', true);
+        $query = WarehouseSink::query()
+            ->withoutGlobalScope(EnvironmentScope::class)
+            ->where('enabled', true);
 
         if (is_string($key) && $key !== '') {
             $query->where('key', $key);

@@ -57,9 +57,11 @@ class CouponCheckoutTest extends TestCase
         // The checkout page shows the discounted price, and the intent charges it.
         $this->get('/billing/checkout/'.$session->token)->assertOk()->assertSee('SAVE20');
 
+        // The charge is the tax-aware GROSS of the discounted net (HP2): 232.00 net
+        // (290.00 − 20%) + 25% DK VAT = 290.00 gross.
         $this->postJson('/billing/checkout/'.$session->token.'/intent')
             ->assertOk()
-            ->assertJsonPath('amount.minor', 23_200);
+            ->assertJsonPath('amount.minor', 29_000);
     }
 
     public function test_an_invalid_checkout_coupon_is_refused_with_422(): void
@@ -91,7 +93,7 @@ class CouponCheckoutTest extends TestCase
         $this->postJson('/billing/checkout/'.$session->token.'/intent')->assertOk();
         $reference = (string) $session->refresh()->payment_reference;
 
-        $this->postSettlement($reference, 23_200);
+        $this->postSettlement($reference, 29_000);
 
         $subscription = Subscription::query()->where('organization_id', 'org_bind')->firstOrFail();
         $binding = SubscriptionCoupon::query()->where('subscription_id', $subscription->id)->first();

@@ -28,7 +28,9 @@ class CheckoutController extends HostedController
         $session = $this->require($token, SessionType::Checkout);
         $plan = $flow->plan($session);
         $currency = $flow->currency($session);
-        $listPrice = $plan->priceFor($currency);
+        // Both amounts are the tax-aware GROSS, so the displayed figure equals the charge
+        // (preview == charge) and the struck-through "before" is a like-for-like comparison.
+        $listPrice = $flow->listPrice($session);
         $price = $flow->price($session);
 
         return view('hosted.checkout', [

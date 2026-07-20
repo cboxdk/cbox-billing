@@ -95,11 +95,13 @@ class HostedCheckoutTest extends TestCase
 
         $response = $this->postJson('/billing/checkout/'.$session->token.'/intent');
 
+        // The charge is the tax-aware GROSS (HP2): 290.00 net + 25% DK VAT = 362.50 gross,
+        // matching what the first invoice would bill — never bare net.
         $response->assertOk()
             ->assertJsonPath('gateway', 'fake')
             ->assertJsonPath('publishable_key', 'pub_fake')
             ->assertJsonPath('status', 'succeeded')
-            ->assertJsonPath('amount.minor', 29_000)
+            ->assertJsonPath('amount.minor', 36_250)
             ->assertJsonPath('amount.currency', 'DKK');
 
         $this->assertIsString($response->json('client_secret'));
@@ -124,7 +126,7 @@ class HostedCheckoutTest extends TestCase
         $this->getJson('/billing/checkout/'.$session->token.'/status')->assertJsonPath('complete', false);
 
         // The gateway's settled webhook activates the subscription exactly once.
-        $this->postSettlement($reference, 29_000);
+        $this->postSettlement($reference, 36_250);
 
         $this->assertDatabaseHas('subscriptions', [
             'organization_id' => 'org_activate',
@@ -137,8 +139,55 @@ class HostedCheckoutTest extends TestCase
             ->assertJsonPath('return_url', 'https://merchant.example/done');
 
         // Exactly-once: a re-delivery is a no-op, still a single active subscription.
-        $this->postSettlement($reference, 29_000)->assertJsonPath('applied', false);
+        $this->postSettlement($reference, 36_250)->assertJsonPath('applied', false);
         $this->assertSame(1, Subscription::query()->where('organization_id', 'org_activate')->count());
+    }
+
+    public function test_a_taxable_checkout_charges_the_tax_aware_gross_shown_on_the_page(): void
+    {
+        $this->fakeGateway();
+        // A domestic DK business: 290.00 net + 25% DK VAT = 362.50 gross.
+        $session = $this->openCheckout('org_taxable');
+
+        $this->postJson('/billing/checkout/'.$session->token.'/intent')
+            ->assertOk()
+            ->assertJsonPath('amount.minor', 36_250)
+            ->assertJsonPath('amount.currency', 'DKK');
+
+        // Preview == charge: the amount the page displays is exactly the amount charged.
+        $this->get('/billing/checkout/'.$session->token)
+            ->assertOk()
+            ->assertSee('362,50');
+    }
+
+    public function test_a_reverse_charge_checkout_charges_net(): void
+    {
+        $this->fakeGateway();
+
+        // A German business with a validated VAT id buying cross-border from the DK seller
+        // self-accounts (reverse charge) — so the charge is bare net, no VAT added.
+        Organization::query()->create([
+            'id' => 'org_rc',
+            'name' => 'DE GmbH',
+            'billing_email' => 'rc@example.test',
+            'billing_country' => 'DE',
+            'billing_currency' => 'DKK',
+            'tax_id' => 'DE123456789',
+            'tax_id_validated' => true,
+        ]);
+        ['plaintext' => $token] = ApiToken::issue('org_rc-sdk', 'org_rc');
+        $this->postJson('/api/v1/checkout-sessions', [
+            'org' => 'org_rc',
+            'plan' => 'starter',
+            'return_url' => 'https://merchant.example/done',
+        ], ['Authorization' => 'Bearer '.$token])->assertCreated();
+
+        $session = BillingSession::query()->where('organization_id', 'org_rc')->firstOrFail();
+
+        $this->postJson('/billing/checkout/'.$session->token.'/intent')
+            ->assertOk()
+            ->assertJsonPath('amount.minor', 29_000)
+            ->assertJsonPath('amount.currency', 'DKK');
     }
 
     public function test_a_requires_action_intent_does_not_activate(): void

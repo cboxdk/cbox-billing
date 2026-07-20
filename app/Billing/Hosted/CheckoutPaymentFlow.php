@@ -7,6 +7,7 @@ namespace App\Billing\Hosted;
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
 use App\Billing\Coupons\CouponDiscounter;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
+use App\Billing\Tax\TaxContextFactory;
 use App\Models\BillingSession;
 use App\Models\Coupon;
 use App\Models\Organization;
@@ -15,6 +16,8 @@ use Cbox\Billing\Money\Money;
 use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Cbox\Billing\Payment\ValueObjects\PaymentIntentRequest;
 use Cbox\Billing\Payment\ValueObjects\PaymentIntentResult;
+use Cbox\Billing\Quote\Contracts\QuoteBuilder;
+use Cbox\Billing\Quote\ValueObjects\LineInput;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -32,6 +35,11 @@ use RuntimeException;
  * hands back the resulting client secret. The intent's `account` is the org's gateway
  * customer id (`cus_…`), resolved once and reused via {@see ResolvesGatewayCustomer},
  * never the raw org id — so the gateway vaults against its own customer.
+ *
+ * The charged amount is the tax-aware GROSS: the plan price (less any promo) is run through
+ * the same engine {@see QuoteBuilder} + app {@see TaxContextFactory} the invoice path uses, so
+ * a taxable customer is charged VAT-inclusive gross exactly as the first invoice would bill —
+ * never bare net. The page displays the same gross (preview == charge).
  */
 readonly class CheckoutPaymentFlow
 {
@@ -40,6 +48,8 @@ readonly class CheckoutPaymentFlow
         private ResolvesAccountCurrency $currencies,
         private ResolvesGatewayCustomer $customers,
         private CouponDiscounter $coupons,
+        private QuoteBuilder $quotes,
+        private TaxContextFactory $taxContexts,
     ) {}
 
     public function intent(BillingSession $session): PaymentIntentResult
@@ -77,7 +87,10 @@ readonly class CheckoutPaymentFlow
         return $session->currency ?? $this->currencies->for($this->organization($session));
     }
 
-    /** The amount actually charged, net of the session's promo code — what the page displays. */
+    /**
+     * The tax-aware GROSS actually charged, net of the session's promo code — what the page
+     * displays. Preview == charge by construction: {@see intent()} charges this exact figure.
+     */
     public function price(BillingSession $session): Money
     {
         $plan = $this->plan($session);
@@ -87,23 +100,68 @@ readonly class CheckoutPaymentFlow
     }
 
     /**
-     * The plan price for this session's charge, discounted by its promo code through the
-     * engine applier ({@see CouponDiscounter}) when one is set and still valid — so the
-     * gateway charges exactly the discounted amount the page shows. An invalid/expired code
-     * is a no-op (full price), deny-by-default.
+     * The undiscounted list price as GROSS (the same tax context), for the struck-through
+     * "before" amount when a promo reduced the charge. Equal to {@see price()} when no promo
+     * applies, so the page shows no strikethrough.
+     */
+    public function listPrice(BillingSession $session): Money
+    {
+        $plan = $this->plan($session);
+        $currency = $this->currency($session);
+
+        return $this->grossOf($this->organization($session), [
+            new LineInput($plan->name, 1, $plan->priceFor($currency)),
+        ]);
+    }
+
+    /**
+     * The tax-aware GROSS this session's charge collects: the plan price discounted by its
+     * promo code through the engine applier ({@see CouponDiscounter}) when one is set and still
+     * valid, then taxed for the org's place of supply through the same {@see QuoteBuilder} the
+     * invoice path uses — so the gateway charges VAT-inclusive gross, matching what the first
+     * invoice bills (a non-taxable / reverse-charge / addressless org yields net). An
+     * invalid/expired code is a no-op (full price), deny-by-default.
      */
     private function amount(BillingSession $session, Plan $plan, string $currency): Money
     {
+        return $this->grossOf($this->organization($session), $this->lines($session, $plan, $currency));
+    }
+
+    /**
+     * Build the taxed lines for this checkout: the plan line at full net, plus a negated
+     * discount line (taxed at the same rate) when a valid promo applies — mirroring the
+     * invoice's discount-as-line shape so the checkout gross equals the invoice gross exactly.
+     *
+     * @return list<LineInput>
+     */
+    private function lines(BillingSession $session, Plan $plan, string $currency): array
+    {
         $full = $plan->priceFor($currency);
+        $lines = [new LineInput($plan->name, 1, $full)];
+
         $coupon = $this->coupon($session);
 
-        if (! $coupon instanceof Coupon) {
-            return $full;
+        if ($coupon instanceof Coupon) {
+            $discount = $this->coupons->forCoupon($coupon, $full, Carbon::now()->toDateTimeImmutable());
+
+            if ($discount !== null && $discount->amount->isPositive()) {
+                $lines[] = new LineInput(sprintf('Discount — %s', $coupon->code), 1, $discount->amount->negated());
+            }
         }
 
-        $discount = $this->coupons->forCoupon($coupon, $full, Carbon::now()->toDateTimeImmutable());
+        return $lines;
+    }
 
-        return $discount === null ? $full : $discount->discounted;
+    /**
+     * Run the given lines through the engine quote builder against the org's tax context and
+     * return the gross. A tax-pending org (no resolvable address) yields gross == net — the
+     * same amount the un-taxed path charged, so an addressless signup is unaffected.
+     *
+     * @param  list<LineInput>  $lines
+     */
+    private function grossOf(Organization $organization, array $lines): Money
+    {
+        return $this->quotes->build($lines, $this->taxContexts->forOrganization($organization))->totals->gross;
     }
 
     /** The session's promo coupon, or null when it carries none / an unknown code. */

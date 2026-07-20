@@ -51,7 +51,7 @@
                         @if ($search)
                             <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No experiments match “{{ $search }}”. Try a different term or clear the filter.</p></div>
                         @else
-                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'flask', 'size' => 18, 'sw' => 1.7])</div><h3>No experiments yet.</h3><p>Run a controlled A/B test on one of your <a href="{{ route('billing.pricing-tables') }}" style="color:var(--primary)">pricing tables</a> and measure conversion by variant. <a href="{{ route('billing.experiments.create') }}" style="color:var(--primary)">New experiment</a>.</p></div>
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'flask', 'size' => 18, 'sw' => 1.7])</div><h3>No experiments yet.</h3><p>Run a controlled A/B test on one of your <a href="{{ route('billing.pricing-tables') }}" class="cbx-link">pricing tables</a> and measure conversion by variant. <a href="{{ route('billing.experiments.create') }}" class="cbx-link">New experiment</a>.</p></div>
                         @endif
                     </td></tr>
                 @endforelse

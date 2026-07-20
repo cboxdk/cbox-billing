@@ -40,7 +40,7 @@
                         @if ($search)
                             <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No features match “{{ $search }}”. Try a different term or clear the filter.</p></div>
                         @else
-                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div><h3>No features yet.</h3><p>Create a boolean or config feature to gate a capability. <a href="{{ route('billing.features.create') }}" style="color:var(--primary)">New feature</a>.</p></div>
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div><h3>No features yet.</h3><p>Create a boolean or config feature to gate a capability. <a href="{{ route('billing.features.create') }}" class="cbx-link">New feature</a>.</p></div>
                         @endif
                     </td></tr>
                 @endforelse

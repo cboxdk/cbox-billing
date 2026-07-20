@@ -72,7 +72,7 @@
                         <td class="rowchev">@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])</td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'box', 'size' => 18, 'sw' => 1.7])</div><h3>No plans yet.</h3><p>Add a plan to price this product. <a href="{{ route('billing.plans.create') }}" style="color:var(--primary)">New plan</a>.</p></div></td></tr>
+                    <tr><td colspan="7" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'box', 'size' => 18, 'sw' => 1.7])</div><h3>No plans yet.</h3><p>Add a plan to price this product. <a href="{{ route('billing.plans.create') }}" class="cbx-link">New plan</a>.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>

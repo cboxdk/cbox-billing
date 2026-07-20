@@ -69,7 +69,7 @@
                         @if ($search)
                             <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No quotes match “{{ $search }}”. Try a different term or clear the filter.</p></div>
                         @else
-                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'receipt', 'size' => 18, 'sw' => 1.7])</div><h3>No quotes yet.</h3><p>Author a sales quote — line items, contract terms, and a branded order form your customer accepts. <a href="{{ route('billing.quotes.create') }}" style="color:var(--primary)">New quote</a>.</p></div>
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'receipt', 'size' => 18, 'sw' => 1.7])</div><h3>No quotes yet.</h3><p>Author a sales quote — line items, contract terms, and a branded order form your customer accepts. <a href="{{ route('billing.quotes.create') }}" class="cbx-link">New quote</a>.</p></div>
                         @endif
                     </td></tr>
                 @endforelse

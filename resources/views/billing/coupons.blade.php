@@ -45,7 +45,7 @@
                         @if ($search)
                             <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No coupons match “{{ $search }}”. Try a different term or clear the filter.</p></div>
                         @else
-                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'receipt', 'size' => 18, 'sw' => 1.7])</div><h3>No coupons yet.</h3><p>Create a coupon to offer a discount or promo code. <a href="{{ route('billing.coupons.create') }}" style="color:var(--primary)">New coupon</a>.</p></div>
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'receipt', 'size' => 18, 'sw' => 1.7])</div><h3>No coupons yet.</h3><p>Create a coupon to offer a discount or promo code. <a href="{{ route('billing.coupons.create') }}" class="cbx-link">New coupon</a>.</p></div>
                         @endif
                     </td></tr>
                 @endforelse

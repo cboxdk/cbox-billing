@@ -106,7 +106,7 @@
                         <td class="right"><a class="cbx-btn cbx-btn--sm" href="{{ route('billing.import.runs.show', $run->id) }}">Log</a></td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="mut" style="text-align:center;padding:20px">No imports yet.</td></tr>
+                    <tr><td colspan="6" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'box', 'size' => 18, 'sw' => 1.7])</div><h3>No imports yet</h3><p>Start a dry-run above to preview what a source export would import, then commit it.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>

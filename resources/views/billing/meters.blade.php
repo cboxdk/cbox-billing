@@ -40,7 +40,7 @@
                         @if ($search)
                             <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No meters match “{{ $search }}”. Try a different term or clear the filter.</p></div>
                         @else
-                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'gauge', 'size' => 18, 'sw' => 1.7])</div><h3>No meters yet.</h3><p>Create a meter to bill a usage dimension. <a href="{{ route('billing.meters.create') }}" style="color:var(--primary)">New meter</a>.</p></div>
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'gauge', 'size' => 18, 'sw' => 1.7])</div><h3>No meters yet.</h3><p>Create a meter to bill a usage dimension. <a href="{{ route('billing.meters.create') }}" class="cbx-link">New meter</a>.</p></div>
                         @endif
                     </td></tr>
                 @endforelse

@@ -22,6 +22,8 @@
 
 @section('screen')
 <div class="page">
+    <x-back-button :href="route('billing.experiments')" label="Back to experiments" />
+
     <header class="cbx-page-header">
         <div>
             <h1 class="cbx-page-title" style="font-size:20px;display:flex;align-items:center;gap:10px">
@@ -31,7 +33,7 @@
             <p class="cbx-page-desc" style="font-size:13px">
                 {{ $experiment->key }} · optimising <strong>{{ $experiment->primary_metric->label() }}</strong>
                 @if ($experiment->pricingTable)
-                    · on <a href="{{ route('billing.pricing-tables.show', $experiment->pricingTable->id) }}" style="color:var(--primary)">/pricing/{{ $experiment->pricingTable->key }}</a>
+                    · on <a href="{{ route('billing.pricing-tables.show', $experiment->pricingTable->id) }}" class="cbx-link">/pricing/{{ $experiment->pricingTable->key }}</a>
                 @endif
             </p>
         </div>
@@ -59,7 +61,7 @@
     @if ($experiment->status === ExperimentStatus::Concluded)
         <section class="cbx-panel" style="padding:14px 20px;border-left:3px solid var(--info)">
             @if ($experiment->promotedVariant)
-                <p style="font-size:13px">Concluded — <strong>{{ $experiment->promotedVariant->label }}</strong> was promoted. <a href="{{ $publicUrl ?? '#' }}" style="color:var(--primary)">/pricing/{{ $experiment->pricingTable?->key }}</a> now serves its table.</p>
+                <p style="font-size:13px">Concluded — <strong>{{ $experiment->promotedVariant->label }}</strong> was promoted. <a href="{{ $publicUrl ?? '#' }}" class="cbx-link">/pricing/{{ $experiment->pricingTable?->key }}</a> now serves its table.</p>
             @else
                 <p style="font-size:13px">Concluded with no winner — the pricing page serves its base table.</p>
             @endif

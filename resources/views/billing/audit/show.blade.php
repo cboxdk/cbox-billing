@@ -18,6 +18,8 @@
 
 @section('screen')
 <div class="page">
+    <x-back-button :href="route('billing.audit')" label="Back to audit log" />
+
     <header class="cbx-page-header">
         <div>
             <h1 class="cbx-page-title" style="font-size:20px">{{ $event->action }}</h1>

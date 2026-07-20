@@ -47,7 +47,7 @@
                         <option value="{{ $meter->id }}" @selected($curMeter === (string) $meter->id)>{{ $meter->name }} ({{ $meter->key }}) · {{ $meter->unit }}</option>
                     @endforeach
                 </select>
-                @if ($meters->isEmpty())<span class="mut" style="font-size:11px">No meters yet — <a href="{{ route('billing.meters.create') }}" style="color:var(--primary)">create one</a> first.</span>@endif
+                @if ($meters->isEmpty())<span class="mut" style="font-size:11px">No meters yet — <a href="{{ route('billing.meters.create') }}" class="cbx-link">create one</a> first.</span>@endif
             </label>
 
             <div style="display:flex;gap:18px;flex-wrap:wrap">

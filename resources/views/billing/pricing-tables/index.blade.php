@@ -48,7 +48,7 @@
                         @if ($search)
                             <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No pricing tables match “{{ $search }}”. Try a different term or clear the filter.</p></div>
                         @else
-                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'grid', 'size' => 18, 'sw' => 1.7])</div><h3>No pricing tables yet.</h3><p>Author an embeddable pricing table your marketing site can drop in. <a href="{{ route('billing.pricing-tables.create') }}" style="color:var(--primary)">New pricing table</a>.</p></div>
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'grid', 'size' => 18, 'sw' => 1.7])</div><h3>No pricing tables yet.</h3><p>Author an embeddable pricing table your marketing site can drop in. <a href="{{ route('billing.pricing-tables.create') }}" class="cbx-link">New pricing table</a>.</p></div>
                         @endif
                     </td></tr>
                 @endforelse

@@ -71,7 +71,7 @@
                                 <td>@if ($col->featured)<span class="cbx-pill cbx-pill--success"><span class="dot"></span>yes</span>@else<span class="mut">no</span>@endif</td>
                             </tr>
                         @empty
-                            <tr><td colspan="3" class="mut" style="padding:14px 20px">No plan columns yet — <a href="{{ route('billing.pricing-tables.edit', $table->id) }}" style="color:var(--primary)">add some</a>.</td></tr>
+                            <tr><td colspan="3" class="mut" style="padding:14px 20px">No plan columns yet — <a href="{{ route('billing.pricing-tables.edit', $table->id) }}" class="cbx-link">add some</a>.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -102,7 +102,7 @@
                         <textarea readonly rows="1" onclick="this.select()" aria-label="script embed snippet"
                             style="width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;border:1px solid var(--border);border-radius:8px;background:var(--secondary);color:var(--foreground);padding:10px">{{ $scriptSnippet }}</textarea>
                     </div>
-                    <p class="mut" style="font-size:11px;margin:0">Public page: <a href="{{ $publicUrl }}" target="_blank" rel="noopener" style="color:var(--primary)">{{ $publicUrl }}</a></p>
+                    <p class="mut" style="font-size:11px;margin:0">Public page: <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="cbx-link">{{ $publicUrl }}</a></p>
                 </div>
             </div>
         </section>

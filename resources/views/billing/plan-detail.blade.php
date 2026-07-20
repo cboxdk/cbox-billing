@@ -93,7 +93,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'wallet', 'size' => 18, 'sw' => 1.7])</div><h3>No prices yet.</h3><p>Add a per-currency price so this plan can be sold. <a href="{{ route('billing.catalog.prices.create') }}" style="color:var(--primary)">New price</a>.</p></div></td></tr>
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'wallet', 'size' => 18, 'sw' => 1.7])</div><h3>No prices yet.</h3><p>Add a per-currency price so this plan can be sold. <a href="{{ route('billing.catalog.prices.create') }}" class="cbx-link">New price</a>.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -130,7 +130,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'gauge', 'size' => 18, 'sw' => 1.7])</div><h3>No entitlements yet.</h3><p>Add a metered allowance per meter. <a href="{{ route('billing.plans.entitlements.create', $pl['id']) }}" style="color:var(--primary)">Add entitlement</a>.</p></div></td></tr>
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'gauge', 'size' => 18, 'sw' => 1.7])</div><h3>No entitlements yet.</h3><p>Add a metered allowance per meter. <a href="{{ route('billing.plans.entitlements.create', $pl['id']) }}" class="cbx-link">Add entitlement</a>.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -163,7 +163,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div><h3>No feature grants yet.</h3><p>Grant a boolean/config feature with this plan. <a href="{{ route('billing.plans.features.create', $pl['id']) }}" style="color:var(--primary)">Add feature grant</a>.</p></div></td></tr>
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'shield', 'size' => 18, 'sw' => 1.7])</div><h3>No feature grants yet.</h3><p>Grant a boolean/config feature with this plan. <a href="{{ route('billing.plans.features.create', $pl['id']) }}" class="cbx-link">Add feature grant</a>.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -196,7 +196,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'wallet', 'size' => 18, 'sw' => 1.7])</div><h3>No credit grants yet.</h3><p>Grant recurring or one-time credits with this plan. <a href="{{ route('billing.plans.credit-grants.create', $pl['id']) }}" style="color:var(--primary)">Add credit grant</a>.</p></div></td></tr>
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'wallet', 'size' => 18, 'sw' => 1.7])</div><h3>No credit grants yet.</h3><p>Grant recurring or one-time credits with this plan. <a href="{{ route('billing.plans.credit-grants.create', $pl['id']) }}" class="cbx-link">Add credit grant</a>.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>

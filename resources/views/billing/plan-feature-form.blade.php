@@ -45,7 +45,7 @@
                         <option value="{{ $feature->id }}" @selected($curFeature === (string) $feature->id)>{{ $feature->name }} ({{ $feature->key }}) · {{ $feature->type->value }}</option>
                     @endforeach
                 </select>
-                @if ($features->isEmpty())<span class="mut" style="font-size:11px">No features yet — <a href="{{ route('billing.features.create') }}" style="color:var(--primary)">create one</a> first.</span>@endif
+                @if ($features->isEmpty())<span class="mut" style="font-size:11px">No features yet — <a href="{{ route('billing.features.create') }}" class="cbx-link">create one</a> first.</span>@endif
             </label>
 
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500">

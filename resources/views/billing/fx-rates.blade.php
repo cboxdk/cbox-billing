@@ -49,7 +49,7 @@
                         <td class="num mut">{{ $rate->asOf->format('Y-m-d') }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="mut" style="text-align:center;padding:20px">No rates yet. Run a refresh to pull the ECB feed, or add an override below.</td></tr>
+                    <tr><td colspan="5" style="padding:0"><div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'activity', 'size' => 18, 'sw' => 1.7])</div><h3>No rates yet</h3><p>Run a refresh to pull the ECB feed, or add an override below.</p></div></td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -48,7 +48,7 @@
                         @if ($search)
                             <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'search', 'size' => 18, 'sw' => 1.7])</div><h3>No matches</h3><p>No products match “{{ $search }}”. Try a different term or clear the filter.</p></div>
                         @else
-                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'box', 'size' => 18, 'sw' => 1.7])</div><h3>No products yet.</h3><p>Create a product to group the plans you sell. <a href="{{ route('billing.products.create') }}" style="color:var(--primary)">New product</a>.</p></div>
+                            <div class="cbx-empty"><div class="cbx-empty-icon">@include('partials.icon', ['name' => 'box', 'size' => 18, 'sw' => 1.7])</div><h3>No products yet.</h3><p>Create a product to group the plans you sell. <a href="{{ route('billing.products.create') }}" class="cbx-link">New product</a>.</p></div>
                         @endif
                     </td></tr>
                 @endforelse

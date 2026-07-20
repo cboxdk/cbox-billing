@@ -85,7 +85,11 @@
             <div><h2 class="cbx-panel-title" style="font-size:14px">Recent warehouse sync runs</h2><p class="cbx-panel-desc" style="font-size:12px">The delivery log from scheduled + on-demand warehouse syncs</p></div>
         </header>
         @if ($runs->isEmpty())
-            <p class="mut" style="padding:24px;text-align:center">No sync runs yet. Configure a <a href="{{ route('billing.exports.warehouse') }}">warehouse sink</a> to start delivering.</p>
+            <div class="cbx-empty">
+                <div class="cbx-empty-icon">@include('partials.icon', ['name' => 'box', 'size' => 18, 'sw' => 1.7])</div>
+                <h3>No sync runs yet</h3>
+                <p>Configure a <a href="{{ route('billing.exports.warehouse') }}" class="cbx-link">warehouse sink</a> to start delivering datasets on a schedule.</p>
+            </div>
         @else
             <table class="tbl">
                 <thead><tr><th>Dataset</th><th>Status</th><th class="right">Rows</th><th class="right">Bytes</th><th>Partition</th><th>When</th></tr></thead>

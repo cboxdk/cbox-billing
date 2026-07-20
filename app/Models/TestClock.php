@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use App\Billing\TestMode\Enums\TestChargeOutcome;
 use App\Billing\TestMode\TestClockAdvancer;
 use Carbon\CarbonImmutable;
@@ -20,9 +21,12 @@ use Illuminate\Support\Carbon;
  * time. `charge_outcome` fixes whether the fake gateway settles or declines the bound
  * subscriptions' charges — the deterministic switch that drives the dunning flow on demand.
  *
- * A clock is a test-only object (there is no "live clock"), so it carries no plane scope of
- * its own — it is always `livemode = false` and reached only through the operator console or a
- * test-mode API token. Its bound {@see Subscription}s, by contrast, ARE plane-scoped.
+ * A clock is a test-only object (there is no "live clock"), always `livemode = false`, reached
+ * only through the operator console or a test-mode API token. It IS plane-scoped, though: via
+ * {@see BelongsToEnvironment} a clock belongs to ONE environment, so a clock created in a named
+ * sandbox advances THAT sandbox's subscriptions (and a named-sandbox token can only reach its own
+ * clocks) rather than every sandbox collapsing to the default. Its bound {@see Subscription}s are
+ * plane-scoped the same way.
  *
  * `organization_id` optionally scopes the clock to one org: the programmatic advance asserts the
  * caller may act for it, so an org-scoped test token cannot fast-forward another org's clock. A
@@ -31,6 +35,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property string $name
  * @property string|null $organization_id
+ * @property string $environment
  * @property Carbon $now_at
  * @property string $charge_outcome
  * @property bool $livemode
@@ -38,6 +43,8 @@ use Illuminate\Support\Carbon;
  */
 class TestClock extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['name', 'organization_id', 'now_at', 'charge_outcome', 'created_by_sub'];
 
     /** @return array<string, string> */

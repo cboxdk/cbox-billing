@@ -121,10 +121,13 @@ class BillingContext implements BillingClock
     }
 
     /**
-     * Run `$callback` as if it were the SANDBOX plane at exactly `$virtualNow`, restoring the
-     * prior plane and virtual time afterwards (even on throw). This is how the test-clock advancer
-     * steps the world to each due instant: the due-logic run inside sees `now()` = the step time
-     * and the sandbox plane, so it processes only sandbox rows and writes sandbox rows.
+     * Run `$callback` at exactly `$virtualNow` in the CURRENT plane, restoring the prior virtual
+     * time afterwards (even on throw). This is how the test-clock advancer steps the world to each
+     * due instant: the due-logic run inside sees `now()` = the step time and the ACTIVE sandbox
+     * plane the advance is running in — so a clock bound to a NAMED sandbox processes and writes
+     * that sandbox's rows, rather than being forced onto the default sandbox (where its
+     * subscriptions are invisible). The caller is already in the clock's plane (set by the API
+     * token / console), so this only fixes the virtual clock; it must NOT override the plane.
      *
      * @template T
      *
@@ -133,16 +136,13 @@ class BillingContext implements BillingClock
      */
     public function runAtVirtualTime(CarbonImmutable $virtualNow, Closure $callback): mixed
     {
-        $previous = $this->environment;
         $previousVirtual = $this->virtualNow;
 
-        $this->environment = Environment::defaultSandbox();
         $this->virtualNow = $virtualNow;
 
         try {
             return $callback();
         } finally {
-            $this->environment = $previous;
             $this->virtualNow = $previousVirtual;
         }
     }

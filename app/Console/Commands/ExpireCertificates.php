@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Billing\Tax\Exemptions\ExemptionStatus;
+use App\Billing\Tax\Exemptions\Enums\ExemptionStatus;
 use App\Models\TaxExemptionCertificate;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;

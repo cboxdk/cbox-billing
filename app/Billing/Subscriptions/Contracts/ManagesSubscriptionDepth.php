@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Subscriptions\Contracts;
 
+use App\Billing\Subscriptions\ValueObjects\AddOnPreview;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
 use App\Billing\Subscriptions\ValueObjects\QuantityPreview;
 use App\Models\Plan;
@@ -43,10 +44,8 @@ interface ManagesSubscriptionDepth
      * The prorated consequence of attaching `$request` — the add-on's charge for the days
      * still to run (aligned to the base period or its own independent cycle) and the
      * credit allotment it would grant — WITHOUT attaching it (preview == charge).
-     *
-     * @return array{charge_minor: int, gross_minor: int, currency: string, allotment: int, alignment: string, period_end: string}
      */
-    public function previewAddOn(Subscription $subscription, AddOnRequest $request): array;
+    public function previewAddOn(Subscription $subscription, AddOnRequest $request): AddOnPreview;
 
     /** Attach (or replace) the add-on: persist it, charge the prorated amount, grant its allotment. */
     public function addAddOn(Subscription $subscription, AddOnRequest $request): SubscriptionAddOn;

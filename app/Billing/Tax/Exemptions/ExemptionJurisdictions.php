@@ -10,7 +10,7 @@ namespace App\Billing\Tax\Exemptions;
  * option for government/federal grounds; a small set of country codes covers the generic
  * non-US path. The stored value is what {@see TaxExemptionCertificate::coversPlace()} matches.
  */
-final class ExemptionJurisdictions
+class ExemptionJurisdictions
 {
     /** ISO 3166-2 subdivision code (bare, without the `US-` prefix) => state name. */
     private const US_STATES = [

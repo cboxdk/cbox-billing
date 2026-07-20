@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Billing\Tax\Exemptions;
+namespace App\Billing\Tax\Exemptions\Enums;
 
 /**
  * The kind of tax exemption a certificate evidences. US B2B sales tax recognises a handful

@@ -393,14 +393,14 @@ class SubscriptionController extends ApiController
         );
 
         if ($request->boolean('preview')) {
-            return new JsonResponse($depth->previewAddOn($subscription, $addOnRequest));
+            return new JsonResponse($depth->previewAddOn($subscription, $addOnRequest)->toArray());
         }
 
         $preview = $depth->previewAddOn($subscription, $addOnRequest);
         $addOn = $depth->addAddOn($subscription, $addOnRequest);
 
         return new JsonResponse([
-            'preview' => $preview,
+            'preview' => $preview->toArray(),
             'add_on' => $this->presentAddOn($addOn),
         ], Response::HTTP_CREATED);
     }

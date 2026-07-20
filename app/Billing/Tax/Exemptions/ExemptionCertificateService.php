@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Tax\Exemptions;
 
+use App\Billing\Tax\Exemptions\Enums\ExemptionStatus;
 use App\Models\Organization;
 use App\Models\TaxExemptionCertificate;
 use Illuminate\Contracts\Filesystem\Filesystem;

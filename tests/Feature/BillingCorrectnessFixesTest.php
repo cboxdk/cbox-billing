@@ -295,7 +295,7 @@ class BillingCorrectnessFixesTest extends TestCase
         );
 
         $preview = app(ManagesSubscriptionDepth::class)->previewAddOn($sub->fresh()->loadMissing('plan', 'organization'), $request);
-        $this->assertSame(6_000, $preview['charge_minor']); // full period ahead ⇒ full price
+        $this->assertSame(6_000, $preview->charge->minor()); // full period ahead ⇒ full price
 
         app(ManagesSubscriptionDepth::class)->addAddOn($sub->fresh()->loadMissing('plan', 'organization'), $request);
 
@@ -366,12 +366,12 @@ class BillingCorrectnessFixesTest extends TestCase
         $preview = $depth->previewAddOn($sub->fresh()->loadMissing('plan', 'organization'), $request);
 
         // NET 6 000 (full period ahead); GROSS 6 000 + 25% VAT = 7 500 (preview == charge).
-        $this->assertSame(6_000, $preview['charge_minor']);
-        $this->assertSame(7_500, $preview['gross_minor']);
+        $this->assertSame(6_000, $preview->charge->minor());
+        $this->assertSame(7_500, $preview->grossDueNow->minor());
 
         $depth->addAddOn($sub->fresh()->loadMissing('plan', 'organization'), $request);
         $invoice = Invoice::query()->where('subscription_id', $sub->id)->whereNull('period_start')->latest('id')->firstOrFail();
-        $this->assertSame($preview['gross_minor'], $invoice->total_minor);
+        $this->assertSame($preview->grossDueNow->minor(), $invoice->total_minor);
         $this->assertSame(6_000, $invoice->subtotal_minor);
 
         Carbon::setTestNow();

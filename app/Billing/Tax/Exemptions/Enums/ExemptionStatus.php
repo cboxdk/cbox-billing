@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Billing\Tax\Exemptions;
+namespace App\Billing\Tax\Exemptions\Enums;
 
 /**
  * The lifecycle state of an exemption certificate. Deny-by-default: only {@see Verified}

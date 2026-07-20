@@ -98,12 +98,12 @@ readonly class CycleRenewalService
         // concurrent RenewSubscriptionJobs serialize on the claim, and the loser re-reads the
         // now-advanced period and finds nothing due — so the period advance is exactly-once,
         // the durable backstop being the (subscription, period) unique invoice guard (H4).
-        $outcome = $this->db->transaction(function () use ($subscription, $plan, $org, $now, $nowMs): array {
+        $outcome = $this->db->transaction(function () use ($subscription, $plan, $org, $now, $nowMs): RenewalOutcome {
             $this->claim($subscription);
 
             // Re-check deny-by-default against the freshly-read row.
             if ($subscription->isPaused() || $subscription->status === SubscriptionStatus::Canceled) {
-                return ['kind' => 'skipped'];
+                return RenewalOutcome::skipped();
             }
 
             $periodEnd = $subscription->current_period_end;
@@ -119,7 +119,7 @@ readonly class CycleRenewalService
                     'canceled_at' => $this->nowCarbon(),
                 ])->save();
 
-                return ['kind' => 'canceled'];
+                return RenewalOutcome::canceled();
             }
 
             // Deny-by-default (ADR-0016): never renew — and so never charge — a subscription
@@ -127,7 +127,7 @@ readonly class CycleRenewalService
             // `billing:migrate-retiring-plans` before renewal; any left on a past-cutoff plan
             // at its boundary is unresolved and must be surfaced, not billed on the retired plan.
             if ($baseDue && $plan->isRetiredAt($now)) {
-                return ['kind' => 'skipped'];
+                return RenewalOutcome::skipped();
             }
 
             // 1. Grant every recurring slice of the CURRENT period that has vested by now.
@@ -153,14 +153,14 @@ readonly class CycleRenewalService
             //    independent one its own cycle — each idempotent on its resolved boundary.
             $addOnsRenewed = $this->renewAddOns($subscription, $basePeriod, $now);
 
-            return ['kind' => 'processed', 'baseRenewed' => $baseRenewed, 'addOnsRenewed' => $addOnsRenewed];
+            return RenewalOutcome::processed($baseRenewed, $addOnsRenewed, null);
         });
 
-        if ($outcome['kind'] === 'skipped') {
+        if ($outcome->skipped) {
             return RenewalOutcome::skipped();
         }
 
-        if ($outcome['kind'] === 'canceled') {
+        if ($outcome->canceled) {
             // Churn recorded as the scheduled cancel lands: contributing MRR moves amount → 0.
             $this->movements->record($subscription, $previousMrr, $this->movements->contributing($subscription));
 
@@ -173,14 +173,14 @@ readonly class CycleRenewalService
         // completes a missing invoice for a period a PRIOR renewal advanced into — both via
         // the same idempotent issuance (H4), so the leaked period is picked up on the next
         // daily pass rather than waiting for the monthly invoicing run.
-        $invoice = $outcome['baseRenewed']
+        $invoice = $outcome->baseRenewed
             ? $this->invoiceRenewal($subscription, true)
             : $this->completeLeakedRenewalInvoice($subscription);
 
         // A real cycle rollover is an accountable system action: record it under the `system`
         // actor (this runs unattended in the scheduled RenewSubscriptionJob), so an advanced
         // period + its renewal invoice are on the tamper-evident trail like any operator change.
-        if ($outcome['baseRenewed']) {
+        if ($outcome->baseRenewed) {
             $this->audit->record(
                 AuditAction::SubscriptionRenewed,
                 AuditTarget::model($subscription->refresh()),
@@ -188,14 +188,14 @@ readonly class CycleRenewalService
                 [
                     'period_end' => $subscription->current_period_end?->toDateTimeImmutable()->format(DateTimeImmutable::ATOM),
                     'invoice' => $invoice?->number,
-                    'add_ons_renewed' => $outcome['addOnsRenewed'],
+                    'add_ons_renewed' => $outcome->addOnsRenewed,
                 ],
             );
         }
 
         return RenewalOutcome::processed(
-            $outcome['baseRenewed'],
-            $outcome['addOnsRenewed'],
+            $outcome->baseRenewed,
+            $outcome->addOnsRenewed,
             $invoice,
         );
     }

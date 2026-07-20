@@ -6,8 +6,8 @@ namespace Tests\Feature;
 
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
-use App\Billing\Tax\Exemptions\ExemptionStatus;
-use App\Billing\Tax\Exemptions\ExemptionType;
+use App\Billing\Tax\Exemptions\Enums\ExemptionStatus;
+use App\Billing\Tax\Exemptions\Enums\ExemptionType;
 use App\Billing\Tax\TaxContextFactory;
 use App\Models\Organization;
 use App\Models\Plan;

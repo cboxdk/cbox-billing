@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Billing\Tax\Exemptions\ExemptionStatus;
-use App\Billing\Tax\Exemptions\ExemptionType;
+use App\Billing\Tax\Exemptions\Enums\ExemptionStatus;
+use App\Billing\Tax\Exemptions\Enums\ExemptionType;
 use Cbox\Geo\ValueObjects\Jurisdiction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;

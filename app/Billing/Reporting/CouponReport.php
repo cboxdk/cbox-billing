@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Reporting;
 
+use App\Billing\Coupons\Enums\CouponDiscountKind;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\Coupon;
 use App\Models\CouponRedemption;
@@ -106,7 +107,7 @@ readonly class CouponReport
     /** A human discount summary, e.g. "20% off" or "25.00 kr. off". */
     private function discountSummary(Coupon $coupon): string
     {
-        if ($coupon->discountKind()->value === 'percent') {
+        if ($coupon->discountKind() === CouponDiscountKind::Percent) {
             return sprintf('%d%% off', (int) ($coupon->percent_off ?? 0));
         }
 

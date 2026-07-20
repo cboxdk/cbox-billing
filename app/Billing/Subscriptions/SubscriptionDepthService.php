@@ -11,6 +11,7 @@ use App\Billing\Reporting\SubscriptionMrrMovementRecorder;
 use App\Billing\Subscriptions\Contracts\CollectsProration;
 use App\Billing\Subscriptions\Contracts\ManagesSubscriptionDepth;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
+use App\Billing\Subscriptions\ValueObjects\AddOnPreview;
 use App\Billing\Subscriptions\ValueObjects\AddOnRequest;
 use App\Billing\Subscriptions\ValueObjects\QuantityPreview;
 use App\Billing\Wallet\WalletProvisioner;
@@ -157,7 +158,7 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         return $preview;
     }
 
-    public function previewAddOn(Subscription $subscription, AddOnRequest $request): array
+    public function previewAddOn(Subscription $subscription, AddOnRequest $request): AddOnPreview
     {
         $addOn = $this->engineAddOn($request);
         $basePeriod = $this->basePeriod($subscription);
@@ -167,17 +168,15 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
         $allotment = $addOn->grantedAllotment($basePeriod, $at, CreditGrantMode::Prorated);
         $period = $addOn->periodFor($basePeriod, $at);
 
-        return [
-            // The NET proration the engine computed (what the collector feeds the invoicer).
-            'charge_minor' => $charge->minor(),
+        return new AddOnPreview(
+            charge: $charge,
             // The tax-aware GROSS actually collected (the net taxed through the same quote the
-            // apply path issues) — the "Due now" a preview must show so it equals the charge.
-            'gross_minor' => $this->grossDueNow($subscription, $charge)->minor(),
-            'currency' => $charge->currency(),
-            'allotment' => $allotment,
-            'alignment' => $request->alignment->value,
-            'period_end' => $period->end->format(DateTimeImmutable::ATOM),
-        ];
+            // apply path issues) — so the "Due now" a preview shows equals the charge.
+            grossDueNow: $this->grossDueNow($subscription, $charge),
+            allotment: $allotment,
+            alignment: $request->alignment,
+            periodEnd: $period->end,
+        );
     }
 
     public function addAddOn(Subscription $subscription, AddOnRequest $request): SubscriptionAddOn

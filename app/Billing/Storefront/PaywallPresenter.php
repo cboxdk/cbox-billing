@@ -14,6 +14,7 @@ use App\Models\Meter;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Models\PlanPrice;
+use Cbox\Billing\Subscription\Enums\BillingInterval;
 
 /**
  * Resolves a drop-in paywall panel (#57): when a feature or metered-limit gate blocks, this turns
@@ -119,7 +120,7 @@ readonly class PaywallPresenter
             return [null, null];
         }
 
-        $per = $plan->billingInterval()->value === 'yearly' ? '/yr' : '/mo';
+        $per = $plan->billingInterval() === BillingInterval::Yearly ? '/yr' : '/mo';
 
         return [MoneyFormatter::minor($price->price_minor, $price->currency), $per];
     }

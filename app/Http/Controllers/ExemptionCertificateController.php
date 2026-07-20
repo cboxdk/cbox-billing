@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Auth\CurrentUser;
+use App\Billing\Tax\Exemptions\Enums\ExemptionStatus;
+use App\Billing\Tax\Exemptions\Enums\ExemptionType;
 use App\Billing\Tax\Exemptions\ExemptionCertificateService;
 use App\Billing\Tax\Exemptions\ExemptionJurisdictions;
-use App\Billing\Tax\Exemptions\ExemptionStatus;
-use App\Billing\Tax\Exemptions\ExemptionType;
 use App\Models\Organization;
 use App\Models\TaxExemptionCertificate;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;

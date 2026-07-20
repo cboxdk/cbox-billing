@@ -194,9 +194,9 @@ class SubscriptionOpsController extends Controller
             ],
             'stats' => [
                 // The tax-aware GROSS the apply will collect (preview == charge), not bare net.
-                ['label' => 'Charge now', 'value' => MoneyFormatter::minor($preview['gross_minor'], $preview['currency'])],
-                ['label' => 'Credit allotment', 'value' => (string) $preview['allotment']],
-                ['label' => 'Alignment', 'value' => $preview['alignment']],
+                ['label' => 'Charge now', 'value' => MoneyFormatter::minor($preview->grossDueNow->minor(), $preview->charge->currency())],
+                ['label' => 'Credit allotment', 'value' => (string) $preview->allotment],
+                ['label' => 'Alignment', 'value' => $preview->alignment->value],
             ],
         ]);
     }

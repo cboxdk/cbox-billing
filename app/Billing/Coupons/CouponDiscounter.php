@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Coupons;
 
 use App\Billing\Coupons\Contracts\DiscountsAmounts;
+use App\Billing\Coupons\Enums\CouponDiscountKind;
 use App\Billing\Coupons\ValueObjects\CouponDiscount;
 use App\Models\Coupon;
 use App\Models\SubscriptionCoupon;
@@ -86,7 +87,7 @@ readonly class CouponDiscounter implements DiscountsAmounts
 
     private function couponLabel(Coupon $coupon): string
     {
-        if ($coupon->discountKind()->value === 'percent') {
+        if ($coupon->discountKind() === CouponDiscountKind::Percent) {
             return sprintf('%s (%d%% off)', $coupon->code, (int) ($coupon->percent_off ?? 0));
         }
 

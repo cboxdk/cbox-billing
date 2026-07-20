@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Billing\Tax\Exemptions\ExemptionStatus;
+use App\Billing\Tax\Exemptions\Enums\ExemptionStatus;
 use App\Models\ApiToken;
 use App\Models\BillingSession;
 use App\Models\Organization;

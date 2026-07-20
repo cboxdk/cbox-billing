@@ -5,27 +5,23 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Hosted;
 
 use App\Billing\Account\Contracts\ResolvesAccountCurrency;
-use App\Billing\Coupons\Contracts\DiscountsAmounts;
 use App\Billing\Coupons\Contracts\RedeemsCoupons;
 use App\Billing\Coupons\Exceptions\CouponRedemptionDenied;
 use App\Billing\Hosted\Contracts\ManagesBillingSessions;
 use App\Billing\Hosted\Enums\SessionType;
 use App\Billing\Hosted\PortalBillingHistory;
+use App\Billing\Hosted\PortalPresenter;
 use App\Billing\Invoicing\InvoicePdfRenderer;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Notifications\Contracts\ManagesNotificationPreferences;
 use App\Billing\Notifications\MailEventType;
-use App\Billing\Reporting\UsageReport;
 use App\Billing\Retention\Contracts\ManagesRetention;
 use App\Billing\Retention\Enums\CancellationMode;
 use App\Billing\Retention\ValueObjects\CancellationRequest;
 use App\Billing\Retirement\PlanRetirementService;
 use App\Billing\Seats\Contracts\ManagesSeats;
 use App\Billing\Seats\Exceptions\SeatException;
-use App\Billing\Seats\ValueObjects\SeatBreakdown;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
-use App\Billing\Subscriptions\ValueObjects\QuantityPreview;
-use App\Billing\Support\MoneyFormatter;
 use App\Billing\Tax\Exemptions\Enums\ExemptionType;
 use App\Billing\Tax\Exemptions\ExemptionCertificateService;
 use App\Billing\Tax\Exemptions\ExemptionJurisdictions;
@@ -41,14 +37,10 @@ use Cbox\Billing\Payment\ValueObjects\PaymentMethod;
 use Cbox\Billing\Payment\ValueObjects\SetupIntentRequest;
 use Cbox\Billing\Retention\Contracts\CancellationSurvey;
 use Cbox\Billing\Retention\Contracts\RetentionOffers;
-use Cbox\Billing\Subscription\PlanChange\PlanChangePreview;
-use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -77,8 +69,7 @@ class PortalController extends HostedController
         private readonly CancellationSurvey $survey,
         private readonly RetentionOffers $offers,
         private readonly RedeemsCoupons $coupons,
-        private readonly DiscountsAmounts $discounter,
-        private readonly UsageReport $usage,
+        private readonly PortalPresenter $presenter,
         private readonly ManagesSeats $seats,
         private readonly PortalBillingHistory $history,
         private readonly ManagesNotificationPreferences $notifications,
@@ -100,8 +91,8 @@ class PortalController extends HostedController
             'organization' => $organization,
             'currency' => $currency,
             'subscription' => $subscription,
-            'plans' => $this->availablePlans($currency, $subscription),
-            'invoices' => $this->invoices($session->organization_id),
+            'plans' => $this->presenter->availablePlans($currency, $subscription),
+            'invoices' => $this->presenter->invoices($session->organization_id),
             'methods' => $this->gateway->paymentMethods($organization->id),
             // The sunset notice (ADR-0016) and the retention seam the cancel UI renders from.
             'sunset' => $subscription instanceof Subscription ? $this->retirements->noticeFor($subscription) : null,
@@ -109,7 +100,7 @@ class PortalController extends HostedController
             'offers' => $this->saveOffers($session->organization_id, $subscription),
             // Usage & consumption for the current period (same readers the enforcer uses),
             // shown only for a metered plan.
-            'usage' => $this->usageMeters($organization),
+            'usage' => $this->presenter->usageMeters($organization),
             // Purchased + assigned seats (only for a seat-driving subscription).
             'seats' => $subscription instanceof Subscription ? $this->seats->breakdown($subscription) : null,
             // The broad billing history (invoices, receipts, credit notes, coupons).
@@ -203,7 +194,7 @@ class PortalController extends HostedController
             return $couponError;
         }
 
-        return new JsonResponse($this->presentPreview($this->subscriptions->previewChange($subscription, $plan), $coupon));
+        return new JsonResponse($this->presenter->presentPreview($this->subscriptions->previewChange($subscription, $plan), $coupon));
     }
 
     /** `POST` — apply the plan change (the same consequence {@see preview()} reported). */
@@ -229,7 +220,7 @@ class PortalController extends HostedController
             $this->coupons->redeem($coupon, $subscription);
         }
 
-        return new JsonResponse($this->presentPreview($preview, $coupon));
+        return new JsonResponse($this->presenter->presentPreview($preview, $coupon));
     }
 
     /**
@@ -430,7 +421,7 @@ class PortalController extends HostedController
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        return new JsonResponse($this->presentSeatPreview($preview));
+        return new JsonResponse($this->presenter->presentSeatPreview($preview));
     }
 
     /**
@@ -452,7 +443,7 @@ class PortalController extends HostedController
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        return new JsonResponse($this->presentSeats($subscription->refresh()));
+        return new JsonResponse($this->presenter->presentSeats($subscription->refresh()));
     }
 
     /**
@@ -476,7 +467,7 @@ class PortalController extends HostedController
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        return new JsonResponse($this->presentSeats($subscription));
+        return new JsonResponse($this->presenter->presentSeats($subscription));
     }
 
     /** `POST` {subject} — free a member's seat (they become Light); the purchased count is unchanged. */
@@ -492,7 +483,7 @@ class PortalController extends HostedController
 
         $this->seats->unassign($subscription->organization_id, $request->string('subject')->toString());
 
-        return new JsonResponse($this->presentSeats($subscription));
+        return new JsonResponse($this->presenter->presentSeats($subscription));
     }
 
     /**
@@ -653,175 +644,6 @@ class PortalController extends HostedController
             ->serving()
             ->latest('current_period_start')
             ->first();
-    }
-
-    /**
-     * The active plans the org can move to, priced in its currency (excluding its current
-     * plan). A plan not priced in the currency is omitted, deny-by-default.
-     *
-     * @return list<array{key: string, name: string, price: string, minor: int}>
-     */
-    private function availablePlans(string $currency, ?Subscription $subscription): array
-    {
-        $currentKey = $subscription?->plan?->key;
-
-        return array_values(Plan::query()
-            ->with('prices')
-            ->where('active', true)
-            ->orderBy('id')
-            ->get()
-            ->filter(static fn (Plan $plan): bool => $plan->key !== $currentKey && $plan->prices->contains('currency', $currency))
-            ->map(static function (Plan $plan) use ($currency): array {
-                $price = $plan->priceFor($currency);
-
-                return [
-                    'key' => $plan->key,
-                    'name' => $plan->name,
-                    'price' => MoneyFormatter::money($price),
-                    'minor' => $price->minor(),
-                ];
-            })
-            ->all());
-    }
-
-    /** @return Collection<int, Invoice> */
-    private function invoices(string $org): Collection
-    {
-        return Invoice::query()
-            ->where('organization_id', $org)
-            ->orderByDesc('issued_at')
-            ->orderByDesc('id')
-            ->limit(24)
-            ->get();
-    }
-
-    /** @return array<string, mixed> */
-    private function presentPreview(PlanChangePreview $preview, ?Coupon $coupon = null): array
-    {
-        $currency = $preview->newRecurring->currency();
-        $dueNowMinor = $preview->dueNowQuote?->totals->gross->minor() ?? 0;
-
-        return [
-            'due_now_minor' => $dueNowMinor,
-            // Preformatted server-side through the single money seam, so the client never
-            // re-derives an amount with a hardcoded /100 + locale (wrong for JPY/ISK & co.).
-            'due_now' => MoneyFormatter::minor($dueNowMinor, $currency),
-            'new_recurring_minor' => $preview->newRecurring->minor(),
-            'new_recurring' => MoneyFormatter::money($preview->newRecurring),
-            'currency' => $currency,
-            'effective_at' => $preview->effectiveAt->format(DateTimeImmutable::ATOM),
-            'coupon' => $this->presentPreviewCoupon($preview, $coupon),
-        ];
-    }
-
-    /**
-     * The promo block on a plan-change preview: the recurring net after the coupon (through
-     * the engine applier) — what renewals of the new plan will bill. Null when no code.
-     *
-     * @return array<string, mixed>|null
-     */
-    private function presentPreviewCoupon(PlanChangePreview $preview, ?Coupon $coupon): ?array
-    {
-        if (! $coupon instanceof Coupon) {
-            return null;
-        }
-
-        $discount = $this->discounter->forCoupon($coupon, $preview->newRecurring, Carbon::now()->toDateTimeImmutable());
-        $discounted = $discount === null ? $preview->newRecurring : $discount->discounted;
-
-        return [
-            'code' => $coupon->code,
-            'duration' => $coupon->duration,
-            'new_recurring_minor' => $discounted->minor(),
-            'new_recurring' => MoneyFormatter::money($discounted),
-            'discount_minor' => $discount === null ? 0 : $discount->amount->minor(),
-        ];
-    }
-
-    /**
-     * The current-period usage-against-allowance for the org, filtered to the ENABLED metered
-     * dimensions — the same {@see UsageReport} the console renders and the enforcement path
-     * reads (one source of truth). Returns null for a flat/un-metered plan so the whole section
-     * is hidden rather than shown empty.
-     *
-     * @return array<string, mixed>|null
-     */
-    private function usageMeters(Organization $organization): ?array
-    {
-        $report = $this->usage->forOrganization($organization);
-        $meters = $report['meters'] ?? [];
-
-        if (! is_array($meters)) {
-            return null;
-        }
-
-        $metered = [];
-
-        foreach ($meters as $meter) {
-            if (is_array($meter) && ($meter['enabled'] ?? false)) {
-                $metered[] = $meter;
-            }
-        }
-
-        if ($metered === []) {
-            return null;
-        }
-
-        return [
-            'period_start' => is_string($report['period_start'] ?? null) ? $report['period_start'] : '',
-            'period_end' => is_string($report['period_end'] ?? null) ? $report['period_end'] : '',
-            'meters' => $metered,
-        ];
-    }
-
-    /**
-     * The seat breakdown in the portal's JSON/display shape.
-     *
-     * @return array<string, mixed>
-     */
-    private function presentSeats(Subscription $subscription): array
-    {
-        return $this->seatShape($this->seats->breakdown($subscription));
-    }
-
-    /** @return array<string, mixed> */
-    private function seatShape(SeatBreakdown $breakdown): array
-    {
-        return [
-            'purchased' => $breakdown->purchased,
-            'assigned' => $breakdown->assigned,
-            'free' => $breakdown->free(),
-            'full_count' => $breakdown->fullCount(),
-            'light_count' => $breakdown->lightCount(),
-            'full' => $breakdown->full,
-            'light' => $breakdown->light,
-            'assignable' => $breakdown->assignable,
-        ];
-    }
-
-    /**
-     * The prorated seat-change preview: the amount due now on a buy (a reduction credits and
-     * owes nothing now), server-preformatted through the single money seam.
-     *
-     * @return array<string, mixed>
-     */
-    private function presentSeatPreview(QuantityPreview $preview): array
-    {
-        $currency = $preview->charge->currency();
-        $credit = $preview->isCredit();
-        // The tax-aware GROSS actually collected (preview == charge); zero on a credit.
-        $dueNowMinor = $preview->grossDueNow->minor();
-
-        return [
-            'from_seats' => $preview->fromSeats,
-            'to_seats' => $preview->toSeats,
-            'is_credit' => $credit,
-            'due_now_minor' => $dueNowMinor,
-            'due_now' => MoneyFormatter::minor($dueNowMinor, $currency),
-            // The signed NET proration (negative when a reduction credits the wallet).
-            'charge' => MoneyFormatter::money($preview->charge),
-            'currency' => $currency,
-        ];
     }
 
     /**

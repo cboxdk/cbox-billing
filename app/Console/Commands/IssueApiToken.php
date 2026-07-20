@@ -62,6 +62,7 @@ class IssueApiToken extends Command
         $this->line('  '.$plaintext);
         $this->newLine();
         $this->warn('Store it now — only a hash is kept, it cannot be shown again.');
+        $this->line('Set it as <options=bold>BILLING_CLIENT_API_TOKEN</> in the consuming app.');
 
         return self::SUCCESS;
     }

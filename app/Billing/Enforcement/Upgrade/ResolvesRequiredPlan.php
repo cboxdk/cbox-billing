@@ -149,7 +149,7 @@ readonly class ResolvesRequiredPlan
         $subscription = Subscription::query()
             ->with(['plan.prices', 'plan.product'])
             ->where('organization_id', $org)
-            ->where('status', 'active')
+            ->serving()
             ->latest('current_period_start')
             ->first();
 

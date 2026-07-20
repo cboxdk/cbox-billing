@@ -249,8 +249,7 @@ readonly class SubscriptionDepthService implements ManagesSubscriptionDepth
             ->whereNotNull('pending_plan_id')
             ->whereNotNull('pending_effective_at')
             ->where('pending_effective_at', '<=', $now)
-            ->where('status', 'active')
-            ->whereNull('paused_at')
+            ->serving()
             ->with(['plan.product', 'organization'])
             ->get();
 

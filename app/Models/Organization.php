@@ -117,11 +117,16 @@ class Organization extends Model
         return $this->hasMany(TaxExemptionCertificate::class);
     }
 
-    /** The organization's single active subscription, if any. */
+    /**
+     * The organization's single serving subscription, if any — resolved through the
+     * canonical {@see Subscription::scopeServing()} seam so it matches exactly the
+     * subscription enforcement entitles (trialing/past-due/non-renewing included,
+     * paused excluded), never a narrower `status = active` slice.
+     */
     public function activeSubscription(): ?Subscription
     {
         return $this->subscriptions()
-            ->where('status', 'active')
+            ->serving()
             ->latest('current_period_start')
             ->first();
     }

@@ -293,7 +293,23 @@ class SubscriptionController extends ApiController
     /** `POST /api/v1/subscriptions/{org}/resume` — lift a pause. */
     public function resume(Request $request, string $org, ManagesSubscriptionDepth $depth): JsonResponse
     {
-        return $this->onActive($request, $org, static fn (Subscription $s): Subscription => $depth->resume($s));
+        if ($denied = $this->denyUnlessMayActFor($request, $org)) {
+            return $denied;
+        }
+
+        if ($denied = $this->denyUnlessMayUseOrgProduct($request, $org)) {
+            return $denied;
+        }
+
+        // Resume acts on a PAUSED subscription, which the serving() seam excludes by
+        // design — resolve the paused row directly rather than the serving lookup.
+        $subscription = $this->pausedSubscription($org);
+
+        if (! $subscription instanceof Subscription) {
+            return $this->notFound('This organization has no paused subscription.');
+        }
+
+        return new JsonResponse($this->present($depth->resume($subscription)->refresh()));
     }
 
     /**
@@ -449,7 +465,21 @@ class SubscriptionController extends ApiController
         return Subscription::query()
             ->with(['plan', 'pendingPlan', 'addOns'])
             ->where('organization_id', $org)
-            ->where('status', 'active')
+            ->serving()
+            ->latest('current_period_start')
+            ->first();
+    }
+
+    /**
+     * The org's paused subscription, if any — the lookup {@see resume()} uses, since a
+     * paused row is by definition not serving and so is invisible to {@see activeSubscription()}.
+     */
+    private function pausedSubscription(string $org): ?Subscription
+    {
+        return Subscription::query()
+            ->with(['plan', 'pendingPlan', 'addOns'])
+            ->where('organization_id', $org)
+            ->whereNotNull('paused_at')
             ->latest('current_period_start')
             ->first();
     }

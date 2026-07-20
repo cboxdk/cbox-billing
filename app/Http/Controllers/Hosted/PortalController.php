@@ -626,7 +626,7 @@ class PortalController extends HostedController
         return Subscription::query()
             ->with(['plan.defaultSuccessor', 'plan.prices', 'pendingPlan', 'organization'])
             ->where('organization_id', $org)
-            ->where('status', 'active')
+            ->serving()
             ->latest('current_period_start')
             ->first();
     }

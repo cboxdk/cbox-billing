@@ -55,6 +55,18 @@ class BillingContext implements BillingClock
         $this->environment = $environment;
     }
 
+    /**
+     * Reset to the DB-free production default — no resolved plane, no virtual clock. The queue
+     * worker calls this before each job (defense-in-depth) so a plane a prior job left set on the
+     * long-lived singleton can never leak into the next job; a job that needs a specific plane sets
+     * it itself (e.g. via {@see runInEnvironment()} from the reference's owning plane).
+     */
+    public function reset(): void
+    {
+        $this->environment = null;
+        $this->virtualNow = null;
+    }
+
     /** The legacy plane enum for the active environment (production → live, sandbox → test). */
     public function mode(): BillingMode
     {

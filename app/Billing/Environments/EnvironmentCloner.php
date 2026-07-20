@@ -49,11 +49,12 @@ use Illuminate\Support\Facades\DB;
  * credit notes, the ledger, wallet, dunning STATE, redemptions, licenses, webhook deliveries,
  * experiment impressions/conversions. The clone starts with an EMPTY BOOK: just config.
  *
- * GATEWAY SECRETS: payment-gateway credentials are environment-variable-based, never stored in
- * the DB (see SettingsController), so there is no secret row to copy. The clone is created with
- * `gateway_key_mode = test`, so it routes through the fake gateway until the operator sets its
- * own test keys — no live secret can ever leak into a clone. (Should a DB-backed gateway secret
- * ever be introduced, it must be blanked here.)
+ * GATEWAY SECRETS: per-environment gateway credentials DO live in the DB now
+ * (`environment_gateways`, encrypted at rest), but that table is DELIBERATELY EXCLUDED from the
+ * config-copy surface — the cloner replicates only the catalog / branding / templates / storefront
+ * / experiments-config / dunning-strategies / coupons models, never gateway credentials. The clone
+ * is created with `gateway_key_mode = test`, so it routes through the fake gateway until the
+ * operator sets its OWN test keys — no source secret can ever leak into a clone.
  *
  * DENY-BY-DEFAULT: refuses to target the reserved production key, an invalid key, or an
  * existing environment (a re-clone is refused, never a silent overwrite). The whole copy runs in

@@ -43,8 +43,10 @@ use Illuminate\Support\Facades\DB;
  *  - **idempotent** — re-promoting an unchanged selection writes nothing;
  *  - **one transaction, audit-logged** — a successful apply records one `config.promoted` event.
  *
- * Never promotes transactional/tenant data (only the config surface of {@see ConfigSurface}) and
- * never copies gateway live secrets (they are env-var based, never DB rows).
+ * Never promotes transactional/tenant data (only the config surface of {@see ConfigSurface}). The
+ * per-environment gateway credentials in `environment_gateways` (encrypted DB rows) are DELIBERATELY
+ * EXCLUDED from the promotable surface — a promotion never copies a plane's gateway secrets, so a
+ * source plane's keys can never cross into the target.
  */
 class ConfigPromotion implements PromotesConfig
 {

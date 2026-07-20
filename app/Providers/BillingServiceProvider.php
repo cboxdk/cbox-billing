@@ -171,6 +171,7 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -272,6 +273,17 @@ class BillingServiceProvider extends ServiceProvider
         // the refund flow fires CreditNoteIssued after drawing the number and posting the
         // reversal, and the listener writes the app's record surface from it.
         Event::listen(CreditNoteIssued::class, [PersistIssuedCreditNote::class, 'handle']);
+
+        // Plane-leak backstop (defense-in-depth): the BillingContext is a long-lived singleton on a
+        // queue worker, so a plane a prior job resolved (and failed to restore) could otherwise
+        // linger into the next job. Reset it to the production default both between jobs
+        // (Queue::looping) and immediately before each job runs (JobProcessing) — a job that needs a
+        // specific plane sets it itself from its own reference/owning plane.
+        $resetPlane = static function (): void {
+            app(BillingContext::class)->reset();
+        };
+        Queue::looping($resetPlane);
+        Queue::before($resetPlane);
 
         // Keep the meter-policy resolver's per-request memoization (PERF-2) correct: any write
         // to a subscription, a plan entitlement or the meter catalog can change what a meter

@@ -1,0 +1,190 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature;
+
+use App\Billing\Cpq\Enums\QuoteStatus;
+use App\Models\OperatorAuditEvent;
+use App\Models\Plan;
+use App\Models\PlanPrice;
+use App\Models\Product;
+use App\Models\Quote;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * The Quotes console: authoring persists + lists; the approval threshold routes an above-threshold
+ * quote to pending_approval and the send gate holds until it is approved; approve → send mints the
+ * order-form token; the permission gates (`quotes:manage` / `quotes:approve`) and audit logging
+ * hold.
+ */
+class QuoteConsoleTest extends TestCase
+{
+    use RefreshDatabase;
+
+    /** @var array<string, mixed> */
+    private array $session = ['auth.user' => [
+        'sub' => 'demo|rep', 'name' => 'Rep One', 'email' => 'rep@example.test', 'org' => 'Cbox Systems', 'picture' => null,
+    ]];
+
+    private function plan(): Plan
+    {
+        $product = Product::query()->create(['key' => 'cpq-prod', 'name' => 'CPQ Product', 'shape' => 'recurring']);
+        $plan = Plan::query()->create(['product_id' => $product->id, 'key' => 'cpq-seat', 'name' => 'Seat Plan', 'interval' => 'month', 'active' => true]);
+        PlanPrice::query()->create(['plan_id' => $plan->id, 'currency' => 'DKK', 'price_minor' => 20000, 'pricing_model' => 'per_unit']);
+
+        return $plan;
+    }
+
+    /** @return array<string, mixed> */
+    private function payload(Plan $plan): array
+    {
+        return [
+            'currency' => 'DKK',
+            'term_count' => 12,
+            'term_unit' => 'month',
+            'billing_interval' => 'monthly',
+            'prospect_name' => 'Acme Corp',
+            'minimum_commitment' => '3000.00',
+            'lines' => [
+                ['type' => 'plan', 'plan_id' => $plan->id, 'quantity' => 25],
+                ['type' => 'custom', 'description' => 'Onboarding', 'quantity' => 1, 'unit_amount' => '15000.00', 'recurring' => '0'],
+            ],
+        ];
+    }
+
+    public function test_authoring_persists_a_two_line_quote_and_lists_it(): void
+    {
+        $plan = $this->plan();
+
+        $this->withSession($this->session)->post('/quotes', $this->payload($plan))->assertRedirect();
+
+        $quote = Quote::query()->latest('id')->firstOrFail();
+        $this->assertSame(2, $quote->lines()->count());
+        $this->assertSame('Acme Corp', $quote->prospect_name);
+        $this->assertSame(300000, $quote->minimum_commitment_minor);
+
+        $this->withSession($this->session)->get('/quotes')->assertOk()->assertSee($quote->number);
+    }
+
+    public function test_above_threshold_quote_routes_to_pending_approval_and_cannot_be_sent(): void
+    {
+        $plan = $this->plan();
+        $this->withSession($this->session)->post('/quotes', $this->payload($plan))->assertRedirect();
+        $quote = Quote::query()->latest('id')->firstOrFail();
+
+        // 25 × 200.00 + 15000.00 one-off = 20000.00 net; +25% VAT well above the 5000.00 default floor.
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/submit")->assertRedirect();
+        $quote->refresh();
+        $this->assertSame(QuoteStatus::PendingApproval, $quote->status);
+        $this->assertTrue($quote->approval_required);
+
+        // The send GATE: a pending quote cannot be sent — it stays pending, no token is minted.
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/send")->assertRedirect();
+        $quote->refresh();
+        $this->assertSame(QuoteStatus::PendingApproval, $quote->status);
+        $this->assertNull($quote->token);
+    }
+
+    public function test_approve_then_send_mints_the_order_form_and_is_audit_logged(): void
+    {
+        $plan = $this->plan();
+        $this->withSession($this->session)->post('/quotes', $this->payload($plan))->assertRedirect();
+        $quote = Quote::query()->latest('id')->firstOrFail();
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/submit")->assertRedirect();
+
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/approve")->assertRedirect();
+        $quote->refresh();
+        $this->assertSame(QuoteStatus::Approved, $quote->status);
+        $this->assertSame('Rep One', $quote->approved_by_name);
+
+        $this->assertSame(1, OperatorAuditEvent::query()->where('action', 'quote.approved')->count());
+
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/send")->assertRedirect();
+        $quote->refresh();
+        $this->assertSame(QuoteStatus::Sent, $quote->status);
+        $this->assertNotNull($quote->token);
+    }
+
+    public function test_below_threshold_quote_is_auto_approved_on_submit(): void
+    {
+        $plan = $this->plan();
+        // A single small line below the 5000.00 default amount floor and under the 25% discount gate.
+        $this->withSession($this->session)->post('/quotes', [
+            'currency' => 'DKK', 'term_count' => 12, 'term_unit' => 'month', 'billing_interval' => 'monthly',
+            'prospect_name' => 'Small Co',
+            'lines' => [['type' => 'plan', 'plan_id' => $plan->id, 'quantity' => 1]],
+        ])->assertRedirect();
+        $quote = Quote::query()->latest('id')->firstOrFail();
+
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/submit")->assertRedirect();
+        $quote->refresh();
+        $this->assertSame(QuoteStatus::Approved, $quote->status);
+        $this->assertFalse($quote->approval_required);
+    }
+
+    public function test_the_manage_permission_gates_authoring(): void
+    {
+        config()->set('billing.rbac.enforce', true);
+        $plan = $this->plan();
+
+        $readOnly = ['auth.user' => [
+            'sub' => 'demo|viewer', 'name' => 'Viewer', 'email' => 'v@example.test', 'org' => 'org_hverdag',
+            'picture' => null, 'permissions' => ['quotes:read'],
+        ]];
+
+        $this->withSession($readOnly)->post('/quotes', $this->payload($plan))->assertStatus(403);
+        $this->assertSame(0, Quote::query()->count());
+    }
+
+    public function test_the_approve_permission_is_distinct_from_manage(): void
+    {
+        config()->set('billing.rbac.enforce', true);
+        $plan = $this->plan();
+
+        $manager = ['auth.user' => [
+            'sub' => 'demo|mgr', 'name' => 'Manager', 'email' => 'm@example.test', 'org' => 'org_hverdag',
+            'picture' => null, 'permissions' => ['quotes:read', 'quotes:manage'],
+        ]];
+
+        // A manager can author + submit...
+        $this->withSession($manager)->post('/quotes', $this->payload($plan))->assertRedirect();
+        $quote = Quote::query()->latest('id')->firstOrFail();
+        $this->withSession($manager)->post("/quotes/{$quote->id}/submit")->assertRedirect();
+
+        // ...but cannot approve (needs quotes:approve).
+        $this->withSession($manager)->post("/quotes/{$quote->id}/approve")->assertStatus(403);
+        $this->assertSame(QuoteStatus::PendingApproval, $quote->refresh()->status);
+    }
+
+    public function test_the_console_pages_render(): void
+    {
+        $plan = $this->plan();
+        $this->withSession($this->session)->post('/quotes', $this->payload($plan))->assertRedirect();
+        $quote = Quote::query()->latest('id')->firstOrFail();
+
+        $this->withSession($this->session)->get("/quotes/{$quote->id}")->assertOk()->assertSee($quote->number)->assertSee('Committed value');
+        $this->withSession($this->session)->get("/quotes/{$quote->id}/edit")->assertOk()->assertSee('Line items');
+        $this->withSession($this->session)->get('/quotes/approvals')->assertOk()->assertSee('Approval queue');
+
+        // Clone starts a fresh draft.
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/clone")->assertRedirect();
+        $this->assertSame(2, Quote::query()->count());
+    }
+
+    public function test_a_provisioned_quote_cannot_be_edited(): void
+    {
+        $plan = $this->plan();
+        $this->withSession($this->session)->post('/quotes', [
+            'currency' => 'DKK', 'term_count' => 12, 'term_unit' => 'month', 'billing_interval' => 'monthly',
+            'prospect_name' => 'Edit Co',
+            'lines' => [['type' => 'plan', 'plan_id' => $plan->id, 'quantity' => 1]],
+        ])->assertRedirect();
+        $quote = Quote::query()->latest('id')->firstOrFail();
+        $this->withSession($this->session)->post("/quotes/{$quote->id}/submit")->assertRedirect();
+
+        // Approved is no longer a draft — editing is refused.
+        $this->withSession($this->session)->get("/quotes/{$quote->id}/edit")->assertRedirect(route('billing.quotes.show', $quote->id));
+    }
+}

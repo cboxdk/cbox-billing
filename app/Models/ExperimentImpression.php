@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -15,9 +16,13 @@ use Illuminate\Support\Carbon;
  * `visitor_id` is an opaque, random anonymous id (a cookie), never a customer identifier; the
  * row holds no PII.
  *
+ * Plane-scoped (via {@see BelongsToEnvironment}): a metric row lives in its experiment's plane, so
+ * a sandbox reset zeroes the counters while keeping the (config) experiment.
+ *
  * @property int $id
  * @property int $experiment_id
  * @property int $experiment_variant_id
+ * @property string $environment
  * @property string $visitor_id
  * @property Carbon $first_seen_at
  * @property Carbon $created_at
@@ -25,6 +30,8 @@ use Illuminate\Support\Carbon;
  */
 class ExperimentImpression extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'experiment_id', 'experiment_variant_id', 'visitor_id', 'first_seen_at',
     ];

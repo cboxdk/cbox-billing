@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Billing\Coupons\Enums\CouponDiscountKind;
 use App\Billing\Coupons\Enums\CouponDuration;
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Cbox\Billing\Money\Money;
 use Cbox\Billing\Pricing\Enums\DiscountType;
 use Cbox\Billing\Pricing\ValueObjects\Coupon as EngineCoupon;
@@ -22,9 +23,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `repeating` at N, `forever` is null (unbounded). The invoicer decrements it per issued
  * period invoice; a binding with `remaining_periods = 0` no longer discounts.
  *
+ * Plane-scoped (via {@see BelongsToEnvironment}): a binding lives in the same environment as its
+ * subscription, so a sandbox reset removes it with the book rather than leaving a dead binding.
+ *
  * @property int $id
  * @property int $subscription_id
  * @property int $coupon_id
+ * @property string $environment
  * @property string $code
  * @property string $discount_type
  * @property int|null $percent_off
@@ -35,6 +40,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class SubscriptionCoupon extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'subscription_id', 'coupon_id', 'code', 'discount_type', 'percent_off',
         'amount_off_minor', 'currency', 'duration', 'remaining_periods',

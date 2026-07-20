@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Billing\Experiments\Enums\ExperimentMetric;
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -20,9 +21,13 @@ use Illuminate\Support\Carbon;
  *
  * Privacy: `visitor_id` is the same opaque anonymous cookie id as the impression; no PII.
  *
+ * Plane-scoped (via {@see BelongsToEnvironment}): a metric row lives in its experiment's plane, so
+ * a sandbox reset zeroes the counters while keeping the (config) experiment.
+ *
  * @property int $id
  * @property int $experiment_id
  * @property int $experiment_variant_id
+ * @property string $environment
  * @property string $visitor_id
  * @property ExperimentMetric $kind
  * @property string|null $billing_session_id
@@ -32,6 +37,8 @@ use Illuminate\Support\Carbon;
  */
 class ExperimentConversion extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'experiment_id', 'experiment_variant_id', 'visitor_id', 'kind', 'billing_session_id', 'converted_at',
     ];

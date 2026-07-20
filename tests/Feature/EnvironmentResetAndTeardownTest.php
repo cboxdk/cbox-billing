@@ -10,10 +10,17 @@ use App\Billing\Environments\Contracts\ResetsEnvironments;
 use App\Billing\Environments\Exceptions\EnvironmentProtectedException;
 use App\Billing\Environments\Gateways\EnvironmentGatewayStore;
 use App\Billing\Mode\BillingContext;
+use App\Models\Coupon;
 use App\Models\Environment;
+use App\Models\Experiment;
+use App\Models\ExperimentConversion;
+use App\Models\ExperimentImpression;
+use App\Models\ExperimentVariant;
 use App\Models\Organization;
 use App\Models\Plan;
+use App\Models\PricingTable;
 use App\Models\Subscription;
+use App\Models\SubscriptionCoupon;
 use Cbox\Billing\Subscription\Enums\SubscriptionStatus;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\EnvironmentSeeder;
@@ -121,6 +128,42 @@ class EnvironmentResetAndTeardownTest extends TestCase
             $this->assertSame(0, Subscription::query()->count());
             // The reseed re-copied production's config, so the local divergence is gone.
             $this->assertNotSame('Sandbox-only edit', Plan::query()->where('key', 'starter')->firstOrFail()->name);
+        });
+    }
+
+    public function test_reset_leaves_no_dead_coupon_binding_or_stale_experiment_counts(): void
+    {
+        $this->sandboxWithBook('acme-test');
+
+        $this->inEnvironment('acme-test', function (): void {
+            // A durable coupon binding on the sandbox's subscription.
+            $subscription = Subscription::query()->firstOrFail();
+            $coupon = Coupon::query()->create([
+                'code' => 'SAVE20', 'discount_type' => 'percent', 'percent_off' => 20, 'duration' => 'forever',
+            ]);
+            SubscriptionCoupon::query()->create([
+                'subscription_id' => $subscription->id, 'coupon_id' => $coupon->id, 'code' => 'SAVE20',
+                'discount_type' => 'percent', 'percent_off' => 20, 'duration' => 'forever', 'remaining_periods' => null,
+            ]);
+
+            // A running experiment (config) with impression + conversion counters (transactional).
+            $table = PricingTable::query()->create(['key' => 'pt1', 'name' => 'PT', 'default_currency' => 'DKK']);
+            $experiment = Experiment::query()->create(['key' => 'exp1', 'name' => 'Exp', 'status' => 'running', 'pricing_table_id' => $table->id]);
+            $variant = ExperimentVariant::query()->create(['experiment_id' => $experiment->id, 'label' => 'A', 'is_control' => true]);
+            ExperimentImpression::query()->create(['experiment_id' => $experiment->id, 'experiment_variant_id' => $variant->id, 'visitor_id' => 'v1', 'first_seen_at' => now()]);
+            ExperimentConversion::query()->create(['experiment_id' => $experiment->id, 'experiment_variant_id' => $variant->id, 'visitor_id' => 'v1', 'kind' => 'checkout_completed', 'converted_at' => now()]);
+        });
+
+        app(ResetsEnvironments::class)->reset($this->environment('acme-test'));
+
+        $this->inEnvironment('acme-test', function (): void {
+            // The coupon binding is gone with the wiped subscription — no dead binding survives.
+            $this->assertSame(0, SubscriptionCoupon::query()->count(), 'coupon binding wiped');
+            // The A/B counters are zeroed …
+            $this->assertSame(0, ExperimentImpression::query()->count(), 'impressions wiped');
+            $this->assertSame(0, ExperimentConversion::query()->count(), 'conversions wiped');
+            // … but the experiment itself (config) survives the reset.
+            $this->assertSame(1, Experiment::query()->count(), 'the experiment config survives');
         });
     }
 

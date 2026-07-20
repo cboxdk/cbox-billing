@@ -65,9 +65,11 @@ readonly class EnvironmentDataMap
     {
         return [
             // Tenant + subscription book.
-            'organizations', 'subscriptions', 'invoices', 'credit_notes', 'refunds',
+            'organizations', 'subscriptions', 'subscription_coupons', 'invoices', 'credit_notes', 'refunds',
             'coupon_redemptions', 'seat_assignments', 'wallet_adjustments', 'payment_retries',
             'issued_licenses', 'license_revocations',
+            // A/B experiment metrics (transactional counters; the experiments themselves are config).
+            'experiment_impressions', 'experiment_conversions',
             // Webhook deliveries + dedup/settlement stores (endpoints themselves are config).
             'webhook_deliveries', 'webhook_processed_events', 'settled_payments',
             // Hosted sessions, quotes, exemptions, per-org overrides + leases.

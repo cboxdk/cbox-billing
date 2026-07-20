@@ -58,6 +58,13 @@ interface NotifiesCustomers
     public function renewalReminder(Subscription $subscription): void;
 
     /**
+     * Metered usage crossed `$thresholdPercent`% of the included allowance for `$meterName` →
+     * warn the customer (optional courtesy mail; suppressed when the account opts out). The
+     * amounts are pre-formatted for display; `$periodEndLabel` is when the allowance resets.
+     */
+    public function usageAlert(Organization $organization, string $meterName, int $thresholdPercent, int $usagePercent, string $usedFormatted, string $allowanceFormatted, string $periodEndLabel): void;
+
+    /**
      * A plan change / cancellation → confirm it. `$changeType` is `plan_change`, `canceled`
      * or `cancel_scheduled`.
      */

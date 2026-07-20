@@ -162,4 +162,18 @@ return [
             .$summaryClose
             .'{{#if default_successor_name }}'.$note('Hvis du ikke foretager dig noget, flytter vi dig til <strong>{{ default_successor_name }}</strong> ved din næste fornyelse. Du kan også vælge en anden plan eller opsige fra din betalingsportal inden da.').'{{else}}'.$note('Vælg venligst en ny plan fra din betalingsportal inden {{ renewal_due_label }} — dit abonnement kan ikke fornyes på den udgåede plan.').'{{/if}}',
     ],
+
+    'usage_alert' => [
+        'subject' => 'Du har brugt {{ usage_percent }}% af din {{ meter_name }}-kvote',
+        'body' => $eyebrow('Forbrugsvarsel').$heading('Du nærmer dig din {{ meter_name }}-grænse')
+            .$p('Hej {{ organization_name }},')
+            .$p('Dit {{ meter_name }}-forbrug har nået {{ threshold_percent }}% af det, der er inkluderet i din plan denne periode. Når du overskrider den inkluderede kvote, kan yderligere forbrug blive faktureret som overforbrug.')
+            .$summaryOpen
+            .$row('Målt forbrug', '{{ meter_name }}')
+            .$row('Brugt indtil nu', '{{ used_formatted }}')
+            .$row('Inkluderet kvote', '{{ allowance_formatted }}')
+            .$total('Aktuelt forbrug', '{{ usage_percent }}%')
+            .$summaryClose
+            .$note('Din kvote nulstilles den {{ period_end_label }}. Du kan altid se dit forbrug i din betalingsportal.'),
+    ],
 ];

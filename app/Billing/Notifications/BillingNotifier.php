@@ -22,6 +22,7 @@ use App\Mail\RenewalReminderMail;
 use App\Mail\SubscriptionChangedMail;
 use App\Mail\TransactionalMailable;
 use App\Mail\TrialEndingMail;
+use App\Mail\UsageAlertMail;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -234,6 +235,21 @@ readonly class BillingNotifier implements NotifiesCustomers
             renewsAtLabel: $this->date($subscription->current_period_end, $locale),
             amountFormatted: $this->recurringAmount($plan, $currency, $locale),
         ), 'renewal.reminder', $subscription->organization_id, MailEventType::RenewalReminder);
+    }
+
+    public function usageAlert(Organization $organization, string $meterName, int $thresholdPercent, int $usagePercent, string $usedFormatted, string $allowanceFormatted, string $periodEndLabel): void
+    {
+        $locale = $this->localeFor($organization, null);
+
+        $this->send($organization, null, $locale, new UsageAlertMail(
+            organizationName: $organization->name,
+            meterName: $meterName,
+            thresholdPercent: $thresholdPercent,
+            usagePercent: $usagePercent,
+            usedFormatted: $usedFormatted,
+            allowanceFormatted: $allowanceFormatted,
+            periodEndLabel: $periodEndLabel,
+        ), 'usage.alert', $organization->id, MailEventType::UsageAlert);
     }
 
     public function subscriptionChanged(Subscription $subscription, string $changeType, ?string $previousPlanName = null): void

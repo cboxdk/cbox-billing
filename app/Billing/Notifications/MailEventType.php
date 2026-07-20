@@ -28,6 +28,7 @@ enum MailEventType: string
     case SubscriptionChanged = 'subscription_changed';
     case LicenseDelivered = 'license_delivered';
     case PlanRetiring = 'plan_retiring';
+    case UsageAlert = 'usage_alert';
 
     /** @return list<self> */
     public static function all(): array
@@ -46,7 +47,7 @@ enum MailEventType: string
     public function isOptional(): bool
     {
         return match ($this) {
-            self::RenewalReminder, self::TrialEnding, self::PaymentReceipt => true,
+            self::RenewalReminder, self::TrialEnding, self::PaymentReceipt, self::UsageAlert => true,
             default => false,
         };
     }
@@ -84,6 +85,7 @@ enum MailEventType: string
             self::SubscriptionChanged => 'Subscription changed',
             self::LicenseDelivered => 'License delivered',
             self::PlanRetiring => 'Plan retiring',
+            self::UsageAlert => 'Usage alert',
         };
     }
 
@@ -99,6 +101,7 @@ enum MailEventType: string
             self::SubscriptionChanged => 'Confirms a plan change, scheduled cancellation, or cancellation.',
             self::LicenseDelivered => 'Delivers an issued/reissued on-prem license key and install notes.',
             self::PlanRetiring => 'Warns a subscriber their plan is retiring and a choice is due at renewal.',
+            self::UsageAlert => 'Warns a subscriber their metered usage has crossed a threshold of its included allowance (optional).',
         };
     }
 
@@ -181,6 +184,15 @@ enum MailEventType: string
                 'retires_at_label' => ['description' => 'When the plan retires', 'sample' => '1 Sep 2026'],
                 'renewal_due_label' => ['description' => 'The next renewal — the deadline to choose', 'sample' => '1 Aug 2026'],
                 'default_successor_name' => ['description' => 'The default plan they fall to (may be empty)', 'sample' => 'Team'],
+            ],
+            self::UsageAlert => [
+                'organization_name' => ['description' => "The customer organization's name", 'sample' => 'Northwind Traders'],
+                'meter_name' => ['description' => 'The metered dimension that crossed the threshold', 'sample' => 'API requests'],
+                'threshold_percent' => ['description' => 'The included-allowance threshold that was crossed', 'sample' => 80],
+                'usage_percent' => ['description' => 'Current usage as a percent of the included allowance', 'sample' => 84],
+                'used_formatted' => ['description' => 'Units used so far this period', 'sample' => '8,400 requests'],
+                'allowance_formatted' => ['description' => 'The included allowance for the period', 'sample' => '10,000 requests'],
+                'period_end_label' => ['description' => 'When the current period (and the allowance) resets', 'sample' => '31 Jul 2026'],
             ],
         };
     }

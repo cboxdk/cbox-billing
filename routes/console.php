@@ -47,6 +47,10 @@ Schedule::command('billing:renew')->dailyAt('03:00')->withoutOverlapping();
 Schedule::command('billing:invoice')->monthlyOn(1, '02:00')->withoutOverlapping();
 Schedule::command('billing:dunning')->dailyAt('06:00')->withoutOverlapping();
 
+// Optional usage/overage alerts: sweep metered orgs a few times a day and email any newly
+// crossed included-allowance threshold (idempotent per org/meter/period/threshold).
+Schedule::command('billing:usage-alerts')->everySixHours()->withoutOverlapping();
+
 /*
  * Smart-retry dunning for failed renewal charges: chase each PastDue invoice on its backoff
  * schedule. Run daily — each attempt is idempotent per (invoice, attempt) and only fires

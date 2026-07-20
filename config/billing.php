@@ -1025,6 +1025,18 @@ return [
     ],
 
     /*
+     * Optional usage/overage alerts. When an org's metered usage crosses one of these percent
+     * thresholds of its included allowance, a branded, localized alert is queued (honouring the
+     * customer's optional-notification opt-out), idempotent per (org, meter, period, threshold).
+     */
+    'usage_alerts' => [
+        'enabled' => env('CBOX_USAGE_ALERTS_ENABLED', true),
+        // Included-allowance percentages that trigger an alert (1–100). Only the highest newly
+        // crossed threshold emails in any one sweep.
+        'thresholds' => [80, 100],
+    ],
+
+    /*
      * Outbound webhook / event-bus delivery. The app fans its billing domain events out to
      * integrator-registered endpoints as signed HTTP POSTs. (Folded here from the former
      * config/cbox-billing.php so billing has one config root; env var names are unchanged.)

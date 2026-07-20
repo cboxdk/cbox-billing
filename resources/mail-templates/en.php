@@ -165,4 +165,18 @@ return [
             .$summaryClose
             .'{{#if default_successor_name }}'.$note('If you do nothing, we’ll move you to <strong>{{ default_successor_name }}</strong> at your next renewal. You can also pick a different plan, or cancel, from your billing portal before then.').'{{else}}'.$note('Please choose a new plan from your billing portal before {{ renewal_due_label }} — your subscription can’t renew on the retired plan.').'{{/if}}',
     ],
+
+    'usage_alert' => [
+        'subject' => 'You’ve used {{ usage_percent }}% of your {{ meter_name }} allowance',
+        'body' => $eyebrow('Usage alert').$heading('You’re approaching your {{ meter_name }} limit')
+            .$p('Hi {{ organization_name }},')
+            .$p('Your {{ meter_name }} usage has reached {{ threshold_percent }}% of the amount included with your plan this period. Once you pass the included allowance, further usage may be billed as overage.')
+            .$summaryOpen
+            .$row('Metered usage', '{{ meter_name }}')
+            .$row('Used so far', '{{ used_formatted }}')
+            .$row('Included allowance', '{{ allowance_formatted }}')
+            .$total('Current usage', '{{ usage_percent }}%')
+            .$summaryClose
+            .$note('Your allowance resets on {{ period_end_label }}. You can review usage any time from your billing portal.'),
+    ],
 ];

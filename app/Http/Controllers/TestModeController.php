@@ -22,9 +22,11 @@ use Illuminate\Support\Carbon;
 /**
  * The console's sandbox surface: the persistent test-mode toggle and the test-clock manager.
  * Thin over the {@see CurrentUser} session seam (toggle), the {@see TestClockReport} (reads),
- * and the {@see TestClockAdvancer} (the fast-forward). Test clocks and their bound
- * subscriptions are always test-plane objects, so the clock actions force the ambient
- * {@see BillingContext} to test regardless of the console's live/test toggle.
+ * and the {@see TestClockAdvancer} (the fast-forward). Test clocks and their bound subscriptions
+ * are always sandbox-plane objects, so the clock actions run in a sandbox plane — but in the
+ * CURRENTLY-SELECTED sandbox (a named sandbox the operator switched to via {@see ResolveConsoleMode}
+ * is preserved, not collapsed to the default sandbox); only when the console is on production/live
+ * do they fall back to the default sandbox (see {@see ensureSandboxPlane()}).
  */
 class TestModeController extends Controller
 {
@@ -33,6 +35,20 @@ class TestModeController extends Controller
         private readonly BillingContext $context,
         private readonly EnvironmentRegistry $environments,
     ) {}
+
+    /**
+     * Put the request on a sandbox plane for the test-clock flows. A test clock is always a sandbox
+     * object, but the plane must be the CURRENTLY-SELECTED one: when the console has switched to a
+     * (named) sandbox, {@see ResolveConsoleMode} already set it, and forcing the default sandbox here
+     * would collapse a named sandbox onto the default one — hiding its own clocks and subscriptions.
+     * So only fall back to the default sandbox when the console is on the production/live plane.
+     */
+    private function ensureSandboxPlane(): void
+    {
+        if (! $this->context->isTest()) {
+            $this->context->setMode(BillingMode::Test);
+        }
+    }
 
     /** Flip the console between production and the default sandbox (BC toggle; posts `enabled`). */
     public function toggle(Request $request): RedirectResponse
@@ -73,7 +89,7 @@ class TestModeController extends Controller
 
     public function index(TestClockReport $report): View
     {
-        $this->context->setMode(BillingMode::Test);
+        $this->ensureSandboxPlane();
 
         return view('billing.test-mode.clocks', [
             'activeArea' => 'settings',
@@ -84,7 +100,7 @@ class TestModeController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $this->context->setMode(BillingMode::Test);
+        $this->ensureSandboxPlane();
 
         $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -104,7 +120,7 @@ class TestModeController extends Controller
 
     public function show(TestClock $testClock, TestClockReport $report): View
     {
-        $this->context->setMode(BillingMode::Test);
+        $this->ensureSandboxPlane();
 
         return view('billing.test-mode.clock', [
             'activeArea' => 'settings',
@@ -116,7 +132,7 @@ class TestModeController extends Controller
 
     public function advance(Request $request, TestClock $testClock, TestClockAdvancer $advancer): RedirectResponse
     {
-        $this->context->setMode(BillingMode::Test);
+        $this->ensureSandboxPlane();
 
         $request->validate([
             'target' => ['required', 'date'],
@@ -138,7 +154,7 @@ class TestModeController extends Controller
 
     public function outcome(Request $request, TestClock $testClock): RedirectResponse
     {
-        $this->context->setMode(BillingMode::Test);
+        $this->ensureSandboxPlane();
 
         $request->validate([
             'charge_outcome' => ['required', 'string', 'in:succeed,decline'],
@@ -155,7 +171,7 @@ class TestModeController extends Controller
 
     public function bind(Request $request, TestClock $testClock): RedirectResponse
     {
-        $this->context->setMode(BillingMode::Test);
+        $this->ensureSandboxPlane();
 
         $request->validate([
             'subscription_id' => ['required', 'integer', 'exists:subscriptions,id'],
@@ -173,7 +189,7 @@ class TestModeController extends Controller
     {
         // `$subscription` is the raw route id (not model-bound): route binding runs before the
         // plane is forced to test, so we resolve it here, in test mode, instead.
-        $this->context->setMode(BillingMode::Test);
+        $this->ensureSandboxPlane();
 
         $row = Subscription::query()->where('test_clock_id', $testClock->id)->findOrFail($subscription);
         $row->forceFill(['test_clock_id' => null])->save();

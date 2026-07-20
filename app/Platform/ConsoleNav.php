@@ -153,6 +153,7 @@ class ConsoleNav
                 ['route' => 'billing.settings.fx', 'label' => 'FX rates', 'key' => 'fx', 'params' => [], 'feature' => null, 'order' => 52],
                 ['route' => 'billing.settings.emails', 'label' => 'Emails', 'key' => 'emails', 'params' => [], 'feature' => null, 'order' => 55],
                 ['route' => 'billing.test-mode.clocks', 'label' => 'Test clocks', 'key' => 'test-clocks', 'params' => [], 'feature' => null, 'order' => 60],
+                ['route' => 'billing.environments', 'label' => 'Environments', 'key' => 'environments', 'params' => [], 'feature' => null, 'order' => 65],
                 ['route' => 'billing.environment.promote', 'label' => 'Promote', 'key' => 'promote', 'params' => [], 'feature' => null, 'order' => 70],
             ],
         ],

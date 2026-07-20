@@ -23,10 +23,19 @@ use App\Billing\Enforcement\Upgrade\ResolvesRequiredFeaturePlan;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredPlan;
 use App\Billing\Enforcement\Upgrade\UpgradeGate;
 use App\Billing\Environments\Contracts\ClonesEnvironments;
+use App\Billing\Environments\Contracts\CreatesEnvironments;
+use App\Billing\Environments\Contracts\DestroysEnvironments;
+use App\Billing\Environments\Contracts\ResetsEnvironments;
 use App\Billing\Environments\EnvironmentCloner;
+use App\Billing\Environments\EnvironmentProvisioner;
 use App\Billing\Environments\EnvironmentRegistry;
+use App\Billing\Environments\Gateways\EnvironmentGatewayStore;
 use App\Billing\Environments\Promotion\ConfigPromotion;
 use App\Billing\Environments\Promotion\Contracts\PromotesConfig;
+use App\Billing\Environments\Teardown\EnvironmentDataEraser;
+use App\Billing\Environments\Teardown\EnvironmentDataMap;
+use App\Billing\Environments\Teardown\EnvironmentDestroyer;
+use App\Billing\Environments\Teardown\EnvironmentResetter;
 use App\Billing\Experiments\Contracts\AttributesConversions;
 use App\Billing\Experiments\ConversionAttribution;
 use App\Billing\Features\Contracts\ResolvesFeatureEntitlements;
@@ -199,6 +208,31 @@ class BillingServiceProvider extends ServiceProvider
 
         // The environment cloner: creates a sandbox plane and deep-copies a source plane's config.
         $this->app->singleton(ClonesEnvironments::class, EnvironmentCloner::class);
+
+        // Environment lifecycle for CI + programmatic use: provision (optionally cloned, optionally
+        // with an env-bound token), reset (wipe the book, keep config), and destroy (hard teardown
+        // of the plane + all its data). Production protection is enforced inside each service.
+        // The teardown seam is bound with the default connection (as the other durable stores are),
+        // since `ConnectionInterface` is not container-resolvable on its own.
+        $this->app->singleton(EnvironmentDataEraser::class, static fn (Application $app): EnvironmentDataEraser => new EnvironmentDataEraser(
+            $app->make('db')->connection(),
+            $app->make(EnvironmentDataMap::class),
+        ));
+        $this->app->singleton(CreatesEnvironments::class, static fn (Application $app): EnvironmentProvisioner => new EnvironmentProvisioner(
+            $app->make('db')->connection(),
+            $app->make(ClonesEnvironments::class),
+        ));
+        $this->app->singleton(ResetsEnvironments::class, static fn (Application $app): EnvironmentResetter => new EnvironmentResetter(
+            $app->make('db')->connection(),
+            $app->make(EnvironmentDataEraser::class),
+            $app->make(ClonesEnvironments::class),
+            $app->make(EnvironmentGatewayStore::class),
+        ));
+        $this->app->singleton(DestroysEnvironments::class, static fn (Application $app): EnvironmentDestroyer => new EnvironmentDestroyer(
+            $app->make('db')->connection(),
+            $app->make(EnvironmentDataEraser::class),
+            $app->make(EnvironmentGatewayStore::class),
+        ));
 
         // The config promotion engine: publishes SELECTED config from one plane to another,
         // matching by natural key with a created/updated/unchanged diff and relationship remap.

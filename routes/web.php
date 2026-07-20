@@ -18,6 +18,7 @@ use App\Http\Controllers\DunningController;
 use App\Http\Controllers\DunningStrategyController;
 use App\Http\Controllers\EnvironmentController;
 use App\Http\Controllers\EnvironmentPromotionController;
+use App\Http\Controllers\EnvironmentsController;
 use App\Http\Controllers\ExemptionCertificateController;
 use App\Http\Controllers\ExperimentController;
 use App\Http\Controllers\ExportController;
@@ -78,6 +79,15 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     Route::post('/environment/switch', [TestModeController::class, 'switchEnvironment'])->name('billing.environment.switch');
     // Clone an environment's config into a fresh sandbox plane (deep config copy, empty book).
     Route::post('/environment/clone', [EnvironmentController::class, 'clone'])->middleware('billing.permission:settings:manage')->name('billing.environment.clone');
+
+    // Environments management area: list planes, create (optionally clone-from), reset a sandbox's
+    // book, and destroy a sandbox. Reads `settings:read`; the create/reset/destroy writes carry
+    // `settings:manage`. Production is refused server-side for reset/destroy (never disposable).
+    // `{key}` is a lowercase env slug, constrained so a static segment is never captured.
+    Route::get('/environments', [EnvironmentsController::class, 'index'])->middleware('billing.permission:settings:read')->name('billing.environments');
+    Route::post('/environments', [EnvironmentsController::class, 'store'])->middleware('billing.permission:settings:manage')->name('billing.environments.store');
+    Route::post('/environments/{key}/reset', [EnvironmentsController::class, 'reset'])->where('key', '[a-z0-9][a-z0-9-]*')->middleware('billing.permission:settings:manage')->name('billing.environments.reset');
+    Route::delete('/environments/{key}', [EnvironmentsController::class, 'destroy'])->where('key', '[a-z0-9][a-z0-9-]*')->middleware('billing.permission:settings:manage')->name('billing.environments.destroy');
 
     // Promote SELECTED config from one plane to another (sandbox → production), with a diff
     // preview + confirm. The GET screen and preview (write-free) POST and the apply POST all
@@ -448,6 +458,9 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     Route::post('/settings/api-tokens/{apiToken}/revoke', [ApiTokenController::class, 'revoke'])->middleware('billing.permission:settings:manage')->name('billing.settings.tokens.revoke');
 
     Route::get('/settings/gateways', [SettingsController::class, 'gateways'])->middleware('billing.permission:settings:read')->name('billing.settings.gateways');
+    // Save the ACTIVE environment's per-environment Stripe credentials (encrypted at rest);
+    // key-type gated to the plane's mode (test keys in a sandbox, live keys in production).
+    Route::post('/settings/gateways', [SettingsController::class, 'storeGateway'])->middleware('billing.permission:settings:manage')->name('billing.settings.gateways.store');
 
     // Adaptive-dunning strategy config: view the effective per-decline-category recovery plans
     // and tune a category's curve/heuristics at runtime (persisted to dunning_strategies).

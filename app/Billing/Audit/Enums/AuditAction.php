@@ -165,6 +165,12 @@ enum AuditAction: string
     // Environments — config promotion (publish selected config across planes)
     case ConfigPromoted = 'config.promoted';
 
+    // Environments — lifecycle (create/clone, reset, destroy) + per-environment gateway keys
+    case EnvironmentCreated = 'environment.created';
+    case EnvironmentReset = 'environment.reset';
+    case EnvironmentDestroyed = 'environment.destroyed';
+    case EnvironmentGatewayUpdated = 'environment.gateway_updated';
+
     // Test mode
     case TestClockCreated = 'test_clock.created';
     case TestClockAdvanced = 'test_clock.advanced';
@@ -354,6 +360,11 @@ enum AuditAction: string
             'billing.settings.fx.overrides' => self::FxOverridesUpdated,
             'billing.settings.fx.refresh' => self::FxRefreshed,
 
+            'billing.environments.store' => self::EnvironmentCreated,
+            'billing.environments.reset' => self::EnvironmentReset,
+            'billing.environments.destroy' => self::EnvironmentDestroyed,
+            'billing.settings.gateways.store' => self::EnvironmentGatewayUpdated,
+
             'billing.test-mode.clocks.store' => self::TestClockCreated,
             'billing.test-mode.clocks.advance' => self::TestClockAdvanced,
             'billing.test-mode.clocks.bind' => self::TestClockBound,
@@ -391,6 +402,10 @@ enum AuditAction: string
             'api.v1.licenses.store' => self::LicenseIssued,
             'api.v1.licenses.renew' => self::LicenseRenewed,
             'api.v1.licenses.revoke' => self::LicenseRevoked,
+
+            'api.v1.environments.store' => self::EnvironmentCreated,
+            'api.v1.environments.reset' => self::EnvironmentReset,
+            'api.v1.environments.destroy' => self::EnvironmentDestroyed,
         ];
     }
 

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\EntitlementController;
 use App\Http\Controllers\Api\FeatureEntitlementController;
 use App\Http\Controllers\Api\LeaseController;
 use App\Http\Controllers\Api\Management\CheckoutSessionController;
+use App\Http\Controllers\Api\Management\EnvironmentController as EnvironmentManagementController;
 use App\Http\Controllers\Api\Management\InvoiceController;
 use App\Http\Controllers\Api\Management\LicenseController;
 use App\Http\Controllers\Api\Management\OrganizationController;
@@ -133,4 +134,19 @@ Route::middleware(['throttle:cbox-management', 'billing.audit'])->group(function
      * (the controller refuses a live credential), so it can never touch live data.
      */
     Route::post('test/clocks/{id}/advance', [TestClockController::class, 'advance'])->name('test.clocks.advance');
+
+    /*
+     * Environment management (operator-only) — the CI + programmatic surface for named billing
+     * planes. Create a sandbox (optionally cloning an env's config) and get back a token bound to
+     * it; list/show planes; reset a sandbox's book (keeping config); and hard-destroy a sandbox and
+     * all its data. Production is never reset or destroyed, and a token bound to a sandbox may only
+     * manage its own plane (cross-environment isolation) — both enforced in the controller/services.
+     * The `{key}` is an environment key (lowercase slug), constrained so it never captures a nested
+     * path.
+     */
+    Route::get('environments', [EnvironmentManagementController::class, 'index'])->name('environments.index');
+    Route::post('environments', [EnvironmentManagementController::class, 'store'])->middleware('idempotency')->name('environments.store');
+    Route::get('environments/{key}', [EnvironmentManagementController::class, 'show'])->where('key', '[a-z0-9][a-z0-9-]*')->name('environments.show');
+    Route::post('environments/{key}/reset', [EnvironmentManagementController::class, 'reset'])->where('key', '[a-z0-9][a-z0-9-]*')->name('environments.reset');
+    Route::delete('environments/{key}', [EnvironmentManagementController::class, 'destroy'])->where('key', '[a-z0-9][a-z0-9-]*')->name('environments.destroy');
 });

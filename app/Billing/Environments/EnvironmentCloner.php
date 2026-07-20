@@ -85,6 +85,18 @@ class EnvironmentCloner implements ClonesEnvironments
         });
     }
 
+    /**
+     * Deep-copy `$source`'s config into an EXISTING `$target` plane (the reseed seam). The target
+     * must already have had its config wiped — this only replicates rows — and no transactional
+     * data is copied. Runs in its own transaction so a failure leaves no half-seeded config.
+     */
+    public function copyConfigInto(Environment $source, Environment $target): void
+    {
+        DB::transaction(function () use ($source, $target): void {
+            $this->copyConfig($source->key, $target);
+        });
+    }
+
     /** Refuse a reserved, malformed, or already-taken target key before any write happens. */
     private function guard(string $newKey): void
     {

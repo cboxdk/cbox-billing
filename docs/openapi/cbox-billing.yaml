@@ -98,6 +98,8 @@ tags:
     description: On-prem license issue / renew / revoke (operator-authed) and activation.
   - name: Test mode
     description: Sandbox test-clock advance.
+  - name: Environments
+    description: Named billing planes — create/clone, list, reset and destroy sandboxes (operator-only, for CI).
 
 paths:
   # ─────────────────────────────── ENFORCEMENT ───────────────────────────────
@@ -1558,6 +1560,169 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
+  # ─────────────────────────────── ENVIRONMENTS ───────────────────────────────
+  /environments:
+    get:
+      operationId: listEnvironments
+      tags: [Environments]
+      summary: List billing environments (planes)
+      description: |
+        List every named billing plane. **Operator token only.** A token bound to a sandbox may
+        only manage its own plane.
+      responses:
+        '200':
+          description: The environments.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  environments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Environment' }
+              examples:
+                default:
+                  value:
+                    environments:
+                      - { key: production, name: Production, type: production, protected: true, gateway_key_mode: live }
+                      - { key: sandbox, name: Sandbox, type: sandbox, protected: false, gateway_key_mode: test }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      operationId: createEnvironment
+      tags: [Environments]
+      summary: Create a sandbox environment (optionally cloned)
+      description: |
+        Create a sandbox plane (`type=sandbox`, `gateway_key_mode=test`), optionally deep-copying a
+        source environment's config via `clone_from`. Unless `with_token` is `false`, an operator
+        API token BOUND to the new plane is returned once so CI immediately has a scoped credential.
+        **Operator token only.** This is the throwaway-environment entry point for CI.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateEnvironmentRequest' }
+            examples:
+              default: { value: { key: ci-run, name: "CI Run", clone_from: production } }
+      responses:
+        '201':
+          description: The created environment and (unless suppressed) a token bound to it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedEnvironment' }
+              examples:
+                default:
+                  value:
+                    environment: { key: ci-run, name: "CI Run", type: sandbox, protected: false, gateway_key_mode: test }
+                    cloned: true
+                    token: cbt_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /environments/{key}:
+    get:
+      operationId: showEnvironment
+      tags: [Environments]
+      summary: Show one environment
+      description: Show a single plane. **Operator token only**; a sandbox-bound token may only view its own plane.
+      parameters:
+        - { name: key, in: path, required: true, description: The environment key., schema: { type: string, example: ci-run } }
+      responses:
+        '200':
+          description: The environment.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  environment: { $ref: '#/components/schemas/Environment' }
+              examples:
+                default:
+                  value:
+                    environment: { key: ci-run, name: "CI Run", type: sandbox, protected: false, gateway_key_mode: test }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    delete:
+      operationId: destroyEnvironment
+      tags: [Environments]
+      summary: Destroy a sandbox and all its data
+      description: |
+        Hard teardown: delete the environment plus every one of its rows (config + transactional),
+        its gateway credentials, and any API token bound to it. **Production is refused (`403`).**
+        **Operator token only**; a sandbox-bound token may only destroy its own plane.
+      parameters:
+        - { name: key, in: path, required: true, description: The environment key., schema: { type: string, example: ci-run } }
+      responses:
+        '200':
+          description: The plane and its data are gone.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  environment: { type: string, example: ci-run }
+                  destroyed: { type: boolean, example: true }
+                  deleted_rows: { type: integer, example: 42 }
+              examples:
+                default: { value: { environment: ci-run, destroyed: true, deleted_rows: 42 } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Production is protected, or the token may not manage this plane.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "Environment “production” is protected and cannot be destroyed. Production is never disposable." } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /environments/{key}/reset:
+    post:
+      operationId: resetEnvironment
+      tags: [Environments]
+      summary: Reset a sandbox's transactional data
+      description: |
+        Wipe a sandbox's transactional/tenant data (the runtime book) while keeping its config.
+        Optionally `reseed_from` another environment to also re-clone its config. **Production is
+        refused (`403`).** **Operator token only**; a sandbox-bound token may only reset its own plane.
+      parameters:
+        - { name: key, in: path, required: true, description: The environment key., schema: { type: string, example: ci-run } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResetEnvironmentRequest' }
+            examples:
+              default: { value: { reseed_from: production } }
+      responses:
+        '200':
+          description: The book was wiped.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  environment: { type: string, example: ci-run }
+                  reset: { type: boolean, example: true }
+                  reseeded: { type: boolean, example: false }
+                  deleted_rows: { type: integer, example: 17 }
+              examples:
+                default: { value: { environment: ci-run, reset: true, reseeded: false, deleted_rows: 17 } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Production is protected, or the token may not manage this plane.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                default: { value: { error: "Environment “production” is protected and cannot be reset. Production data is never wiped." } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1640,6 +1805,13 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
           examples:
             default: { value: { error: "This token is not permitted to act for the requested organization." } }
+    NotFound:
+      description: The requested resource does not exist (or is not visible to this token).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            default: { value: { error: "Unknown environment." } }
     IdempotencyConflict:
       description: |
         The `Idempotency-Key` was reused with a different request body, or a request with
@@ -2327,3 +2499,33 @@ components:
         trial_conversions: { type: integer }
         dunning_attempts: { type: integer }
         invoices: { type: integer }
+
+    # ── Environments ──
+    Environment:
+      type: object
+      required: [key, name, type, protected, gateway_key_mode]
+      properties:
+        key: { type: string, description: The stable plane key every scoped row carries., example: ci-run }
+        name: { type: string, example: "CI Run" }
+        type: { type: string, enum: [production, sandbox] }
+        protected: { type: boolean, description: A protected plane (production) can never be reset or destroyed. }
+        gateway_key_mode: { type: string, enum: [live, test] }
+    CreateEnvironmentRequest:
+      type: object
+      required: [key]
+      properties:
+        key: { type: string, description: The new sandbox key (lowercase slug)., example: ci-run }
+        name: { type: [string, "null"], example: "CI Run" }
+        clone_from: { type: [string, "null"], description: Deep-copy this environment's config into the new plane., example: production }
+        with_token: { type: boolean, default: true, description: Mint an operator API token bound to the new plane and return its plaintext once. }
+    CreatedEnvironment:
+      type: object
+      required: [environment, cloned]
+      properties:
+        environment: { $ref: '#/components/schemas/Environment' }
+        cloned: { type: boolean, description: Whether the plane's config was cloned from a source. }
+        token: { type: string, description: The one-time plaintext of an API token bound to the new plane (omitted when with_token=false). }
+    ResetEnvironmentRequest:
+      type: object
+      properties:
+        reseed_from: { type: [string, "null"], description: Also wipe this plane's config and re-copy it from this source environment., example: production }

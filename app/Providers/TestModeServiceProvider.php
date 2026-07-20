@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Billing\Environments\EnvironmentRegistry;
+use App\Billing\Environments\Gateways\EnvironmentAwarePaymentGateway;
+use App\Billing\Environments\Gateways\EnvironmentGatewayStore;
+use App\Billing\Environments\Gateways\GatewayDelegateMemo;
+use App\Billing\Environments\Gateways\StripeGatewayFactory;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\TestMode\CapturedNotifications;
 use App\Billing\TestMode\ClockChargeOutcome;
 use App\Billing\TestMode\Contracts\ResolvesTestChargeOutcome;
-use App\Billing\TestMode\ModeAwarePaymentGateway;
 use App\Billing\TestMode\TestPaymentGateway;
+use App\Models\EnvironmentGateway;
 use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
@@ -43,13 +47,25 @@ class TestModeServiceProvider extends ServiceProvider
         $this->app->singleton(ResolvesTestChargeOutcome::class, ClockChargeOutcome::class);
         $this->app->singleton(TestPaymentGateway::class);
 
-        // Wrap the configured gateway so every payment call is mode-routed. `extend` applies on
-        // resolve, so it wraps whichever gateway (Stripe adapter or ManualPaymentGateway) the
-        // other providers ultimately bind — the test plane can never hit the live gateway.
-        $this->app->extend(PaymentGateway::class, static fn (PaymentGateway $live, Application $app): ModeAwarePaymentGateway => new ModeAwarePaymentGateway(
+        // The per-environment gateway plumbing: the memoised credentials store, the resolved-
+        // delegate memo, and the factory that builds a real Stripe gateway from a plane's own
+        // decrypted keys.
+        $this->app->singleton(EnvironmentGatewayStore::class);
+        $this->app->singleton(GatewayDelegateMemo::class);
+
+        // Wrap the configured gateway so every payment call is ENVIRONMENT-routed. `extend` applies
+        // on resolve, so `$globalLive` is whichever gateway (Stripe adapter or ManualPaymentGateway)
+        // the other providers ultimately bound from the global env-var config. The resolver charges
+        // a plane through its own DB credentials when it has them, falls back to `$globalLive` for
+        // production (BC — env-var keys), and to the fake gateway for a keyless sandbox, so a
+        // sandbox charge can never reach a real account by accident.
+        $this->app->extend(PaymentGateway::class, static fn (PaymentGateway $globalLive, Application $app): EnvironmentAwarePaymentGateway => new EnvironmentAwarePaymentGateway(
             $app->make(BillingContext::class),
-            $live,
+            $app->make(EnvironmentGatewayStore::class),
+            $globalLive,
             $app->make(TestPaymentGateway::class),
+            static fn (EnvironmentGateway $credentials): PaymentGateway => $app->make(StripeGatewayFactory::class)->make($credentials),
+            $app->make(GatewayDelegateMemo::class),
         ));
     }
 }

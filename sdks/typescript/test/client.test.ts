@@ -87,6 +87,37 @@ test('a caller-supplied idempotency key is used verbatim', async () => {
   assert.equal(calls[0]!.headers['idempotency-key'], 'my-own-key');
 });
 
+test('enforcement hot-path writes send no Idempotency-Key by default', async () => {
+  // /leases, /usage, /reserve and /commit run no idempotency middleware server-side, so the
+  // SDK must not auto-attach a key (it would be silently ignored and mislead the contract).
+  const { fetch, calls } = fakeFetch([
+    { status: 200, body: { lease_id: 'lease_x', granted: 100, expires_at: '2026-01-01T00:00:00Z' } },
+    { status: 200, body: { accepted: 1 } },
+    { status: 200, body: { outcome: 'allowed', reservation_id: 'r1' } },
+    { status: 200, body: { ok: true } },
+  ]);
+  const client = makeClient(fetch);
+
+  await client.enforcement.lease({ org: 'org_1', meter: 'api_calls', size: 100 });
+  await client.enforcement.ingestUsage({ org: 'org_1', entries: [] });
+  await client.enforcement.reserve({ org: 'org_1', meters: [] });
+  await client.enforcement.commit({ reservation_id: 'r1', actuals: [] });
+
+  for (const call of calls) {
+    assert.equal(call.method, 'POST');
+    assert.equal(call.headers['idempotency-key'], undefined);
+  }
+});
+
+test('an explicit key still flows through on a lease', async () => {
+  const { fetch, calls } = fakeFetch([{ status: 200, body: { lease_id: 'lease_x', granted: 1, expires_at: '2026-01-01T00:00:00Z' } }]);
+  const client = makeClient(fetch);
+
+  await client.enforcement.lease({ org: 'org_1', meter: 'api_calls', size: 1 }, { idempotencyKey: 'mine' });
+
+  assert.equal(calls[0]!.headers['idempotency-key'], 'mine');
+});
+
 test('GET requests carry no Idempotency-Key', async () => {
   const { fetch, calls } = fakeFetch([{ status: 200, body: { currency: 'EUR', data: [] } }]);
   const client = makeClient(fetch);

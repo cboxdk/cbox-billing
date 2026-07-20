@@ -110,8 +110,11 @@ paths:
         Lease up to `size` units of an org's remaining includable allowance for a meter —
         billing's side of the pessimistic lease the SDK refills local enforcement from.
         Grants fewer than requested when the allowance is nearly spent, `0` when exhausted.
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+
+        Not idempotency-keyed: like the other enforcement hot-path calls (`usage`, `reserve`,
+        `commit`) a lease is a fresh, short-lived grant with its own `lease_id`, and a duplicate
+        simply over-grants briefly and self-heals at TTL expiry — so no `Idempotency-Key` is
+        honoured here (the server runs no idempotency middleware on this route).
       requestBody:
         required: true
         content:

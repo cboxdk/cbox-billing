@@ -82,6 +82,11 @@ await client.subscriptions.create(
 Reusing a key with a **different** body is a `409` (`ConflictError`) — never a silent
 replay.
 
+The metered **enforcement hot path** (`enforcement.lease`, `ingestUsage`, `reserve`, `commit`)
+is exempt: those calls send no key by default because they are idempotent by construction or
+self-heal (usage ingest dedups on `seq`; a lease is a short-lived grant that expires). You can
+still pass an explicit `idempotencyKey` to any of them if your own flow needs it.
+
 ## Retries & rate limits
 
 429 and 5xx responses (and transient network failures) are retried with exponential
@@ -169,6 +174,7 @@ if (outcome.outcome === 'allowed') {
 | Namespace | Endpoints |
 | --------- | --------- |
 | `client.enforcement` | `lease`, `ingestUsage`, `reserve`, `commit`, `entitlements` |
+| `client.entitlements` | `features`, `feature`, `hasFeature` |
 | `client.plans` | `list` |
 | `client.organizations` | `upsert` |
 | `client.subscriptions` | `get`, `create`, `preview`, `change`, `cancel`, `reactivate`, `pause`, `resume`, `changeQuantity`, `addAddOn`, `removeAddOn` |
@@ -180,6 +186,34 @@ if (outcome.outcome === 'allowed') {
 | `client.paymentMethods` | `list`, `setDefault`, `detach` |
 | `client.licenses` | `issue`, `renew`, `revoke`, `activate` |
 | `client.testClocks` | `advance` |
+
+### Feature gating
+
+`client.entitlements` is the boolean/config **product-gating** sibling of the metered
+`client.enforcement.entitlements`. Resolve the whole set, or gate a single capability
+deny-by-default:
+
+```ts
+const features = await client.entitlements.features('org_acme'); // whole resolved set
+if (await client.entitlements.hasFeature('org_acme', 'sso')) {
+  // unlock SSO
+}
+const check = await client.entitlements.feature('org_acme', 'seats'); // typed value + upgrade offer
+```
+
+### Token scope
+
+Most methods act **within the calling token's own org scope**. A few target
+operator/console-scoped endpoints that a standard per-tenant integration token cannot call:
+
+- **`client.licenses.*`** — on-prem license issuance/renew/revoke is **operator-authed**.
+- **`client.testClocks.advance`** — sandbox only; it is **refused on a live token** (`cbl_…`)
+  and works only with a **test-mode token** (`cbt_…`).
+
+Calling a scoped endpoint without the required rights returns `403` (`PermissionError`); calling
+the test-clock endpoint with a live token is refused. These operator surfaces are normally
+driven from the **console**, not a customer-facing integration — reach for them only when your
+service genuinely owns that operator role.
 
 ## Development
 

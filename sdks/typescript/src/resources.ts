@@ -41,7 +41,10 @@ export class EnforcementResource {
 
   /** Lease a slice of an org's remaining allowance for a meter. */
   lease(body: T.LeaseRequest, opts?: WriteOptions): Promise<T.Lease> {
-    return this.http.request({ method: 'POST', path: '/leases', body, ...idem(opts) });
+    // A lease is a fresh, short-lived grant with its own lease_id; the server runs no
+    // idempotency middleware on /leases (a duplicate over-grants briefly and self-heals at
+    // TTL), so — like usage/reserve/commit — no key is sent unless the caller asks for one.
+    return this.http.request({ method: 'POST', path: '/leases', body, idempotency: false, ...idem(opts) });
   }
 
   /** Ingest cumulative usage readings (dedup'd by `seq`). */

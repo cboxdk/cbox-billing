@@ -87,12 +87,7 @@
                     "Enforcement"
                 ],
                 "summary": "Lease a slice of an org's remaining allowance",
-                "description": "Lease up to `size` units of an org's remaining includable allowance for a meter —\nbilling's side of the pessimistic lease the SDK refills local enforcement from.\nGrants fewer than requested when the allowance is nearly spent, `0` when exhausted.\n",
-                "parameters": [
-                    {
-                        "$ref": "#/components/parameters/IdempotencyKeyOptional"
-                    }
-                ],
+                "description": "Lease up to `size` units of an org's remaining includable allowance for a meter —\nbilling's side of the pessimistic lease the SDK refills local enforcement from.\nGrants fewer than requested when the allowance is nearly spent, `0` when exhausted.\n\nNot idempotency-keyed: like the other enforcement hot-path calls (`usage`, `reserve`,\n`commit`) a lease is a fresh, short-lived grant with its own `lease_id`, and a duplicate\nsimply over-grants briefly and self-heals at TTL expiry — so no `Idempotency-Key` is\nhonoured here (the server runs no idempotency middleware on this route).\n",
                 "requestBody": {
                     "required": true,
                     "content": {

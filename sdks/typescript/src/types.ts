@@ -245,7 +245,10 @@ export interface PlanChangePreview {
   lines: ProrationLine[];
 }
 
-export type PlanChangeResult = PlanChangePreview & {
+// `Omit` before the intersection: a plain `&` would compute `Iso8601 & (Iso8601 | null)`,
+// which collapses back to `Iso8601` and silently drops the nullability. A scheduled change has
+// no concrete effective time yet, so `effective_at` really can be null.
+export type PlanChangeResult = Omit<PlanChangePreview, 'effective_at'> & {
   scheduled: boolean;
   effective_at: Iso8601 | null;
 };

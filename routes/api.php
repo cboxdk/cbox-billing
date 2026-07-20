@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\CommitController;
 use App\Http\Controllers\Api\EntitlementController;
+use App\Http\Controllers\Api\FeatureEntitlementController;
 use App\Http\Controllers\Api\LeaseController;
 use App\Http\Controllers\Api\Management\CheckoutSessionController;
 use App\Http\Controllers\Api\Management\InvoiceController;
@@ -34,6 +35,16 @@ Route::middleware('throttle:cbox-enforcement')->group(function (): void {
     Route::post('reserve', ReserveController::class)->name('reserve');
     Route::post('commit', CommitController::class)->name('commit');
     Route::get('entitlements/{org}', EntitlementController::class)->name('entitlements.show');
+
+    /*
+     * The boolean / non-metered feature-entitlements sibling of `/entitlements/{org}` (product
+     * gating). Same token auth + per-org scope + hot-path throttle; each is a thin controller
+     * over the feature resolver. `{key}` is a feature slug (dots allowed, no slashes).
+     */
+    Route::get('entitlements/{org}/features', [FeatureEntitlementController::class, 'index'])->name('entitlements.features.index');
+    Route::get('entitlements/{org}/features/{key}', [FeatureEntitlementController::class, 'show'])
+        ->where('key', '[A-Za-z0-9._-]+')
+        ->name('entitlements.features.show');
 });
 
 /*

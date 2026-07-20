@@ -25,6 +25,7 @@ readonly class UpgradeGate
 {
     public function __construct(
         private ResolvesRequiredPlan $requiredPlans,
+        private ResolvesRequiredFeaturePlan $requiredFeaturePlans,
         private ManagesBillingSessions $sessions,
         private EntitlementsView $entitlements,
         private UsageSummaryView $usage,
@@ -49,6 +50,54 @@ readonly class UpgradeGate
             'required_plan' => $plan->key,
             'checkout_url' => $this->checkoutUrl($org, $plan),
         ];
+    }
+
+    /**
+     * The upgrade offer for a single BOOLEAN/CONFIG feature the org lacks, or null when the org
+     * already has the feature or no reachable plan grants it. This is the feature sibling of
+     * {@see forMeter()}: the enforce→upgrade CTA a capability gates on when a feature is missing.
+     *
+     * @return array{required_plan: string, checkout_url: string|null}|null
+     */
+    public function forFeature(string $org, string $feature): ?array
+    {
+        $plan = $this->requiredFeaturePlans->resolve($org, $feature);
+
+        if (! $plan instanceof Plan) {
+            return null;
+        }
+
+        return [
+            'required_plan' => $plan->key,
+            'checkout_url' => $this->checkoutUrl($org, $plan),
+        ];
+    }
+
+    /**
+     * Attach an `upgrade` key to every not-granted feature in a feature-set payload that has a
+     * reachable upgrade path — the enforce→upgrade bridge on the `/entitlements/{org}/features`
+     * response. A granted feature, or one with no reachable path, is left untouched.
+     *
+     * @param  array<string, array{type: string|null, enabled: bool, value: int|string|null, source: string}>  $features
+     * @return array<string, array<string, mixed>>
+     */
+    public function enrichFeatures(string $org, array $features): array
+    {
+        $enriched = [];
+
+        foreach ($features as $key => $feature) {
+            if ($feature['enabled'] === false) {
+                $offer = $this->forFeature($org, $key);
+
+                if ($offer !== null) {
+                    $feature['upgrade'] = $offer;
+                }
+            }
+
+            $enriched[$key] = $feature;
+        }
+
+        return $enriched;
     }
 
     /**

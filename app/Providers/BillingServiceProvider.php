@@ -15,8 +15,10 @@ use App\Billing\Enforcement\CacheReservationStore;
 use App\Billing\Enforcement\CentralAllowanceLeaseSource;
 use App\Billing\Enforcement\Contracts\ReservationStore;
 use App\Billing\Enforcement\EventLogUsageBuffer;
+use App\Billing\Enforcement\Upgrade\ResolvesRequiredFeaturePlan;
 use App\Billing\Enforcement\Upgrade\ResolvesRequiredPlan;
 use App\Billing\Enforcement\Upgrade\UpgradeGate;
+use App\Billing\Features\FeatureEntitlements;
 use App\Billing\Fx\EcbFxRateSource;
 use App\Billing\Fx\EcbRatesParser;
 use App\Billing\Fx\FxRateRefresher;
@@ -88,9 +90,12 @@ use App\Billing\Subscriptions\TrialService;
 use App\Billing\Support\SubscriptionStanding;
 use App\Billing\Wallet\Contracts\AdjustsWallet;
 use App\Billing\Wallet\WalletAdjustmentService;
+use App\Models\Feature;
 use App\Models\Invoice;
 use App\Models\Meter;
+use App\Models\OrganizationFeatureOverride;
 use App\Models\PlanEntitlement;
+use App\Models\PlanFeature;
 use App\Models\Subscription;
 use Cbox\Billing\Account\Contracts\AccountStanding;
 use Cbox\Billing\Account\Contracts\BillingCurrencyLock;
@@ -221,6 +226,20 @@ class BillingServiceProvider extends ServiceProvider
             $model::deleted($flush);
         }
 
+        // The same PERF-2 invalidation for the boolean/config feature resolver: a write to a plan
+        // grant, an org override, the feature catalog, or the serving subscription can change what
+        // a feature resolves to, so flush the feature memo on those writes. These fire only on
+        // catalog/lifecycle changes, never on the enforcement hot path, so the memo still survives
+        // a whole feature-set read.
+        $flushFeatures = static function (): void {
+            app(FeatureEntitlements::class)->flush();
+        };
+
+        foreach ([Subscription::class, PlanFeature::class, OrganizationFeatureOverride::class, Feature::class] as $model) {
+            $model::saved($flushFeatures);
+            $model::deleted($flushFeatures);
+        }
+
         // Maintain the materialized console display standing (PERF-3). A subscription write can
         // change its own standing; an invoice write can change the org's standing (the
         // overdue-open-invoice fallback is org-scoped). Both recompute through the same
@@ -249,6 +268,7 @@ class BillingServiceProvider extends ServiceProvider
 
             return new UpgradeGate(
                 $app->make(ResolvesRequiredPlan::class),
+                $app->make(ResolvesRequiredFeaturePlan::class),
                 $app->make(ManagesBillingSessions::class),
                 $app->make(EntitlementsView::class),
                 $app->make(UsageSummaryView::class),
@@ -350,6 +370,12 @@ class BillingServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(ExpectedEntitlements::class, PlanExpectedEntitlements::class);
+
+        // The boolean/config feature-entitlements resolver — the gating sibling of the metered
+        // resolver above. A per-request container singleton so its per-org memoization (reusing
+        // PERF-2) lives exactly one request; the boot() hook flushes it on a grant/override/
+        // subscription write.
+        $this->app->singleton(FeatureEntitlements::class);
 
         // The settled-webhook effect, decorated to ALSO activate a hosted checkout
         // (ADR-0009): a checkout's subscription is created strictly on the gateway's

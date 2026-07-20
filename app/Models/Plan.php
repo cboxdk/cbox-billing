@@ -222,6 +222,13 @@ class Plan extends Model
         return $this->hasMany(PlanEntitlement::class);
     }
 
+    /** The plan's boolean/config feature grants — the gating peer of its metered entitlements. */
+    /** @return HasMany<PlanFeature, $this> */
+    public function features(): HasMany
+    {
+        return $this->hasMany(PlanFeature::class);
+    }
+
     /** Every subscription on this plan (serving or historical) — the subscriber picture. */
     /** @return HasMany<Subscription, $this> */
     public function subscriptions(): HasMany

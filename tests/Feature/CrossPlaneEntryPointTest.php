@@ -39,7 +39,7 @@ class CrossPlaneEntryPointTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed(CatalogSeeder::class);
+        $this->seedConfigInAllPlanes(CatalogSeeder::class);
         config()->set('billing.webhook.secret', self::WEBHOOK_SECRET);
 
         // The activation heartbeat cuts a SIGNED revocation list, so it needs an issuer key pair.

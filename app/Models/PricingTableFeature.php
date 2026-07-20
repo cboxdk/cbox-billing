@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PricingTableFeature extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['pricing_table_id', 'feature_id', 'sort_order'];
 
     /** @return array<string, string> */

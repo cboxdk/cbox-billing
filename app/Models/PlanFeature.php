@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Billing\Features\FeatureEntitlements;
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PlanFeature extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['plan_id', 'feature_id', 'enabled', 'value'];
 
     /** @return array<string, string> */

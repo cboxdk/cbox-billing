@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use App\Billing\Payments\AdaptiveRetryStrategy;
 use App\Billing\Payments\Dunning\RetryPlan;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class DunningStrategy extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'category', 'retry', 'backoff_days', 'max_attempts', 'avoid_weekends', 'align_to_payday',
     ];

@@ -22,10 +22,19 @@ use Illuminate\Database\Eloquent\Model;
  * `environment` and `livemode` are deliberately NOT mass-assignable: they are set from the
  * resolved plane, never from request input, so a request can never forge the plane it writes into.
  *
+ * The `livemode` mirror is stamped ONLY on tables that carry the column. The tenant/operational
+ * tables (Wave 1) do; the CONFIG tables that adopt the plane later (catalog, branding, templates,
+ * storefront, …) never carried `livemode`, so stamping it there would insert a phantom column.
+ * A per-table, positive-and-negative memo of the column's presence keeps steady-state free of a
+ * per-insert schema check.
+ *
  * @phpstan-require-extends Model
  */
 trait BelongsToEnvironment
 {
+    /** @var array<string, bool> Per-table memo of whether the table carries the `livemode` mirror column. */
+    private static array $hasLivemodeColumn = [];
+
     public static function bootBelongsToEnvironment(): void
     {
         $context = app(BillingContext::class);
@@ -38,10 +47,20 @@ trait BelongsToEnvironment
             }
 
             // Keep the legacy livemode mirror in step for tables that still carry it.
-            if ($model->getAttribute('livemode') === null) {
+            if (self::tableHasLivemodeColumn($model) && $model->getAttribute('livemode') === null) {
                 $model->setAttribute('livemode', $context->livemode());
             }
         });
+    }
+
+    /** Whether this model's table carries the `livemode` mirror column (memoised per table). */
+    private static function tableHasLivemodeColumn(Model $model): bool
+    {
+        $table = $model->getTable();
+
+        return self::$hasLivemodeColumn[$table] ??= $model->getConnection()
+            ->getSchemaBuilder()
+            ->hasColumn($table, 'livemode');
     }
 
     public function initializeBelongsToEnvironment(): void

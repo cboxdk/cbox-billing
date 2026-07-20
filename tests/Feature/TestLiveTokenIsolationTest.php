@@ -46,7 +46,7 @@ class TestLiveTokenIsolationTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(CatalogSeeder::class);
+        $this->seedConfigInAllPlanes(CatalogSeeder::class);
         // Each test explicitly names the plane it acts in; start from the live default.
         app(BillingContext::class)->setMode(BillingMode::Live);
     }
@@ -105,10 +105,11 @@ class TestLiveTokenIsolationTest extends TestCase
 
     public function test_a_test_quote_token_resolves_in_the_test_plane_and_provisions_a_test_subscription(): void
     {
-        $plan = Plan::query()->where('key', 'starter')->firstOrFail();
-
-        // A test-plane quote, sent, with an order-form token, for a test-plane org.
-        $this->inTestPlane(function () use ($plan): void {
+        // A test-plane quote, sent, with an order-form token, for a test-plane org. The plan the
+        // quote lines reference is resolved IN the test plane too — config is plane-scoped, so a
+        // test quote must line-item the test plane's own catalog, never the live plane's.
+        $this->inTestPlane(function (): void {
+            $plan = Plan::query()->where('key', 'starter')->firstOrFail();
             $org = $this->makeOrg('q_iso');
             $quote = Quote::query()->create([
                 'number' => 'Q-ISO01', 'organization_id' => $org->id, 'status' => QuoteStatus::Sent,

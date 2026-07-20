@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Billing\Features\Enums\ConfigValueType;
 use App\Billing\Features\Enums\FeatureType;
 use App\Billing\Features\FeatureEntitlements;
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Cbox\License\Capabilities;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -34,6 +35,8 @@ use Illuminate\Support\Carbon;
  */
 class Feature extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['key', 'name', 'description', 'type', 'value_type', 'archived_at'];
 
     /** @return array<string, string> */

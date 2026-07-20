@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -21,6 +22,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class SellerTaxRegistration extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['seller_entity_id', 'country', 'number', 'subdivision', 'scheme'];
 
     /** @return BelongsTo<SellerEntity, $this> */

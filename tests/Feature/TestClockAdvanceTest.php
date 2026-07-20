@@ -43,7 +43,7 @@ class TestClockAdvanceTest extends TestCase
         parent::setUp();
 
         Carbon::setTestNow(Carbon::parse('2026-01-01 00:00:00', 'UTC'));
-        $this->seed(CatalogSeeder::class);
+        $this->seedConfigInAllPlanes(CatalogSeeder::class);
         app(BillingContext::class)->setMode(BillingMode::Test);
     }
 

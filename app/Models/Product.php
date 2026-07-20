@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -25,6 +26,8 @@ use Illuminate\Support\Carbon;
  */
 class Product extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['key', 'name', 'description', 'archived_at'];
 
     /** @return array<string, string> */

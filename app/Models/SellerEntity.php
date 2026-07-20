@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use App\Billing\Seller\SellerCatalog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -42,6 +43,8 @@ use Illuminate\Support\Carbon;
  */
 class SellerEntity extends Model
 {
+    use BelongsToEnvironment;
+
     public $incrementing = false;
 
     protected $keyType = 'string';

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -37,6 +38,8 @@ use Illuminate\Support\Carbon;
  */
 class PricingTable extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'key', 'name', 'seller_entity_id', 'currencies', 'default_currency',
         'interval_toggle', 'cta_label', 'cta_url_template', 'active',

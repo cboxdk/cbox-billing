@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use App\Billing\Wallet\Enums\AmountMode;
 use Cbox\Billing\Wallet\Enums\GrantCadence;
 use Cbox\Billing\Wallet\Enums\GrantKind;
@@ -29,6 +30,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PlanCreditGrant extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['plan_id', 'pool', 'kind', 'cadence', 'amount', 'amount_mode', 'rollover_seconds', 'denomination'];
 
     /** @return array<string, string> */

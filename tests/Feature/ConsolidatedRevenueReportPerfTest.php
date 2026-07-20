@@ -60,6 +60,13 @@ class ConsolidatedRevenueReportPerfTest extends TestCase
             }
         }
 
+        // Warm the ONE-TIME schema-introspection the environment (plane) scope performs the first
+        // time it touches each config table — a memoised column-presence guard that emits a couple
+        // of PRAGMA/sqlite_master probes on first use, then never again this process. It is a
+        // process-level cost, not a per-render or book-size cost, so warming it here keeps the
+        // measurement about the only thing under test: book-size-driven queries (no N+1).
+        app(ConsolidatedRevenueReport::class)->mrr('DKK');
+
         $small = $this->countRenderQueries();
 
         // A much larger book: the SAME currency/seller set, many more subscriptions, and several

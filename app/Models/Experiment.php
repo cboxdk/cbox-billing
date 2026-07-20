@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Billing\Experiments\Enums\ExperimentMetric;
 use App\Billing\Experiments\Enums\ExperimentStatus;
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,6 +41,8 @@ use Illuminate\Support\Carbon;
  */
 class Experiment extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'key', 'name', 'hypothesis', 'status', 'primary_metric', 'pricing_table_id',
         'promoted_variant_id', 'started_at', 'concluded_at',

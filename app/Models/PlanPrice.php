@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Cbox\Billing\Catalog\Enums\PricingModel;
 use Cbox\Billing\Catalog\Pricing\TierCalculator;
 use Cbox\Billing\Catalog\ValueObjects\Price;
@@ -35,6 +36,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class PlanPrice extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['plan_id', 'currency', 'price_minor', 'pricing_model', 'package_size'];
 
     /** @return array<string, string> */

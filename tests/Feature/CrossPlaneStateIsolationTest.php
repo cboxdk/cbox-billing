@@ -34,7 +34,7 @@ class CrossPlaneStateIsolationTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(CatalogSeeder::class);
+        $this->seedConfigInAllPlanes(CatalogSeeder::class);
     }
 
     private function context(): BillingContext
@@ -58,10 +58,10 @@ class CrossPlaneStateIsolationTest extends TestCase
         $resolver = app(ResolvesFeatureEntitlements::class);
 
         $this->org('org_split');
-        $feature = Feature::query()->create(['key' => 'cross_plane_flag', 'name' => 'Flag', 'type' => 'boolean']);
 
-        // TEST plane: the override GRANTS the feature.
+        // TEST plane: author the feature (config is plane-scoped) AND the override that GRANTS it.
         $context->setMode(BillingMode::Test);
+        $feature = Feature::query()->create(['key' => 'cross_plane_flag', 'name' => 'Flag', 'type' => 'boolean']);
         OrganizationFeatureOverride::query()->create([
             'organization_id' => 'org_split', 'feature_id' => $feature->id, 'granted' => true,
         ]);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PricingTablePlan extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'pricing_table_id', 'plan_id', 'annual_plan_id', 'sort_order', 'featured', 'badge', 'highlight',
     ];

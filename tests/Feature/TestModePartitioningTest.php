@@ -29,7 +29,7 @@ class TestModePartitioningTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(CatalogSeeder::class);
+        $this->seedConfigInAllPlanes(CatalogSeeder::class);
     }
 
     public function test_the_global_scope_isolates_each_plane_and_denies_cross_mode_lookups(): void

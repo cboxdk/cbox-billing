@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Cbox\Billing\Metering\Enums\Aggregation;
 use Cbox\Billing\Metering\ValueObjects\MeterPolicy;
 use Illuminate\Database\Eloquent\Builder;
@@ -31,6 +32,8 @@ use Illuminate\Support\Carbon;
  */
 class Meter extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['key', 'name', 'unit', 'aggregation', 'display', 'archived_at'];
 
     /** @return array<string, string> */

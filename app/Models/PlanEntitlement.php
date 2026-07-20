@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Cbox\Billing\Metering\Enums\Aggregation;
 use Cbox\Billing\Metering\Enums\OverageBehaviour;
 use Cbox\Billing\Metering\ValueObjects\MeterPolicy;
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PlanEntitlement extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'plan_id', 'meter_id', 'enabled', 'allowance', 'multiplier', 'unlimited', 'overage',
     ];

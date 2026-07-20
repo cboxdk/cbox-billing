@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -28,6 +29,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class ExperimentVariant extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'experiment_id', 'label', 'is_control', 'weight', 'sort_order', 'served_pricing_table_id',
     ];

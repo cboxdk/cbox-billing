@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Cbox\Billing\Catalog\Enums\PlanStatus;
 use Cbox\Billing\Catalog\ValueObjects\PlanRetirement;
 use Cbox\Billing\Catalog\ValueObjects\Product as CatalogProduct;
@@ -35,6 +36,8 @@ use RuntimeException;
  */
 class Plan extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = [
         'product_id', 'key', 'name', 'interval', 'active',
         'retires_at', 'default_successor_plan_id',

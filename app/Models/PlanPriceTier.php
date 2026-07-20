@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Cbox\Billing\Catalog\ValueObjects\PriceTier;
 use Cbox\Billing\Money\Money;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PlanPriceTier extends Model
 {
+    use BelongsToEnvironment;
+
     protected $fillable = ['plan_price_id', 'up_to', 'unit_minor', 'flat_minor', 'sort_order'];
 
     /** @return array<string, string> */

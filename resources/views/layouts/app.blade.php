@@ -164,6 +164,8 @@
         <a class="cmd" href="{{ route('billing.experiments') }}">@include('partials.icon', ['name' => 'flask', 'size' => 15, 'sw' => 1.7])Go to Experiments</a>
         <a class="cmd" href="{{ route('billing.quotes') }}">@include('partials.icon', ['name' => 'receipt', 'size' => 15, 'sw' => 1.7])Go to Quotes</a>
         <a class="cmd" href="{{ route('billing.quotes.approvals') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Quote approvals</a>
+        <a class="cmd" href="{{ route('billing.approvals') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Approvals · Pending queue<kbd class="k">G A</kbd></a>
+        <a class="cmd" href="{{ route('billing.approvals.mine') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Approvals · My requests</a>
         <a class="cmd" href="{{ route('billing.invoices') }}">@include('partials.icon', ['name' => 'invoice', 'size' => 15, 'sw' => 1.7])Go to Invoices<kbd class="k">G I</kbd></a>
         <a class="cmd" href="{{ route('billing.customers') }}">@include('partials.icon', ['name' => 'building', 'size' => 15, 'sw' => 1.7])Go to Customers</a>
         <a class="cmd" href="{{ route('billing.access-grants') }}">@include('partials.icon', ['name' => 'shield', 'size' => 15, 'sw' => 1.7])Go to Access grants</a>

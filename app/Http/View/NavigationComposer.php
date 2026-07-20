@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\View;
 
+use App\Billing\Approvals\ApprovalQueue;
 use App\Billing\Licensing\LicenseReport;
 use App\Billing\Reporting\InvoiceReport;
 use App\Billing\Reporting\SettingsReport;
@@ -44,6 +45,7 @@ readonly class NavigationComposer
         private InvoiceReport $invoices,
         private SettingsReport $settings,
         private LicenseReport $licenses,
+        private ApprovalQueue $approvals,
     ) {}
 
     public function compose(View $view): void
@@ -51,6 +53,7 @@ readonly class NavigationComposer
         $counts = $this->counts();
         $subsAll = ($counts['subscriptions']['all'] ?? 0);
         $subsCanceled = ($counts['subscriptions']['canceled'] ?? 0);
+        $pendingApprovals = $this->approvals->pendingCount();
         $meta = ConsoleNav::pageMeta();
 
         $areas = [];
@@ -100,6 +103,10 @@ readonly class NavigationComposer
 
             if ($area->key === 'subscriptions') {
                 $rendered['badge'] = (string) ($subsAll - $subsCanceled);
+            }
+
+            if ($area->key === 'approvals' && $pendingApprovals > 0) {
+                $rendered['badge'] = (string) $pendingApprovals;
             }
 
             $areas[$area->key] = $rendered;

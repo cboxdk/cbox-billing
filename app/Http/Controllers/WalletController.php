@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Billing\Wallet\Contracts\AdjustsWallet;
+use App\Billing\Approvals\ApprovableActionRegistry;
+use App\Billing\Approvals\ApprovalGate;
+use App\Billing\Approvals\Enums\ApprovalActionType;
 use App\Billing\Wallet\Exceptions\WalletActionDenied;
 use App\Models\Organization;
 use Illuminate\Http\RedirectResponse;
@@ -18,7 +20,7 @@ use Illuminate\Http\Request;
  */
 class WalletController extends Controller
 {
-    public function adjust(Request $request, Organization $organization, AdjustsWallet $wallet): RedirectResponse
+    public function adjust(Request $request, Organization $organization, ApprovableActionRegistry $registry, ApprovalGate $gate): RedirectResponse
     {
         $request->validate([
             'direction' => ['required', 'in:grant,debit'],
@@ -29,27 +31,33 @@ class WalletController extends Controller
             'expires_in_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
         ]);
 
-        $actor = $this->actor($request);
-        $pool = $request->string('pool')->toString();
-        $denomination = $request->string('denomination')->toString();
-        $amount = $request->integer('amount');
         $reason = $request->string('reason')->toString();
 
+        // The held action captures the maker as `actor`, so the wallet row records who
+        // ORIGINATED the adjustment even when a different operator approves it. Below the
+        // configured threshold (or disabled) it applies immediately, exactly as before.
+        $action = $registry->build(ApprovalActionType::WalletAdjust, [
+            'organization_id' => $organization->id,
+            'direction' => $request->string('direction')->toString(),
+            'pool' => $request->string('pool')->toString(),
+            'denomination' => $request->string('denomination')->toString(),
+            'amount' => $request->integer('amount'),
+            'reason' => $reason,
+            'actor' => $this->actor($request),
+            'expires_in_days' => $request->filled('expires_in_days') ? $request->integer('expires_in_days') : null,
+        ]);
+
         try {
-            if ($request->string('direction')->toString() === 'grant') {
-                $wallet->grant($organization->id, $pool, $denomination, $amount, $reason, $actor, $request->filled('expires_in_days') ? $request->integer('expires_in_days') : null);
-                $message = sprintf('Granted %d %s to the %s pool.', $amount, $denomination, $pool);
-            } else {
-                $wallet->debit($organization->id, $pool, $denomination, $amount, $reason, $actor);
-                $message = sprintf('Debited %d %s from the %s pool.', $amount, $denomination, $pool);
-            }
+            $result = $gate->run($action, $reason);
         } catch (WalletActionDenied $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return redirect()
             ->route('billing.customers.show', $organization->id)
-            ->with('status', $message);
+            ->with('status', $result->wasHeld()
+                ? sprintf('Wallet adjustment submitted for approval (request #%d) — not applied yet.', $result->request?->id)
+                : ($result->outcome !== null ? $result->outcome->summary : 'Wallet adjusted.'));
     }
 
     /** The signed-in operator, for the audit row; falls back to null when unresolved. */

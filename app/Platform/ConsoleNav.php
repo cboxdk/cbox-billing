@@ -87,6 +87,13 @@ class ConsoleNav
                 ['route' => 'billing.quotes.create', 'label' => 'New quote', 'key' => 'new', 'params' => [], 'feature' => null, 'order' => 70],
             ],
         ],
+        'approvals' => [
+            'label' => 'Approvals', 'icon' => 'shield', 'order' => 26, 'feature' => null,
+            'pages' => [
+                ['route' => 'billing.approvals', 'label' => 'Pending', 'key' => 'pending', 'params' => [], 'feature' => null, 'order' => 10],
+                ['route' => 'billing.approvals.mine', 'label' => 'My requests', 'key' => 'mine', 'params' => [], 'feature' => null, 'order' => 20],
+            ],
+        ],
         'invoices' => [
             'label' => 'Invoices', 'icon' => 'invoice', 'order' => 30, 'feature' => null,
             'pages' => [

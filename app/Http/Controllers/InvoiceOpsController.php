@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Billing\Audit\Contracts\RecordsAudit;
-use App\Billing\Audit\Enums\AuditAction;
-use App\Billing\Audit\ValueObjects\AuditTarget;
+use App\Billing\Approvals\ApprovableActionRegistry;
+use App\Billing\Approvals\ApprovalGate;
+use App\Billing\Approvals\Enums\ApprovalActionType;
 use App\Billing\Invoicing\Contracts\RunsInvoiceOperations;
 use App\Billing\Invoicing\Exceptions\InvoiceActionDenied;
 use App\Billing\Invoicing\ValueObjects\ManualLine;
-use App\Billing\Support\MoneyFormatter;
 use App\Models\Invoice;
 use App\Models\Organization;
 use Cbox\Billing\Refund\Enums\RefundReason;
@@ -40,7 +39,7 @@ class InvoiceOpsController extends Controller
             ->with('status', sprintf('Invoice %s voided.', $invoice->number));
     }
 
-    public function refund(Request $request, Invoice $invoice, RunsInvoiceOperations $operations, RecordsAudit $audit): RedirectResponse
+    public function refund(Request $request, Invoice $invoice, ApprovableActionRegistry $registry, ApprovalGate $gate): RedirectResponse
     {
         $request->validate([
             'mode' => ['required', 'in:full,partial'],
@@ -50,39 +49,29 @@ class InvoiceOpsController extends Controller
         ]);
 
         $mode = $request->string('mode')->toString();
-        $netMinor = $mode === 'partial' ? $request->integer('amount_minor') : null;
-        $before = ['status' => $invoice->status, 'total_minor' => $invoice->total_minor];
+        $reason = $request->string('reason')->toString();
+
+        // Assemble the held action and route it through the approval gate. Below the configured
+        // threshold (or disabled) it executes immediately, exactly as before; at or above it, the
+        // refund is captured for a second operator and issues NO credit note until approved.
+        $action = $registry->build(ApprovalActionType::InvoiceRefund, [
+            'invoice_id' => $invoice->id,
+            'net_minor' => $mode === 'partial' ? $request->integer('amount_minor') : null,
+            'reason' => $reason,
+            'idempotency_key' => $request->string('idempotency_key')->toString(),
+        ]);
 
         try {
-            $refund = $operations->refund(
-                $invoice,
-                $netMinor,
-                RefundReason::from($request->string('reason')->toString()),
-                'op-refund:'.$request->string('idempotency_key')->toString(),
-            );
+            $result = $gate->run($action, $reason);
         } catch (InvoiceActionDenied $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        $audit->record(
-            AuditAction::InvoiceRefunded,
-            AuditTarget::model($invoice),
-            sprintf('Refunded invoice %s as credit note %s (%s).', $invoice->number, $refund->creditNote->number, MoneyFormatter::money($refund->gross)),
-            [
-                'before' => $before,
-                'after' => ['status' => $invoice->fresh()?->status, 'credit_note' => $refund->creditNote->number, 'refund_gross_minor' => $refund->gross->minor()],
-                'mode' => $mode,
-                'reason' => $request->string('reason')->toString(),
-            ],
-        );
-
         return redirect()
             ->route('billing.invoices.show', $invoice->id)
-            ->with('status', sprintf(
-                'Refund issued as credit note %s (%s).',
-                $refund->creditNote->number,
-                MoneyFormatter::money($refund->gross),
-            ));
+            ->with('status', $result->wasHeld()
+                ? sprintf('Refund submitted for approval (request #%d) — no credit note issued yet.', $result->request?->id)
+                : ($result->outcome !== null ? $result->outcome->summary : 'Refund issued.'));
     }
 
     public function markPaid(Request $request, Invoice $invoice, RunsInvoiceOperations $operations): RedirectResponse

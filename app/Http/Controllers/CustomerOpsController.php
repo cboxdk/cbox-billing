@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Approvals\ApprovableActionRegistry;
+use App\Billing\Approvals\ApprovalGate;
+use App\Billing\Approvals\Enums\ApprovalActionType;
 use App\Billing\Audit\Contracts\RecordsAudit;
 use App\Billing\Audit\Enums\AuditAction;
 use App\Billing\Audit\ValueObjects\AuditTarget;
@@ -27,25 +30,22 @@ use Throwable;
  */
 class CustomerOpsController extends Controller
 {
-    public function suspend(Organization $organization, AccountStanding $standing, RecordsAudit $audit): RedirectResponse
+    public function suspend(Organization $organization, ApprovableActionRegistry $registry, ApprovalGate $gate): RedirectResponse
     {
-        $wasSuspended = $organization->suspended_at !== null;
-        $organization->forceFill(['suspended_at' => now()])->save();
-        $standing->flag($organization->id, AccountStandingState::Suspended, 'Suspended by operator from the console.');
+        // Suspension is routed through the approval gate: below/disabled it suspends immediately
+        // (flipping the app mirror + engine standing + audit, exactly as before); when the
+        // policy requires it, the suspension is held for a second operator and does not apply.
+        $action = $registry->build(ApprovalActionType::CustomerSuspend, [
+            'organization_id' => $organization->id,
+        ]);
 
-        $audit->record(
-            AuditAction::CustomerSuspended,
-            AuditTarget::of('organization', $organization->id, $organization->id),
-            sprintf('Suspended organization %s — access held, billing untouched.', $organization->id),
-            [
-                'before' => ['suspended' => $wasSuspended, 'standing' => AccountStandingState::Good->value],
-                'after' => ['suspended' => true, 'standing' => AccountStandingState::Suspended->value],
-            ],
-        );
+        $result = $gate->run($action, 'Operator-initiated suspension');
 
         return redirect()
             ->route('billing.customers.show', $organization->id)
-            ->with('status', sprintf('%s suspended — access is held; billing is untouched.', $organization->name));
+            ->with('status', $result->wasHeld()
+                ? sprintf('Suspension of %s submitted for approval (request #%d) — not applied yet.', $organization->name, $result->request?->id)
+                : ($result->outcome !== null ? $result->outcome->summary : sprintf('%s suspended.', $organization->name)));
     }
 
     public function reactivate(Organization $organization, AccountStanding $standing, RecordsAudit $audit): RedirectResponse

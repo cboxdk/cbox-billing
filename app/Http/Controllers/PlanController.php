@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Approvals\ApprovableActionRegistry;
+use App\Billing\Approvals\ApprovalGate;
+use App\Billing\Approvals\Enums\ApprovalActionType;
 use App\Billing\Catalog\Exceptions\CatalogActionDenied;
 use App\Billing\Catalog\PlanAuthoring;
 use App\Billing\Reporting\PlanReport;
@@ -81,11 +84,18 @@ class PlanController extends Controller
             ->with('status', sprintf('Plan “%s” updated.', $plan->name));
     }
 
-    public function archive(Plan $plan, PlanAuthoring $authoring): RedirectResponse
+    public function archive(Plan $plan, ApprovableActionRegistry $registry, ApprovalGate $gate): RedirectResponse
     {
-        $authoring->archive($plan);
+        // Archival is routed through the approval gate: below/disabled it archives immediately
+        // (exactly as before); when enabled a second operator must approve before the plan is
+        // closed to new signups.
+        $action = $registry->build(ApprovalActionType::PlanArchive, ['plan_id' => $plan->id]);
 
-        return back()->with('status', sprintf('Plan “%s” archived — it is now legacy and closed to new signups.', $plan->name));
+        $result = $gate->run($action);
+
+        return back()->with('status', $result->wasHeld()
+            ? sprintf('Archival of “%s” submitted for approval (request #%d) — not applied yet.', $plan->name, $result->request?->id)
+            : sprintf('Plan “%s” archived — it is now legacy and closed to new signups.', $plan->name));
     }
 
     public function unarchive(Plan $plan, PlanAuthoring $authoring): RedirectResponse

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\AccessGrantController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\ApiTokenController;
+use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
@@ -136,6 +137,17 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     Route::post('/quotes/{quote}/approve', [QuoteApprovalController::class, 'approve'])->middleware('billing.permission:quotes:approve')->name('billing.quotes.approve');
     Route::post('/quotes/{quote}/reject', [QuoteApprovalController::class, 'reject'])->middleware('billing.permission:quotes:approve')->name('billing.quotes.reject');
     Route::delete('/quotes/{quote}', [QuoteController::class, 'destroy'])->middleware('billing.permission:quotes:manage')->name('billing.quotes.destroy');
+
+    // --- Approvals: the general maker-checker engine (two-person rule). Sensitive money actions
+    // that trip the policy are held here for a SECOND operator. The pending queue + decisions
+    // carry the distinct `approvals:decide` slug (a maker cannot self-approve — enforced in the
+    // service, not just the route); "my requests" is open to any operator to track their own.
+    Route::get('/approvals', [ApprovalController::class, 'index'])->middleware('billing.permission:approvals:decide')->name('billing.approvals');
+    Route::get('/approvals/mine', [ApprovalController::class, 'mine'])->name('billing.approvals.mine');
+    Route::get('/approvals/{approvalRequest}', [ApprovalController::class, 'show'])->middleware('billing.permission:approvals:decide')->name('billing.approvals.show');
+    Route::post('/approvals/{approvalRequest}/approve', [ApprovalController::class, 'approve'])->middleware('billing.permission:approvals:decide')->name('billing.approvals.approve');
+    Route::post('/approvals/{approvalRequest}/reject', [ApprovalController::class, 'reject'])->middleware('billing.permission:approvals:decide')->name('billing.approvals.reject');
+    Route::post('/approvals/{approvalRequest}/cancel', [ApprovalController::class, 'cancel'])->name('billing.approvals.cancel');
 
     // --- Revenue analytics (engine Reporting module) ---
     Route::get('/analytics/revenue', [AnalyticsController::class, 'revenue'])->middleware('billing.permission:analytics:read')->name('analytics.revenue');

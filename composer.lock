@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9dc3777202bf7813bdbc0a91b518c991",
+    "content-hash": "f63189dd6d30848fa073ffd9b278c662",
     "packages": [
         {
             "name": "brick/math",
@@ -577,6 +577,66 @@
                 "source": "https://github.com/cboxdk/laravel-id-client/tree/v0.3.1"
             },
             "time": "2026-07-17T17:20:43+00:00"
+        },
+        {
+            "name": "cboxdk/laravel-nexus",
+            "version": "v0.1.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cboxdk/laravel-nexus.git",
+                "reference": "43ab649aedb3a27a627b9690b2809b82afeb5f67"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cboxdk/laravel-nexus/zipball/43ab649aedb3a27a627b9690b2809b82afeb5f67",
+                "reference": "43ab649aedb3a27a627b9690b2809b82afeb5f67",
+                "shasum": ""
+            },
+            "require": {
+                "cboxdk/laravel-geo": "^0.4 || ^0.5",
+                "illuminate/contracts": "^12.0 || ^13.0",
+                "illuminate/http": "^12.0 || ^13.0",
+                "illuminate/support": "^12.0 || ^13.0",
+                "php": "^8.4"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.18",
+                "orchestra/testbench": "^10.0 || ^11.0",
+                "pestphp/pest": "^3.5 || ^4.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Cbox\\Nexus\\NexusServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cbox\\Nexus\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Cbox Nexus — the US economic-nexus engine for Laravel: accumulate a seller's sales per state, detect when a post-Wayfair threshold is crossed, and report where registration is required.",
+            "keywords": [
+                "cbox",
+                "economic-nexus",
+                "laravel",
+                "nexus",
+                "sales-tax",
+                "us",
+                "wayfair"
+            ],
+            "support": {
+                "issues": "https://github.com/cboxdk/laravel-nexus/issues",
+                "source": "https://github.com/cboxdk/laravel-nexus/tree/v0.1.1"
+            },
+            "time": "2026-07-22T21:57:24+00:00"
         },
         {
             "name": "cboxdk/laravel-ssrf",

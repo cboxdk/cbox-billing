@@ -10,6 +10,7 @@ use App\Providers\CpqServiceProvider;
 use App\Providers\ExportServiceProvider;
 use App\Providers\ImportServiceProvider;
 use App\Providers\LicensingServiceProvider;
+use App\Providers\NexusServiceProvider;
 use App\Providers\TaxExemptionServiceProvider;
 use App\Providers\TestModeServiceProvider;
 use App\Providers\WebhookServiceProvider;
@@ -21,6 +22,7 @@ return [
     BillingServiceProvider::class,
     CpqServiceProvider::class,
     TaxExemptionServiceProvider::class,
+    NexusServiceProvider::class,
     ExportServiceProvider::class,
     ImportServiceProvider::class,
     AuditServiceProvider::class,

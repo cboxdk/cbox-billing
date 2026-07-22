@@ -12,6 +12,7 @@
         "cboxdk/laravel-console-kit": "^0.2.1",
         "cboxdk/laravel-health": "^2.0",
         "cboxdk/laravel-id-client": "^0.3",
+        "cboxdk/laravel-nexus": "^0.1",
         "cboxdk/laravel-ssrf": "^1.1",
         "cboxdk/laravel-telemetry": "^1.0",
         "cboxdk/license": "^0.1",

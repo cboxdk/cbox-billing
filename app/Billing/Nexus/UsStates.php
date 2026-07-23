@@ -10,7 +10,7 @@ namespace App\Billing\Nexus;
  * determination): which of these actually carry an economic-nexus threshold comes from the
  * us-tax-data dataset via the engine, not from here.
  */
-final class UsStates
+class UsStates
 {
     /** @var array<string, string> code => name */
     private const STATES = [

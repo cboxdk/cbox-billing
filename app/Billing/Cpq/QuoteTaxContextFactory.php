@@ -6,6 +6,7 @@ namespace App\Billing\Cpq;
 
 use App\Billing\Seller\SellerCatalog;
 use App\Billing\Tax\TaxContextFactory;
+use App\Billing\Tax\TaxPricing;
 use App\Models\Organization;
 use App\Models\Quote;
 use Cbox\Billing\Quote\ValueObjects\QuoteContext;
@@ -15,7 +16,7 @@ use Cbox\Geo\ValueObjects\Jurisdiction;
 use Cbox\Geo\ValueObjects\SubdivisionCode;
 use Cbox\Geo\ValueObjects\TaxProfile;
 use Cbox\Tax\Enums\CustomerType;
-use Cbox\Tax\Enums\Pricing;
+use Illuminate\Contracts\Config\Repository as Config;
 
 /**
  * Builds the {@see QuoteContext} a sales quote is priced against — the buyer/seller side of
@@ -32,6 +33,7 @@ readonly class QuoteTaxContextFactory
     public function __construct(
         private JurisdictionRepository $jurisdictions,
         private SellerCatalog $sellers,
+        private Config $config,
     ) {}
 
     public function forQuote(Quote $quote): QuoteContext
@@ -46,7 +48,7 @@ readonly class QuoteTaxContextFactory
             place: $this->placeOfSupply($quote),
             customer: CustomerType::Business,
             seller: $seller->toSellerRegistrations(),
-            pricing: Pricing::Exclusive,
+            pricing: TaxPricing::fromConfig($this->config),
             customerTaxIdValidated: $organization instanceof Organization && $organization->tax_id_validated,
         );
     }

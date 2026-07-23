@@ -14,7 +14,7 @@ use Cbox\Geo\ValueObjects\Jurisdiction;
 use Cbox\Geo\ValueObjects\SubdivisionCode;
 use Cbox\Geo\ValueObjects\TaxProfile;
 use Cbox\Tax\Enums\CustomerType;
-use Cbox\Tax\Enums\Pricing;
+use Illuminate\Contracts\Config\Repository as Config;
 
 /**
  * Assembles the {@see QuoteContext} a quote/invoice is priced against for an organization
@@ -31,6 +31,7 @@ readonly class TaxContextFactory
         private JurisdictionRepository $jurisdictions,
         private SellerCatalog $sellers,
         private ExemptionContext $exemptions,
+        private Config $config,
     ) {}
 
     public function forOrganization(Organization $organization): QuoteContext
@@ -45,7 +46,7 @@ readonly class TaxContextFactory
             place: $this->placeOfSupply($organization),
             customer: CustomerType::Business,
             seller: $this->sellers->default()->toSellerRegistrations(),
-            pricing: Pricing::Exclusive,
+            pricing: TaxPricing::fromConfig($this->config),
             customerTaxIdValidated: $organization->tax_id_validated,
         );
     }

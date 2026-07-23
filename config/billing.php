@@ -1111,6 +1111,18 @@ return [
 
     'nexus' => [
         'sole_sales_channel' => env('CBOX_NEXUS_SOLE_SALES_CHANNEL', false),
+
+        // Economic-nexus alerts: the scheduled `nexus:alerts` sweep records each state that
+        // crosses into Approaching/Triggered (once per measurement period) and emails the
+        // recipients below. With no recipients, the crossing is still recorded for the console
+        // watchlist — no email is sent and no mailbox is invented.
+        'alerts' => [
+            'enabled' => env('CBOX_NEXUS_ALERTS_ENABLED', true),
+            'recipients' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('CBOX_NEXUS_ALERT_RECIPIENTS', '')),
+            ))),
+        ],
     ],
 
 ];

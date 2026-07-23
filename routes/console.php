@@ -107,3 +107,11 @@ Schedule::command('fx:refresh')->weekdays()->at('16:30')->withoutOverlapping();
  * honest. Daily, idempotent (an already-expired certificate is not re-selected).
  */
 Schedule::command('tax:expire-certificates')->dailyAt('02:30')->withoutOverlapping();
+
+/*
+ * Economic-nexus alert sweep: evaluate the default seller's US exposure and record/notify any
+ * state newly crossed into Approaching or Triggered. Nexus turns over slowly (cumulative annual
+ * sales), so a daily pass is ample; idempotent per (seller, state, period, status), so it
+ * surfaces each crossing exactly once per measurement period.
+ */
+Schedule::command('nexus:alerts')->dailyAt('05:30')->withoutOverlapping();

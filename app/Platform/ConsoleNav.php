@@ -131,6 +131,12 @@ class ConsoleNav
                 ['route' => 'billing.tax-exemptions', 'label' => 'Tax exemptions', 'key' => 'tax-exemptions', 'params' => [], 'feature' => null, 'order' => 30],
             ],
         ],
+        'nexus' => [
+            'label' => 'Nexus', 'icon' => 'shield', 'order' => 65, 'feature' => null,
+            'pages' => [
+                ['route' => 'billing.nexus', 'label' => 'US economic nexus', 'key' => 'overview', 'params' => [], 'feature' => null, 'order' => 10],
+            ],
+        ],
         'licenses' => [
             // The on-prem license issuer is an add-on capability, so the whole area is
             // gated on the `licenses` console-kit feature. The base registers that feature

@@ -129,6 +129,9 @@ return [
             ['key' => 'customers:read', 'description' => 'View billing organizations and their entitlements'],
             ['key' => 'customers:manage', 'description' => 'Provision, edit, suspend and reactivate billing organizations'],
 
+            ['key' => 'nexus:read', 'description' => 'View US economic-nexus standing across states'],
+            ['key' => 'nexus:manage', 'description' => 'Declare physical presence and record external-channel sales for nexus'],
+
             ['key' => 'wallet:manage', 'description' => 'Grant and debit organization wallet credit'],
 
             // The read counterpart to payments:manage — assigned to every role for entitlement /
@@ -159,6 +162,7 @@ return [
                     'usage:read', 'usage:ingest',
                     'catalog:read', 'catalog:manage',
                     'customers:read', 'customers:manage',
+                    'nexus:read', 'nexus:manage',
                     'wallet:manage',
                     'payments:read', 'payments:manage',
                     'licenses:read', 'licenses:issue', 'licenses:revoke',
@@ -177,6 +181,7 @@ return [
                     'usage:read', 'usage:ingest',
                     'catalog:read',
                     'customers:read', 'customers:manage',
+                    'nexus:read', 'nexus:manage',
                     'wallet:manage',
                     'payments:read', 'payments:manage',
                     'licenses:read', 'licenses:issue', 'licenses:revoke',
@@ -195,6 +200,7 @@ return [
                     'usage:read',
                     'catalog:read',
                     'customers:read',
+                    'nexus:read',
                     'payments:read',
                     'licenses:read',
                     'analytics:read',

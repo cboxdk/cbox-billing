@@ -29,6 +29,7 @@ use App\Http\Controllers\InvoiceOpsController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\MailTemplateController;
 use App\Http\Controllers\MeterController;
+use App\Http\Controllers\NexusController;
 use App\Http\Controllers\OrganizationFeatureOverrideController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PlanCreditGrantController;
@@ -388,6 +389,14 @@ Route::middleware(['auth.cbox', 'billing.operator', 'billing.mode', 'billing.aud
     // Tax-exemption overview (who is exempt where) — a static segment declared BEFORE the
     // `{organization}` binding so it is never captured as an org id.
     Route::get('/tax-exemptions', [ExemptionCertificateController::class, 'overview'])->middleware('billing.permission:customers:read')->name('billing.tax-exemptions');
+
+    // US economic-nexus console: the per-state standing plus the operator-declared physical-presence
+    // and external-channel-sales registers the engine cannot infer.
+    Route::get('/nexus', [NexusController::class, 'index'])->middleware('billing.permission:nexus:read')->name('billing.nexus');
+    Route::post('/nexus/presence', [NexusController::class, 'storePresence'])->middleware('billing.permission:nexus:manage')->name('billing.nexus.presence.store');
+    Route::delete('/nexus/presence/{presence}', [NexusController::class, 'destroyPresence'])->middleware('billing.permission:nexus:manage')->name('billing.nexus.presence.destroy');
+    Route::post('/nexus/external-sales', [NexusController::class, 'storeExternalSales'])->middleware('billing.permission:nexus:manage')->name('billing.nexus.external-sales.store');
+    Route::delete('/nexus/external-sales/{external}', [NexusController::class, 'destroyExternalSales'])->middleware('billing.permission:nexus:manage')->name('billing.nexus.external-sales.destroy');
 
     Route::get('/customers/{organization}', [BillingController::class, 'customer'])->middleware('billing.permission:customers:read')->name('billing.customers.show');
 

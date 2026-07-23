@@ -18,7 +18,12 @@ class TaxPricing
 {
     public static function fromConfig(Config $config): Pricing
     {
-        return $config->get('billing.tax.pricing') === Pricing::Inclusive->value
+        // Normalize so a stray "Inclusive" / " inclusive " is honored rather than silently
+        // reverting to exclusive; an unknown non-empty value still denies-by-default.
+        $raw = $config->get('billing.tax.pricing');
+        $value = is_string($raw) ? strtolower(trim($raw)) : '';
+
+        return $value === Pricing::Inclusive->value
             ? Pricing::Inclusive
             : Pricing::Exclusive;
     }

@@ -65,15 +65,16 @@ class NexusAlertsTest extends TestCase
         $newly = $this->app->make(NexusAlertEmitter::class)->sweep();
 
         // US-CA triggered is recorded and emailed; US-NY (a held registration) is not alerted.
+        // The mail is queued (ShouldQueue) so delivery is retryable and decoupled from the sweep.
         $this->assertSame(['US-CA'], array_map(static fn ($e) => $e->state->value, $newly));
         $this->assertSame(1, NexusAlertDispatch::query()->where('subdivision', 'US-CA')->count());
-        Mail::assertSent(NexusAlertMail::class, 1);
+        Mail::assertQueued(NexusAlertMail::class, 1);
 
         // A second sweep surfaces nothing new and sends no further mail — the ledger deduplicates.
         $again = $this->app->make(NexusAlertEmitter::class)->sweep();
 
         $this->assertSame([], $again);
-        Mail::assertSent(NexusAlertMail::class, 1);
+        Mail::assertQueued(NexusAlertMail::class, 1);
     }
 
     public function test_sweep_records_the_crossing_but_sends_no_mail_without_recipients(): void
@@ -86,7 +87,7 @@ class NexusAlertsTest extends TestCase
 
         $this->assertSame(['US-CA'], array_map(static fn ($e) => $e->state->value, $newly));
         $this->assertSame(1, NexusAlertDispatch::query()->where('subdivision', 'US-CA')->count());
-        Mail::assertNothingSent();
+        Mail::assertNothingOutgoing();
     }
 
     public function test_sweep_is_disabled_by_config(): void
@@ -97,6 +98,6 @@ class NexusAlertsTest extends TestCase
 
         $this->assertSame([], $this->app->make(NexusAlertEmitter::class)->sweep());
         $this->assertSame(0, NexusAlertDispatch::query()->count());
-        Mail::assertNothingSent();
+        Mail::assertNothingOutgoing();
     }
 }

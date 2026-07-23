@@ -13,6 +13,7 @@ use Cbox\Geo\ValueObjects\SubdivisionCode;
 use Cbox\Nexus\Contracts\NexusEngine;
 use Cbox\Nexus\Contracts\NexusRegistrations;
 use Cbox\Nexus\Contracts\NexusThresholdSource;
+use Cbox\Nexus\Contracts\PhysicalNexus;
 use Cbox\Nexus\Contracts\SalesLedger;
 use Cbox\Nexus\Enums\NexusCombinator;
 use Cbox\Nexus\Enums\NexusStatus;
@@ -85,6 +86,36 @@ class NexusIntegrationTest extends TestCase
         // No US sales into Texas, and non-US is out of scope entirely.
         $this->assertNull($this->app->make(SalesLedger::class)->activityFor(new SubdivisionCode('US-TX')));
         $this->assertNull($this->app->make(SalesLedger::class)->activityFor(new SubdivisionCode('CA-QC')));
+    }
+
+    public function test_foreign_sale_without_an_fx_rate_counts_the_transaction_but_not_the_dollars(): void
+    {
+        $this->defaultUsSeller();
+        $this->orgIn('ca-buyer', 'US-CA');
+
+        $this->invoice('USCO-1', 'ca-buyer', 10_000_000, 'paid');        // $100k USD
+        $this->invoice('USCO-2', 'ca-buyer', 40_000_000, 'open', 'DKK'); // no DKK→USD rate seeded
+
+        $activity = $this->app->make(SalesLedger::class)->activityFor(new SubdivisionCode('US-CA'));
+
+        $this->assertNotNull($activity);
+        $this->assertSame(100_000, $activity->salesDollars); // unvaluable DKK dollars omitted, never fabricated
+        $this->assertSame(2, $activity->transactions);       // but the DKK sale is still a transaction
+    }
+
+    public function test_physical_presence_is_active_on_its_final_day_and_not_after(): void
+    {
+        $seller = $this->defaultUsSeller();
+
+        // A presence whose window ENDS today must still be active today (inclusive end),
+        // not dropped a day early; one that ended yesterday must be gone.
+        $seller->physicalPresence()->create(['subdivision' => 'US-WA', 'effective_to' => Carbon::now()]);
+        $seller->physicalPresence()->create(['subdivision' => 'US-OR', 'effective_to' => Carbon::now()->subDay()]);
+
+        $presence = $this->app->make(PhysicalNexus::class);
+
+        $this->assertTrue($presence->hasPresenceIn(new SubdivisionCode('US-WA')));
+        $this->assertFalse($presence->hasPresenceIn(new SubdivisionCode('US-OR')));
     }
 
     public function test_sales_ledger_adds_external_channel_sales_to_platform_sales(): void

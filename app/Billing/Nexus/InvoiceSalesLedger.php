@@ -15,6 +15,7 @@ use Cbox\Geo\ValueObjects\SubdivisionCode;
 use Cbox\Nexus\Contracts\SalesLedger;
 use Cbox\Nexus\ValueObjects\SellerActivity;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 /**
  * The {@see SalesLedger} for the nexus engine: the default selling entity's CUMULATIVE
@@ -124,7 +125,19 @@ readonly class InvoiceSalesLedger implements SalesLedger
 
             if ($conversion !== null) {
                 $dollars += intdiv($conversion->converted->minor(), 100);
+
+                continue;
             }
+
+            // No FX rate: the dollar figure for this state is now a FLOOR, not the full total.
+            // Surface it so the reported salesDollars is not silently taken as complete — a
+            // sales-only-threshold state could otherwise read "below" while actually over.
+            Log::warning('nexus.sales_ledger.fx_rate_unavailable', [
+                'state' => $state->value,
+                'currency' => $currency,
+                'minor' => $minor,
+                'as_of' => $asOf->toDateString(),
+            ]);
         }
 
         return [$dollars, $transactions];

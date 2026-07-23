@@ -84,7 +84,7 @@ class NexusController extends Controller
             ->with('status', sprintf('Physical presence in %s recorded.', UsStates::name($subdivision)));
     }
 
-    /** `POST` — end/remove a physical-presence declaration. */
+    /** `DELETE` — end/remove a physical-presence declaration. */
     public function destroyPresence(SellerPhysicalPresence $presence): RedirectResponse
     {
         $this->ownedByDefaultSeller($presence->seller_entity_id);
@@ -101,8 +101,10 @@ class NexusController extends Controller
         $request->validate([
             'subdivision' => ['required', 'string', 'in:'.implode(',', UsStates::codes())],
             'period_year' => ['required', 'integer', 'min:2000', 'max:2100'],
-            'sales_dollars' => ['required', 'integer', 'min:0'],
-            'transactions' => ['required', 'integer', 'min:0'],
+            // Bounded so a fat-fingered figure cannot overflow the unsigned columns
+            // (transactions: unsignedInteger; sales_dollars: unsignedBigInteger).
+            'sales_dollars' => ['required', 'integer', 'min:0', 'max:999999999999'],
+            'transactions' => ['required', 'integer', 'min:0', 'max:4000000000'],
             'source' => ['nullable', 'string', 'max:120'],
         ]);
 
@@ -122,7 +124,7 @@ class NexusController extends Controller
             ->with('status', sprintf('External-channel sales for %s (%d) recorded.', UsStates::name($subdivision), $year));
     }
 
-    /** `POST` — remove an external-channel sales entry. */
+    /** `DELETE` — remove an external-channel sales entry. */
     public function destroyExternalSales(SellerExternalSales $external): RedirectResponse
     {
         $this->ownedByDefaultSeller($external->seller_entity_id);

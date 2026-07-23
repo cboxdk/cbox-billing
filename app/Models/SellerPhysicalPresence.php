@@ -42,15 +42,19 @@ class SellerPhysicalPresence extends Model
 
     /**
      * Presence in effect on the given day: the window has started (or has no start)
-     * and has not ended (or never ends).
+     * and has not ended (or never ends) — both endpoints inclusive. Normalized to the
+     * start of the day so the DATE-typed (midnight) `effective_to` is compared against a
+     * midnight bound: a presence ending TODAY is still active today, not dropped a day early.
      *
      * @param  Builder<SellerPhysicalPresence>  $query
      */
     public function scopeActiveOn(Builder $query, Carbon $day): void
     {
+        $onDay = $day->copy()->startOfDay();
+
         $query
-            ->where(fn (Builder $q) => $q->whereNull('effective_from')->orWhere('effective_from', '<=', $day))
-            ->where(fn (Builder $q) => $q->whereNull('effective_to')->orWhere('effective_to', '>=', $day));
+            ->where(fn (Builder $q) => $q->whereNull('effective_from')->orWhere('effective_from', '<=', $onDay))
+            ->where(fn (Builder $q) => $q->whereNull('effective_to')->orWhere('effective_to', '>=', $onDay));
     }
 
     /** @return BelongsTo<SellerEntity, $this> */

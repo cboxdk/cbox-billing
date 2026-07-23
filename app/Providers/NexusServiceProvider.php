@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use App\Billing\Nexus\ConfigPhysicalNexus;
+use App\Billing\Nexus\DatabasePhysicalNexus;
 use App\Billing\Nexus\InvoiceSalesLedger;
 use App\Billing\Nexus\NexusReporter;
 use App\Billing\Nexus\SellerNexusRegistrations;
@@ -37,28 +37,14 @@ class NexusServiceProvider extends ServiceProvider
             $app->make(SellerCatalog::class),
         ));
 
-        $this->app->singleton(PhysicalNexus::class, fn (Application $app): PhysicalNexus => new ConfigPhysicalNexus(
-            $this->physicalPresenceStates($app),
+        $this->app->singleton(PhysicalNexus::class, static fn (Application $app): PhysicalNexus => new DatabasePhysicalNexus(
+            $app->make(SellerCatalog::class),
         ));
 
-        $this->app->singleton(NexusReporter::class, fn (Application $app): NexusReporter => new NexusReporter(
+        $this->app->singleton(NexusReporter::class, static fn (Application $app): NexusReporter => new NexusReporter(
             $app->make(NexusEngine::class),
             $app->make(SellerCatalog::class),
-            $this->physicalPresenceStates($app),
             $app->make(Config::class)->get('billing.nexus.sole_sales_channel') === true,
         ));
-    }
-
-    /**
-     * The operator-declared physical-presence states — a nexus trigger independent of
-     * sales, and the states the reporter must include even where there are no sales.
-     *
-     * @return list<string>
-     */
-    private function physicalPresenceStates(Application $app): array
-    {
-        $states = $app->make(Config::class)->get('billing.nexus.physical_presence', []);
-
-        return is_array($states) ? array_values(array_filter($states, 'is_string')) : [];
     }
 }

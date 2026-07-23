@@ -6,11 +6,13 @@ namespace App\Billing\Nexus;
 
 use App\Billing\Seller\SellerCatalog;
 use App\Models\Organization;
+use App\Models\SellerPhysicalPresence;
 use App\Models\SellerTaxRegistration;
 use Cbox\Geo\Exceptions\InvalidSubdivisionCode;
 use Cbox\Geo\ValueObjects\SubdivisionCode;
 use Cbox\Nexus\Contracts\NexusEngine;
 use Cbox\Nexus\ValueObjects\NexusReport;
+use Illuminate\Support\Carbon;
 
 /**
  * Runs the nexus engine across the US states the default selling entity is exposed
@@ -22,13 +24,9 @@ use Cbox\Nexus\ValueObjects\NexusReport;
  */
 readonly class NexusReporter
 {
-    /**
-     * @param  list<string>  $physicalPresenceStates  operator-declared presence states
-     */
     public function __construct(
         private NexusEngine $engine,
         private SellerCatalog $sellers,
-        private array $physicalPresenceStates = [],
         private bool $soleSalesChannel = false,
     ) {}
 
@@ -70,9 +68,14 @@ readonly class NexusReporter
             ->whereNotNull('subdivision')
             ->pluck('subdivision');
 
+        $fromPresence = SellerPhysicalPresence::query()
+            ->where('seller_entity_id', $this->sellers->default()->id)
+            ->activeOn(Carbon::now())
+            ->pluck('subdivision');
+
         $values = $fromBuyers
             ->merge($fromRegistrations)
-            ->merge($this->physicalPresenceStates)
+            ->merge($fromPresence)
             ->unique();
 
         $states = [];

@@ -12,7 +12,6 @@ use Cbox\Geo\ValueObjects\SubdivisionCode;
 use Cbox\Nexus\Contracts\NexusEngine;
 use Cbox\Nexus\Contracts\NexusRegistrations;
 use Cbox\Nexus\Contracts\NexusThresholdSource;
-use Cbox\Nexus\Contracts\PhysicalNexus;
 use Cbox\Nexus\Contracts\SalesLedger;
 use Cbox\Nexus\Enums\NexusCombinator;
 use Cbox\Nexus\Enums\NexusStatus;
@@ -135,17 +134,16 @@ class NexusIntegrationTest extends TestCase
 
     public function test_declared_physical_presence_surfaces_as_triggered_without_sales(): void
     {
-        $this->defaultUsSeller(); // registered US-NY only; no US buyers, no invoices
+        $seller = $this->defaultUsSeller(); // registered US-NY only; no US buyers, no invoices
 
         // Operator declares physical presence in Washington — a trigger on its own.
-        config(['billing.nexus.physical_presence' => ['US-WA']]);
+        $seller->physicalPresence()->create(['subdivision' => 'US-WA']);
 
         $threshold = new EconomicNexusThreshold(100_000, null, NexusCombinator::SalesOnly);
         $this->app->singleton(NexusThresholdSource::class, fn (): NexusThresholdSource => new ArrayNexusThresholdSource([
             'US-WA' => $threshold, 'US-NY' => $threshold,
         ]));
-        // Re-resolve the config-backed bindings so they pick up the presence + threshold.
-        $this->app->forgetInstance(PhysicalNexus::class);
+        // Re-resolve the engine + reporter so they pick up the faked threshold source.
         $this->app->forgetInstance(NexusEngine::class);
         $this->app->forgetInstance(NexusReporter::class);
 

@@ -73,4 +73,15 @@ class SellerEntity extends Model
     {
         return $this->hasMany(SellerTaxRegistration::class);
     }
+
+    /**
+     * States this entity has operator-declared physical presence in (office, staff,
+     * inventory) — a nexus trigger independent of sales, each with an optional window.
+     *
+     * @return HasMany<SellerPhysicalPresence, $this>
+     */
+    public function physicalPresence(): HasMany
+    {
+        return $this->hasMany(SellerPhysicalPresence::class);
+    }
 }

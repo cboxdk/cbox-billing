@@ -1,7 +1,7 @@
 {
     "bomFormat": "CycloneDX",
     "specVersion": "1.5",
-    "serialNumber": "urn:uuid:97ef3406-ba6c-4c75-8e95-a1c5e55ff988",
+    "serialNumber": "urn:uuid:7c4f9f7b-2424-4dcd-bea6-0d9782728217",
     "version": 1,
     "metadata": {
         "tools": [
@@ -155,6 +155,22 @@
             "version": "v0.3.1",
             "purl": "pkg:composer/cboxdk/laravel-id-client@v0.3.1",
             "description": "Laravel/PHP consumer SDK for Cbox ID \u2014 turnkey OIDC login, hosted profile-management redirect, machine tokens, and webhook verification against a Cbox ID instance.",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "bom-ref": "pkg:composer/cboxdk/laravel-nexus@v0.1.1",
+            "group": "cboxdk",
+            "name": "laravel-nexus",
+            "version": "v0.1.1",
+            "purl": "pkg:composer/cboxdk/laravel-nexus@v0.1.1",
+            "description": "Cbox Nexus \u2014 the US economic-nexus engine for Laravel: accumulate a seller's sales per state, detect when a post-Wayfair threshold is crossed, and report where registration is required.",
             "licenses": [
                 {
                     "license": {
@@ -421,11 +437,11 @@
         },
         {
             "type": "library",
-            "bom-ref": "pkg:composer/guzzlehttp/guzzle@7.14.2",
+            "bom-ref": "pkg:composer/guzzlehttp/guzzle@7.15.1",
             "group": "guzzlehttp",
             "name": "guzzle",
-            "version": "7.14.2",
-            "purl": "pkg:composer/guzzlehttp/guzzle@7.14.2",
+            "version": "7.15.1",
+            "purl": "pkg:composer/guzzlehttp/guzzle@7.15.1",
             "description": "Guzzle is a PHP HTTP client library",
             "licenses": [
                 {
@@ -453,11 +469,11 @@
         },
         {
             "type": "library",
-            "bom-ref": "pkg:composer/guzzlehttp/psr7@2.12.5",
+            "bom-ref": "pkg:composer/guzzlehttp/psr7@2.13.0",
             "group": "guzzlehttp",
             "name": "psr7",
-            "version": "2.12.5",
-            "purl": "pkg:composer/guzzlehttp/psr7@2.12.5",
+            "version": "2.13.0",
+            "purl": "pkg:composer/guzzlehttp/psr7@2.13.0",
             "description": "PSR-7 message implementation that also provides common utility methods",
             "licenses": [
                 {

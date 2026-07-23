@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Billing\Nexus\NexusReporter;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\SellerEntity;
@@ -109,5 +110,25 @@ class NexusIntegrationTest extends TestCase
         $this->assertSame(NexusStatus::Triggered, $engine->evaluate(new SubdivisionCode('US-CA'))->status);   // $600k >= $500k
         $this->assertSame(NexusStatus::Registered, $engine->evaluate(new SubdivisionCode('US-NY'))->status);  // held permit
         $this->assertSame(NexusStatus::Below, $engine->evaluate(new SubdivisionCode('US-TX'))->status);       // no activity
+    }
+
+    public function test_reporter_covers_buyer_states_and_registrations_for_the_default_seller(): void
+    {
+        $this->defaultUsSeller(); // registered in US-NY
+        $this->orgIn('ca-buyer', 'US-CA');
+        $this->invoice('USCO-1', 'ca-buyer', 60_000_000, 'open'); // $600k into CA
+
+        $threshold = new EconomicNexusThreshold(500_000, null, NexusCombinator::SalesOnly);
+        $this->app->singleton(NexusThresholdSource::class, fn (): NexusThresholdSource => new ArrayNexusThresholdSource([
+            'US-CA' => $threshold, 'US-NY' => $threshold,
+        ]));
+        $this->app->forgetInstance(NexusEngine::class);
+
+        $report = $this->app->make(NexusReporter::class)->report();
+
+        // Relevant states = US-CA (a buyer's place of supply) + US-NY (a registration).
+        $this->assertSame(['US-CA'], array_map(static fn ($e) => $e->state->value, $report->triggered()));
+        $this->assertSame(['US-NY'], array_map(static fn ($e) => $e->state->value, $report->registered()));
+        $this->assertSame([], $report->approaching());
     }
 }

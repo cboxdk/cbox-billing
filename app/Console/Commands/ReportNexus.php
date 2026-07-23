@@ -27,8 +27,18 @@ class ReportNexus extends Command
         $triggered = $report->triggered();
         $approaching = $report->approaching();
 
+        // Multi-channel caveat: the sales counted here are only those invoiced through
+        // this platform. Other channels also count toward each state's threshold, so a
+        // Below/Approaching state may already be Triggered once combined.
+        if (! $reporter->soleSalesChannel()) {
+            $this->warn('Sales reflect only invoices issued through this platform. Sales through other channels');
+            $this->warn('(marketplaces, other systems) also count toward each state threshold and are not included —');
+            $this->warn('a state shown Below or Approaching may already be Triggered once all channels are combined.');
+            $this->newLine();
+        }
+
         if ($triggered === [] && $approaching === []) {
-            $this->info('No US states have triggered or are approaching economic nexus.');
+            $this->info("No US states have triggered or are approaching economic nexus (on this platform's sales).");
 
             return self::SUCCESS;
         }

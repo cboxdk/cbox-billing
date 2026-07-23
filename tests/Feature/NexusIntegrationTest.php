@@ -12,6 +12,7 @@ use Cbox\Geo\ValueObjects\SubdivisionCode;
 use Cbox\Nexus\Contracts\NexusEngine;
 use Cbox\Nexus\Contracts\NexusRegistrations;
 use Cbox\Nexus\Contracts\NexusThresholdSource;
+use Cbox\Nexus\Contracts\PhysicalNexus;
 use Cbox\Nexus\Contracts\SalesLedger;
 use Cbox\Nexus\Enums\NexusCombinator;
 use Cbox\Nexus\Enums\NexusStatus;
@@ -130,5 +131,29 @@ class NexusIntegrationTest extends TestCase
         $this->assertSame(['US-CA'], array_map(static fn ($e) => $e->state->value, $report->triggered()));
         $this->assertSame(['US-NY'], array_map(static fn ($e) => $e->state->value, $report->registered()));
         $this->assertSame([], $report->approaching());
+    }
+
+    public function test_declared_physical_presence_surfaces_as_triggered_without_sales(): void
+    {
+        $this->defaultUsSeller(); // registered US-NY only; no US buyers, no invoices
+
+        // Operator declares physical presence in Washington — a trigger on its own.
+        config(['billing.nexus.physical_presence' => ['US-WA']]);
+
+        $threshold = new EconomicNexusThreshold(100_000, null, NexusCombinator::SalesOnly);
+        $this->app->singleton(NexusThresholdSource::class, fn (): NexusThresholdSource => new ArrayNexusThresholdSource([
+            'US-WA' => $threshold, 'US-NY' => $threshold,
+        ]));
+        // Re-resolve the config-backed bindings so they pick up the presence + threshold.
+        $this->app->forgetInstance(PhysicalNexus::class);
+        $this->app->forgetInstance(NexusEngine::class);
+        $this->app->forgetInstance(NexusReporter::class);
+
+        $report = $this->app->make(NexusReporter::class)->report();
+
+        // WA is triggered by presence despite zero sales; NY is the held registration.
+        $this->assertSame(['US-WA'], array_map(static fn ($e) => $e->state->value, $report->triggered()));
+        $this->assertTrue($report->forState('US-WA')?->physicalPresence);
+        $this->assertSame(['US-NY'], array_map(static fn ($e) => $e->state->value, $report->registered()));
     }
 }

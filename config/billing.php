@@ -1086,4 +1086,32 @@ return [
         'queue' => env('CBOX_WEBHOOKS_QUEUE', 'webhooks'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | US economic nexus
+    |--------------------------------------------------------------------------
+    |
+    | App-level inputs the cboxdk/laravel-nexus engine cannot infer. Thresholds come
+    | from the us-tax-data dataset and cumulative sales from this app's invoices; these
+    | are the seller-asserted facts.
+    |
+    | `physical_presence` lists ISO 3166-2 states the seller has a PHYSICAL nexus in
+    | (an office, employees, inventory/FBA) — a trigger independent of sales. States
+    | the seller is otherwise registered in (voluntarily or for any reason) flow
+    | automatically from `seller_tax_registrations` and report as Registered.
+    |
+    | `sole_sales_channel` declares whether this platform is the seller's ONLY US sales
+    | channel. When false (the default), the report reflects ONLY sales invoiced here —
+    | sales through other channels (marketplaces, other systems) also count toward each
+    | state's threshold but are not visible — so the caveat is surfaced and a state shown
+    | Below/Approaching may in fact already be Triggered once all channels are combined.
+    |
+    */
+
+    'nexus' => [
+        'physical_presence' => [], // e.g. ['US-CA', 'US-TX']
+
+        'sole_sales_channel' => env('CBOX_NEXUS_SOLE_SALES_CHANNEL', false),
+    ],
+
 ];

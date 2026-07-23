@@ -22,9 +22,14 @@ use Cbox\Nexus\ValueObjects\NexusReport;
  */
 readonly class NexusReporter
 {
+    /**
+     * @param  list<string>  $physicalPresenceStates  operator-declared presence states
+     */
     public function __construct(
         private NexusEngine $engine,
         private SellerCatalog $sellers,
+        private array $physicalPresenceStates = [],
+        private bool $soleSalesChannel = false,
     ) {}
 
     public function report(): NexusReport
@@ -33,8 +38,21 @@ readonly class NexusReporter
     }
 
     /**
+     * Whether this platform is the seller's ONLY US sales channel. When false, the
+     * report's sales reflect only invoices issued here — other channels also count
+     * toward each state's threshold — so a UI must show that a Below/Approaching
+     * state may already be Triggered once all channels are combined.
+     */
+    public function soleSalesChannel(): bool
+    {
+        return $this->soleSalesChannel;
+    }
+
+    /**
      * The distinct US states worth evaluating for the default seller: buyer places
-     * of supply plus held registrations. Both queries are environment-scoped.
+     * of supply, held registrations (any reason), and declared physical presence —
+     * so a state with a nexus trigger but no sales still surfaces. The Eloquent
+     * queries are environment-scoped.
      *
      * @return list<SubdivisionCode>
      */
@@ -52,9 +70,14 @@ readonly class NexusReporter
             ->whereNotNull('subdivision')
             ->pluck('subdivision');
 
+        $values = $fromBuyers
+            ->merge($fromRegistrations)
+            ->merge($this->physicalPresenceStates)
+            ->unique();
+
         $states = [];
 
-        foreach ($fromBuyers->merge($fromRegistrations)->unique() as $value) {
+        foreach ($values as $value) {
             if (! is_string($value)) {
                 continue;
             }

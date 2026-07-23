@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Billing\Fx\FxConverter;
 use App\Billing\Nexus\DatabasePhysicalNexus;
 use App\Billing\Nexus\InvoiceSalesLedger;
 use App\Billing\Nexus\NexusReporter;
@@ -31,6 +32,7 @@ class NexusServiceProvider extends ServiceProvider
     {
         $this->app->singleton(SalesLedger::class, static fn (Application $app): SalesLedger => new InvoiceSalesLedger(
             $app->make(SellerCatalog::class),
+            $app->make(FxConverter::class),
         ));
 
         $this->app->singleton(NexusRegistrations::class, static fn (Application $app): NexusRegistrations => new SellerNexusRegistrations(

@@ -84,4 +84,15 @@ class SellerEntity extends Model
     {
         return $this->hasMany(SellerPhysicalPresence::class);
     }
+
+    /**
+     * Operator-declared sales into US states through OTHER channels (marketplaces,
+     * other systems) — counted toward economic-nexus thresholds alongside our invoices.
+     *
+     * @return HasMany<SellerExternalSales, $this>
+     */
+    public function externalSales(): HasMany
+    {
+        return $this->hasMany(SellerExternalSales::class);
+    }
 }

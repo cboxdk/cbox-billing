@@ -6,6 +6,7 @@ namespace App\Billing\Nexus;
 
 use App\Billing\Seller\SellerCatalog;
 use App\Models\Organization;
+use App\Models\SellerExternalSales;
 use App\Models\SellerPhysicalPresence;
 use App\Models\SellerTaxRegistration;
 use Cbox\Geo\Exceptions\InvalidSubdivisionCode;
@@ -68,14 +69,25 @@ readonly class NexusReporter
             ->whereNotNull('subdivision')
             ->pluck('subdivision');
 
+        $now = Carbon::now();
+
         $fromPresence = SellerPhysicalPresence::query()
             ->where('seller_entity_id', $this->sellers->default()->id)
-            ->activeOn(Carbon::now())
+            ->activeOn($now)
+            ->pluck('subdivision');
+
+        // A state may have sales ONLY through other channels (no platform buyer, no
+        // registration, no presence) yet still be over its threshold — surface it.
+        $fromExternalSales = SellerExternalSales::query()
+            ->where('seller_entity_id', $this->sellers->default()->id)
+            ->whereIn('period_year', [$now->year, $now->year - 1])
+            ->distinct()
             ->pluck('subdivision');
 
         $values = $fromBuyers
             ->merge($fromRegistrations)
             ->merge($fromPresence)
+            ->merge($fromExternalSales)
             ->unique();
 
         $states = [];

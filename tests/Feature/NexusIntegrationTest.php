@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Nexus\NexusReporter;
+use App\Models\FxRate;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\SellerEntity;
@@ -65,20 +66,56 @@ class NexusIntegrationTest extends TestCase
         $this->defaultUsSeller();
         $this->orgIn('ca-buyer', 'US-CA');
 
+        // A foreign-currency sale still counts toward the threshold — valued in USD.
+        FxRate::query()->create([
+            'as_of_date' => Carbon::now()->subMonth(), 'base' => 'DKK', 'quote' => 'USD', 'rate' => '0.15', 'source' => 'override',
+        ]);
+
         $this->invoice('USCO-1', 'ca-buyer', 60_000_000, 'open');   // $600k, counts
         $this->invoice('USCO-2', 'ca-buyer', 5_000_000, 'paid');    // $50k, counts
         $this->invoice('USCO-3', 'ca-buyer', 99_900_000, 'draft');  // excluded (draft)
-        $this->invoice('USCO-4', 'ca-buyer', 40_000_000, 'open', 'DKK'); // excluded (currency)
+        $this->invoice('USCO-4', 'ca-buyer', 40_000_000, 'open', 'DKK'); // 400,000 DKK → $60k @ 0.15
 
         $activity = $this->app->make(SalesLedger::class)->activityFor(new SubdivisionCode('US-CA'));
 
         $this->assertNotNull($activity);
-        $this->assertSame(650_000, $activity->salesDollars); // $600k + $50k
-        $this->assertSame(2, $activity->transactions);
+        $this->assertSame(710_000, $activity->salesDollars); // $600k + $50k + $60k (DKK→USD)
+        $this->assertSame(3, $activity->transactions);       // the DKK sale is a transaction too
 
         // No US sales into Texas, and non-US is out of scope entirely.
         $this->assertNull($this->app->make(SalesLedger::class)->activityFor(new SubdivisionCode('US-TX')));
         $this->assertNull($this->app->make(SalesLedger::class)->activityFor(new SubdivisionCode('CA-QC')));
+    }
+
+    public function test_sales_ledger_adds_external_channel_sales_to_platform_sales(): void
+    {
+        $seller = $this->defaultUsSeller();
+        $this->orgIn('tx-buyer', 'US-TX');
+        $this->invoice('USCO-1', 'tx-buyer', 10_000_000, 'paid'); // $100k on this platform into TX
+
+        // The seller also sold into TX (and into WA, where we have NO platform sales)
+        // through a marketplace — those count toward each state's threshold too.
+        $seller->externalSales()->create([
+            'subdivision' => 'US-TX', 'period_year' => Carbon::now()->year,
+            'sales_dollars' => 250_000, 'transactions' => 40, 'source' => 'Amazon Marketplace',
+        ]);
+        $seller->externalSales()->create([
+            'subdivision' => 'US-WA', 'period_year' => Carbon::now()->year,
+            'sales_dollars' => 120_000, 'transactions' => 15, 'source' => 'Amazon Marketplace',
+        ]);
+
+        $ledger = $this->app->make(SalesLedger::class);
+
+        $tx = $ledger->activityFor(new SubdivisionCode('US-TX'));
+        $this->assertNotNull($tx);
+        $this->assertSame(350_000, $tx->salesDollars); // $100k platform + $250k external
+        $this->assertSame(41, $tx->transactions);       // 1 + 40
+
+        // WA has zero platform sales but real external sales — it must still surface.
+        $wa = $ledger->activityFor(new SubdivisionCode('US-WA'));
+        $this->assertNotNull($wa);
+        $this->assertSame(120_000, $wa->salesDollars);
+        $this->assertSame(15, $wa->transactions);
     }
 
     public function test_registrations_reflect_the_sellers_held_permits(): void

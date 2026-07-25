@@ -11,6 +11,8 @@ use App\Billing\Audit\Contracts\RecordsAudit;
 use App\Billing\Audit\Enums\AuditAction;
 use App\Billing\Audit\ValueObjects\AuditTarget;
 use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
+use App\Billing\Tax\Contracts\VerifiesCustomerTaxIds;
+use App\Billing\Tax\Enums\CustomerKind;
 use App\Models\Organization;
 use Cbox\Billing\Account\Contracts\AccountStanding;
 use Cbox\Billing\Account\Contracts\BillingCurrencyLock;
@@ -18,6 +20,7 @@ use Cbox\Billing\Account\Enums\AccountStandingState;
 use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 /**
@@ -69,12 +72,13 @@ class CustomerOpsController extends Controller
             ->with('status', sprintf('%s reactivated.', $organization->name));
     }
 
-    public function updateProfile(Request $request, Organization $organization, BillingCurrencyLock $currencyLock): RedirectResponse
+    public function updateProfile(Request $request, Organization $organization, BillingCurrencyLock $currencyLock, VerifiesCustomerTaxIds $taxIds): RedirectResponse
     {
         $request->validate([
             'name' => ['required', 'string', 'max:190'],
             'billing_email' => ['nullable', 'email', 'max:190'],
             'tax_id' => ['nullable', 'string', 'max:64'],
+            'customer_type' => ['nullable', Rule::enum(CustomerKind::class)],
             'billing_currency' => ['nullable', 'string', 'size:3', 'alpha'],
         ]);
 
@@ -93,12 +97,30 @@ class CustomerOpsController extends Controller
             ));
         }
 
+        $previousTaxId = $organization->tax_id;
+        $taxId = $request->filled('tax_id') ? trim($request->string('tax_id')->toString()) : null;
+
         $organization->forceFill([
             'name' => $request->string('name')->toString(),
             'billing_email' => $request->filled('billing_email') ? $request->string('billing_email')->toString() : null,
-            'tax_id' => $request->filled('tax_id') ? $request->string('tax_id')->toString() : null,
+            'tax_id' => $taxId,
+            'customer_type' => $request->filled('customer_type')
+                ? $request->string('customer_type')->toString()
+                : $organization->customer_type,
             'billing_currency' => $requestedCurrency,
         ])->save();
+
+        // A changed tax ID invalidates any previous verdict, so re-check it against the register
+        // rather than carrying the old `tax_id_validated` forward. This is the path that was
+        // missing entirely: the console collected a tax ID and nothing ever verified it, so the
+        // reverse-charge branch could not open for any customer.
+        if ($taxId !== $previousTaxId) {
+            $verification = $taxIds->verify($organization);
+
+            return redirect()
+                ->route('billing.customers.show', $organization->id)
+                ->with('status', 'Organization profile updated. '.$verification->message());
+        }
 
         return redirect()
             ->route('billing.customers.show', $organization->id)

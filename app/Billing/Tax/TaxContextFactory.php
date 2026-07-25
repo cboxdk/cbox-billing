@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Tax;
 
 use App\Billing\Seller\SellerCatalog;
+use App\Billing\Tax\Enums\CustomerKind;
 use App\Billing\Tax\Exemptions\ExemptionContext;
 use App\Models\Organization;
 use Cbox\Billing\Quote\ValueObjects\QuoteContext;
@@ -13,7 +14,6 @@ use Cbox\Geo\ValueObjects\CountryCode;
 use Cbox\Geo\ValueObjects\Jurisdiction;
 use Cbox\Geo\ValueObjects\SubdivisionCode;
 use Cbox\Geo\ValueObjects\TaxProfile;
-use Cbox\Tax\Enums\CustomerType;
 use Illuminate\Contracts\Config\Repository as Config;
 
 /**
@@ -44,10 +44,14 @@ readonly class TaxContextFactory
 
         return new QuoteContext(
             place: $this->placeOfSupply($organization),
-            customer: CustomerType::Business,
+            // Derived, NOT hardcoded. Every buyer was treated as a business, which was invisible
+            // only while the reverse-charge gate could never open. Opening that gate without this
+            // would zero-rate genuine consumers on any cross-border supply — the same bug pointing
+            // the other way — so the two must ship together.
+            customer: CustomerKind::fromStorage($organization->customer_type)->toTaxCustomer(),
             seller: $this->sellers->default()->toSellerRegistrations(),
             pricing: TaxPricing::fromConfig($this->config),
-            customerTaxIdValidated: $organization->tax_id_validated,
+            customerTaxIdValidated: (bool) $organization->tax_id_validated,
         );
     }
 

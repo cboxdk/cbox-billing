@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Billing\Tax\Contracts\VerifiesCustomerTaxIds;
 use App\Billing\Tax\Exemptions\ExemptingTaxCalculator;
 use App\Billing\Tax\Exemptions\ExemptionContext;
+use App\Billing\Tax\RegisterTaxIdVerifier;
 use App\Billing\Tax\TaxContextFactory;
 use Cbox\Tax\Contracts\TaxCalculator;
 use Illuminate\Contracts\Foundation\Application;
@@ -26,6 +28,11 @@ class TaxExemptionServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // Contracts-first: the reverse-charge decision hangs off this, so it has to be
+        // substitutable — a host may front VIES with its own cache or an aggregator, and tests
+        // must be able to drive the outage branch without reaching the network.
+        $this->app->bind(VerifiesCustomerTaxIds::class, RegisterTaxIdVerifier::class);
+
         $this->app->singleton(ExemptionContext::class);
 
         $this->app->extend(TaxCalculator::class, static fn (TaxCalculator $inner, Application $app): ExemptingTaxCalculator => new ExemptingTaxCalculator(

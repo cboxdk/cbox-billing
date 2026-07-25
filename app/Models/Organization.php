@@ -42,6 +42,10 @@ use Illuminate\Support\Carbon;
  * @property string|null $billing_subdivision
  * @property string|null $tax_id
  * @property bool $tax_id_validated
+ * @property string $customer_type
+ * @property Carbon|null $tax_id_validated_at
+ * @property string|null $tax_id_validation_reference
+ * @property string|null $tax_id_validation_source
  * @property Carbon|null $suspended_at
  * @property Carbon|null $erased_at
  * @property string|null $erased_by_sub
@@ -57,6 +61,7 @@ class Organization extends Model
     protected $fillable = [
         'id', 'name', 'environment_key', 'billing_email', 'locale', 'billing_currency',
         'billing_country', 'billing_subdivision', 'tax_id', 'tax_id_validated',
+        'customer_type', 'tax_id_validated_at', 'tax_id_validation_reference', 'tax_id_validation_source',
     ];
 
     /** @return array<string, string> */
@@ -64,6 +69,7 @@ class Organization extends Model
     {
         return [
             'tax_id_validated' => 'boolean',
+            'tax_id_validated_at' => 'datetime',
             'suspended_at' => 'datetime',
             'erased_at' => 'datetime',
         ];

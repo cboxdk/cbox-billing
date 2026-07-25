@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Cpq;
 
 use App\Billing\Seller\SellerCatalog;
+use App\Billing\Tax\Enums\CustomerKind;
 use App\Billing\Tax\TaxContextFactory;
 use App\Billing\Tax\TaxPricing;
 use App\Models\Organization;
@@ -15,7 +16,6 @@ use Cbox\Geo\ValueObjects\CountryCode;
 use Cbox\Geo\ValueObjects\Jurisdiction;
 use Cbox\Geo\ValueObjects\SubdivisionCode;
 use Cbox\Geo\ValueObjects\TaxProfile;
-use Cbox\Tax\Enums\CustomerType;
 use Illuminate\Contracts\Config\Repository as Config;
 
 /**
@@ -46,7 +46,10 @@ readonly class QuoteTaxContextFactory
 
         return new QuoteContext(
             place: $this->placeOfSupply($quote),
-            customer: CustomerType::Business,
+            // Same derivation as the invoicing path (TaxContextFactory) — if these two disagreed,
+            // a quote would price differently from the invoice that follows it, which is exactly
+            // the preview-equals-charge invariant the platform is built around.
+            customer: CustomerKind::fromStorage($organization?->customer_type)->toTaxCustomer(),
             seller: $seller->toSellerRegistrations(),
             pricing: TaxPricing::fromConfig($this->config),
             customerTaxIdValidated: $organization instanceof Organization && $organization->tax_id_validated,

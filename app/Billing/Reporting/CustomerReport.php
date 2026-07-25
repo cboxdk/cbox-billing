@@ -9,6 +9,7 @@ use App\Billing\Support\Initials;
 use App\Billing\Support\MoneyFormatter;
 use App\Billing\Support\SubscriptionRevenue;
 use App\Billing\Support\SubscriptionStanding;
+use App\Billing\Tax\Enums\CustomerKind;
 use App\Models\Coupon;
 use App\Models\CouponRedemption;
 use App\Models\Invoice;
@@ -90,6 +91,12 @@ readonly class CustomerReport
         $row['billing_email'] = $organization->billing_email;
         $row['billing_country'] = $organization->billing_country;
         $row['tax_id'] = $organization->tax_id;
+        $row['tax_id_validated'] = $organization->tax_id_validated;
+        $row['tax_id_validated_at'] = $organization->tax_id_validated_at?->format('Y-m-d H:i');
+        $row['tax_id_validation_reference'] = $organization->tax_id_validation_reference;
+        $row['tax_id_validation_source'] = $organization->tax_id_validation_source;
+        $row['customer_type'] = CustomerKind::fromStorage($organization->customer_type)->value;
+        $row['customer_type_label'] = CustomerKind::fromStorage($organization->customer_type)->label();
         $row['suspended'] = $organization->isSuspended();
         $row['suspended_at'] = $organization->suspended_at?->format('Y-m-d H:i');
         // The billing currency is one-way locked once the account transacts — a finalized

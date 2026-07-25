@@ -57,7 +57,29 @@
             <dl style="margin:0;padding:2px 20px 6px">
                 <div class="cbx-kv" style="padding:9px 0"><dt>Billing email</dt><dd>{{ $c['billing_email'] ?? '—' }}</dd></div>
                 <div class="cbx-kv" style="padding:9px 0"><dt>Country</dt><dd>{{ $c['billing_country'] ?? '—' }}</dd></div>
-                <div class="cbx-kv" style="padding:9px 0"><dt>Tax ID</dt><dd>{{ $c['tax_id'] ?? '—' }}</dd></div>
+                <div class="cbx-kv" style="padding:9px 0"><dt>Customer type</dt><dd>{{ $c['customer_type_label'] ?? 'Business (B2B)' }}</dd></div>
+                {{-- The verification state is shown, not just the number. Whether this VAT ID is
+                     verified is what decides if a cross-border supply is reverse-charged, so an
+                     operator answering "why was this customer charged VAT?" needs it here. --}}
+                <div class="cbx-kv" style="padding:9px 0"><dt>Tax ID</dt><dd>
+                    {{ $c['tax_id'] ?? '—' }}
+                    @if (!empty($c['tax_id']))
+                        @if (!empty($c['tax_id_validated']))
+                            <span class="cbx-pill cbx-pill--success" style="margin-left:6px">Verified</span>
+                        @else
+                            <span class="cbx-pill cbx-pill--warning" style="margin-left:6px">Unverified</span>
+                        @endif
+                    @endif
+                </dd></div>
+                @if (!empty($c['tax_id_validated']))
+                    <div class="cbx-kv" style="padding:9px 0"><dt>Verified</dt><dd class="mut" style="font-size:12px">
+                        {{ $c['tax_id_validated_at'] }}
+                        @if (!empty($c['tax_id_validation_source'])) · {{ strtoupper($c['tax_id_validation_source']) }}@endif
+                        {{-- The register's proof-of-consultation token: the evidence a tax
+                             authority asks for when a supply was zero-rated. --}}
+                        @if (!empty($c['tax_id_validation_reference']))<br><span class="num">{{ $c['tax_id_validation_reference'] }}</span>@endif
+                    </dd></div>
+                @endif
                 <div class="cbx-kv" style="padding:9px 0"><dt>Currency</dt><dd class="num">{{ $c['currency'] }}</dd></div>
             </dl>
         </section>
@@ -86,8 +108,18 @@
                 <input name="name" value="{{ old('name', $c['org']) }}" required maxlength="190" style="{{ $inputStyle }}"></label>
             <label style="{{ $labelStyle }}">Billing email
                 <input type="email" name="billing_email" value="{{ old('billing_email', $c['billing_email']) }}" maxlength="190" style="{{ $inputStyle }}"></label>
+            <label style="{{ $labelStyle }}">Customer type
+                <select name="customer_type" style="{{ $inputStyle }}">
+                    @foreach (\App\Billing\Tax\Enums\CustomerKind::cases() as $kind)
+                        <option value="{{ $kind->value }}" @selected(old('customer_type', $c['customer_type'] ?? 'business') === $kind->value)>{{ $kind->label() }}</option>
+                    @endforeach
+                </select>
+                <span class="mut" style="font-size:11px">A cross-border supply to a business with a verified VAT ID is reverse-charged; to a consumer it is taxed locally.</span>
+            </label>
             <label style="{{ $labelStyle }}">Tax ID / VAT number
-                <input name="tax_id" value="{{ old('tax_id', $c['tax_id']) }}" maxlength="64" style="{{ $inputStyle }}"></label>
+                <input name="tax_id" value="{{ old('tax_id', $c['tax_id']) }}" maxlength="64" style="{{ $inputStyle }}">
+                <span class="mut" style="font-size:11px">Checked against the country's register (VIES for the EU, HMRC for the UK) whenever it changes.</span>
+            </label>
             <label style="{{ $labelStyle }}">Billing currency
                 <input name="billing_currency" value="{{ old('billing_currency', $c['currency']) }}" maxlength="3" pattern="[A-Za-z]{3}" style="{{ $inputStyle }};text-transform:uppercase{{ !empty($c['currency_locked']) ? ';opacity:.55' : '' }}" {{ !empty($c['currency_locked']) ? 'readonly' : '' }}>
                 @if (!empty($c['currency_locked']))<span class="mut" style="font-size:11px">Locked — the account has transacted in {{ $c['currency'] }}.</span>@else<span class="mut" style="font-size:11px">Fixed once the first invoice finalizes.</span>@endif

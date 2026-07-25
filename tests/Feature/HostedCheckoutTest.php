@@ -241,6 +241,50 @@ class HostedCheckoutTest extends TestCase
             ->assertJsonPath('amount.currency', 'DKK');
     }
 
+    /**
+     * The counterpart to the test above, and the one the old code got wrong.
+     *
+     * `TaxContextFactory` hardcoded `CustomerType::Business` for EVERY buyer. That was invisible
+     * only while reverse charge was unreachable — the moment the VAT-ID gate could open, a private
+     * CONSUMER in Germany with no VAT ID would have been treated as a business too. Here the
+     * customer is explicitly a consumer, so the cross-border supply must be TAXED, not zero-rated:
+     * net 29.000 plus 25% = 36.250.
+     */
+    public function test_a_consumer_cross_border_checkout_is_taxed_not_reverse_charged(): void
+    {
+        $this->fakeGateway();
+
+        Organization::query()->create([
+            'id' => 'org_b2c_rc',
+            'name' => 'Privat Person',
+            'billing_email' => 'privat@example.test',
+            'billing_country' => 'DE',
+            'billing_currency' => 'DKK',
+            'customer_type' => 'consumer',
+        ]);
+
+        ['plaintext' => $token] = ApiToken::issue('org_b2c_rc-sdk', 'org_b2c_rc');
+        $response = $this->postJson('/api/v1/checkout-sessions', [
+            'org' => 'org_b2c_rc',
+            'plan' => 'starter',
+            'return_url' => 'https://merchant.example/done',
+        ], ['Authorization' => 'Bearer '.$token])->assertCreated();
+
+        $sessionToken = basename((string) parse_url((string) $response->json('url'), PHP_URL_PATH));
+        $session = BillingSession::query()->where('organization_id', 'org_b2c_rc')->firstOrFail();
+        $session->token = $sessionToken;
+
+        $charged = $this->postJson('/billing/checkout/'.$session->token.'/intent')
+            ->assertOk()
+            ->json('amount.minor');
+
+        $this->assertGreaterThan(
+            29_000,
+            $charged,
+            'A consumer must not be reverse-charged: the supply is taxed, so the charge exceeds the bare net.',
+        );
+    }
+
     public function test_a_requires_action_intent_does_not_activate(): void
     {
         $this->fakeGateway(PaymentIntentStatus::RequiresAction);

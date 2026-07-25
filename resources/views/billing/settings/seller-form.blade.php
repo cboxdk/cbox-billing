@@ -45,11 +45,11 @@
 
             <div class="cbx-grid-2" style="align-items:start">
                 <label style="{{ $labelStyle }}">Id
-                    <input type="text" name="id" value="{{ $curId }}" {{ $editing ? 'readonly' : 'required' }} maxlength="64" placeholder="cbox-dk" pattern="[a-z0-9._-]+" style="{{ $inputStyle }}{{ $editing ? ';opacity:.6' : '' }}">
+                    <input type="text" name="id" value="{{ $curId }}" {{ $editing ? 'readonly' : 'required' }} maxlength="64" placeholder="acme-dk" pattern="[a-z0-9._-]+" style="{{ $inputStyle }}{{ $editing ? ';opacity:.6' : '' }}">
                     <span class="mut" style="font-size:11px">Stable handle — lowercase letters, digits, dot, dash, underscore. Fixed once created.</span>
                 </label>
                 <label style="{{ $labelStyle }}">Legal name
-                    <input type="text" name="legal_name" value="{{ $curLegal }}" required maxlength="190" placeholder="Cbox ApS" style="{{ $inputStyle }}">
+                    <input type="text" name="legal_name" value="{{ $curLegal }}" required maxlength="190" placeholder="Acme ApS" style="{{ $inputStyle }}">
                 </label>
             </div>
 

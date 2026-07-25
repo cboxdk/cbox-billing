@@ -42,8 +42,8 @@ When a **renewal charge fails**, the subscription moves to **PastDue** and the i
 is retried on the gateway — but *how* it is retried depends on **why** it declined. Where
 a static `[1, 3, 5, 7]` schedule treats every failure the same, adaptive dunning
 classifies the gateway decline code into a **recovery category** and drives the schedule
-off it (the bar set by Recurly/Stripe Smart Retries: recover materially more failed
-payments without hammering dead cards). `billing:retry-payments` (daily, 06:30) fires
+off it — so a card that will never authorise again is retired instead of retried, and a
+transient decline is given the cadence it actually needs. `billing:retry-payments` (daily, 06:30) fires
 each due attempt; each is idempotent per `(invoice, attempt)`, so a daily cadence enacts
 the schedule without double-charging. A retry that settles recovers the subscription to
 **Active** and sends a receipt.

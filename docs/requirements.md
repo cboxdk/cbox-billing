@@ -38,7 +38,9 @@ documented in their repositories; this app documents how it wires and uses them.
 | `cboxdk/laravel-billing-stripe` | `^0.4` | The Stripe payment-gateway adapter (binds the `PaymentGateway` + webhook verifier when configured). |
 | `cboxdk/laravel-console-kit` | `^0.2.1` | The provider-console socket — nav registry, feature registry, current-context, plugin slots. |
 | `cboxdk/laravel-health` | `^2.0` | Liveness/readiness + gated detail health endpoints. |
-| `cboxdk/laravel-id-client` | `^0.2` | The Cbox ID OIDC relying-party client + federated RBAC manifest publisher. |
+| `cboxdk/laravel-id-client` | `^0.3` | The Cbox ID OIDC relying-party client + federated RBAC manifest publisher. |
+| `cboxdk/laravel-nexus` | `^0.1` | The economic-nexus engine — threshold evaluation over the sales ledger. |
+| `cboxdk/laravel-ssrf` | `^1.1` | SSRF guard on every operator-supplied outbound URL (webhooks, export sinks, connectors). |
 | `cboxdk/laravel-telemetry` | `^1.0` | Collector-free metrics/traces/events (off by default). |
 | `cboxdk/license` | `^0.1` | Ed25519 license issue/verify + the capability gate the plugins read. |
 

@@ -116,4 +116,4 @@ no offer; deny-by-default, never a fabricated target.
 
 - [Metering & enforcement](metering-and-enforcement.md) — the metered sibling and the upgrade bridge.
 - [Licensing](licensing.md) — the on-prem license `entitlements` this vocabulary aligns with.
-- [API](../api/_index.md) and [OpenAPI](../openapi/_index.md) — the full contract.
+- [API](../api/_index.md) and [OpenAPI](../api/openapi.md) — the full contract.

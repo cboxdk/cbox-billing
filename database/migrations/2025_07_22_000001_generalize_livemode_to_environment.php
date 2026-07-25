@@ -259,10 +259,18 @@ return new class extends Migration
         };
     }
 
-    /** The SQL expression that derives the environment key from the legacy livemode column. */
+    /**
+     * The SQL expression that derives the environment key from the legacy livemode column.
+     *
+     * Tests the column for truth directly rather than comparing it to the integer 1:
+     * `livemode` is a real BOOLEAN on PostgreSQL, which has no boolean = integer operator
+     * and aborts the rebuild with SQLSTATE 42883. A bare `CASE WHEN <bool-column>` is the
+     * portable spelling — Postgres reads the boolean as-is, and MySQL/SQLite (which store
+     * it as 1/0) evaluate the same truthiness.
+     */
     private function environmentFromLivemode(): Expression
     {
-        return DB::raw("CASE WHEN livemode = 1 THEN 'production' ELSE 'sandbox' END");
+        return DB::raw("CASE WHEN livemode THEN 'production' ELSE 'sandbox' END");
     }
 
     // --- group C: up (composite-primary rebuilds, retaining the livemode mirror) --------------

@@ -47,19 +47,11 @@ class CommitController extends ApiController
 
         $actuals = [];
 
-        foreach ($request->array('actuals') as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
+        foreach ($request->array('actuals') as $index => $raw) {
+            $row = is_array($raw) ? $raw : [];
 
-            $meter = $row['meter'] ?? null;
-            $actual = $row['actual'] ?? null;
-
-            if (! is_string($meter) || ! is_int($actual)) {
-                continue;
-            }
-
-            $actuals[$meter] = $actual;
+            $meter = $this->requireString($row['meter'] ?? null, sprintf('actuals.%s.meter', $index));
+            $actuals[$meter] = $this->requireInt($row['actual'] ?? null, sprintf('actuals.%s.actual', $index));
         }
 
         $enforcement->commitBuckets($set, $actuals);

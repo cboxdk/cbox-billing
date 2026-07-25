@@ -60,7 +60,14 @@ return new class extends Migration
     {
         foreach (['subscription_mrr_movements', 'plan_retirement_events'] as $table) {
             if (Schema::hasTable($table) && Schema::hasColumn($table, 'environment')) {
-                Schema::table($table, function (Blueprint $blueprint): void {
+                Schema::table($table, function (Blueprint $blueprint) use ($table): void {
+                    // The index MUST be dropped before the column. MySQL and Postgres drop
+                    // dependent indexes automatically, but SQLite's native DROP COLUMN refuses an
+                    // indexed column outright ("error in index … after drop column: no such
+                    // column"), which would break `migrate:rollback`, `:refresh` and `:reset` on
+                    // the driver used for local development AND by the test suite. `migrate:fresh`
+                    // never calls `down()`, so a green suite does not catch it.
+                    $blueprint->dropIndex($table.'_environment_index');
                     $blueprint->dropColumn('environment');
                 });
             }

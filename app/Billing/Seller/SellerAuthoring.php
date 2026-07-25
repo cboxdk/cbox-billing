@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Seller;
 
 use App\Billing\Seller\Exceptions\SellerActionDenied;
+use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\SellerEntity;
 use Illuminate\Support\Facades\DB;
@@ -158,10 +159,24 @@ readonly class SellerAuthoring
         $seller->delete();
     }
 
-    /** Invoices this seller has numbered (its `invoice_prefix` is the number stem). */
+    /**
+     * Legal documents that reference this seller — the guard against hard-deleting an entity a
+     * document still needs to render.
+     *
+     * Counted by seller ID, which is what documents actually store (`invoices.seller`,
+     * `credit_notes.seller`), NOT by the invoice-number prefix. The prefix is editable
+     * ({@see update()}) while already-minted numbers are never renumbered, so a routine prefix
+     * change made this count return 0 for documents that still referenced the entity — the guard
+     * then allowed a hard delete, and the customer-facing portal PDF route 500s the next time that
+     * invoice is downloaded. Credit notes were never counted at all.
+     *
+     * Global scopes are dropped deliberately: a seller is global, so a document in ANY plane
+     * referencing it must block the delete.
+     */
     public function invoicesFor(SellerEntity $seller): int
     {
-        return Invoice::query()->where('number', 'like', $seller->invoice_prefix.'%')->count();
+        return Invoice::query()->withoutGlobalScopes()->where('seller', $seller->id)->count()
+            + CreditNote::query()->withoutGlobalScopes()->where('seller', $seller->id)->count();
     }
 
     /**

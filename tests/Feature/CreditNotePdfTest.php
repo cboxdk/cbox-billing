@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Invoicing\CreditNotePdfRenderer;
+use App\Billing\Seller\SellerAuthoring;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\ApiToken;
 use App\Models\CreditNote;
@@ -109,16 +110,25 @@ class CreditNotePdfTest extends TestCase
      * read the config only, so a console-registered seller produced a document mastheaded with
      * the raw key, no registration number and no VAT line. Such an invoice fails EU Directive
      * 2006/112/EC Art. 226(3) and 226(5), and nothing errored to say so.
+     *
+     * The identity is set BEFORE the document is created, deliberately. An earlier version of this
+     * test mutated the register after issuing and asserted the PDF changed — which would have
+     * codified retroactive mutation of an issued legal document as intended behaviour. It is not:
+     * the content of an issued invoice is fixed. Snapshotting identity at issue time is tracked
+     * separately; this test asserts only that a registered identity reaches the document.
      */
     public function test_the_document_carries_the_registered_legal_identity(): void
     {
-        $note = $this->creditNoteFor('org_ident');
+        $this->creditNoteFor('org_seed'); // ensures the seller row exists
 
         SellerEntity::query()->where('id', 'seller_x')->update([
             'legal_name' => 'Acme GmbH',
             'registration_number' => 'HRB 12345',
             'establishment' => 'DE',
         ]);
+
+        // Issued AFTER the identity is in place — the normal ordering.
+        $note = $this->creditNoteFor('org_ident', 'CN-000043');
 
         $pdf = app(CreditNotePdfRenderer::class)->render($note->fresh());
 
@@ -137,7 +147,7 @@ class CreditNotePdfTest extends TestCase
         SellerEntity::query()->where('id', 'seller_x')->delete();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/registered neither in the seller register nor/');
+        $this->expectExceptionMessageMatches('/registered identity could not be resolved/');
 
         app(CreditNotePdfRenderer::class)->render($note->fresh());
     }
@@ -159,6 +169,29 @@ class CreditNotePdfTest extends TestCase
         $this->artisan('billing:verify-seller-identities')
             ->expectsOutputToContain('no longer resolve')
             ->assertExitCode(1);
+    }
+
+    /**
+     * The delete guard counted invoices by NUMBER PREFIX, but documents reference the seller by
+     * id — and the prefix is editable while minted numbers are never renumbered. So a routine
+     * prefix change let a still-referenced entity be hard-deleted, after which the customer-facing
+     * portal PDF route 500s. Credit notes were never counted at all.
+     */
+    public function test_a_seller_referenced_only_by_a_credit_note_cannot_be_deleted(): void
+    {
+        $this->creditNoteFor('org_guard');
+
+        $seller = SellerEntity::query()->findOrFail('seller_x');
+
+        // Rename the prefix, as an operator renumbering a series would.
+        $seller->forceFill(['invoice_prefix' => 'RENAMED'])->save();
+
+        $this->assertGreaterThan(
+            0,
+            app(SellerAuthoring::class)->invoicesFor($seller->fresh()),
+            'A credit note still references this seller, so the delete guard must see it even '
+            .'after the invoice-number prefix changed.',
+        );
     }
 
     public function test_the_portal_route_404s_a_cross_org_credit_note(): void

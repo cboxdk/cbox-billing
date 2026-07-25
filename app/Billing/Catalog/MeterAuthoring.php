@@ -95,7 +95,9 @@ readonly class MeterAuthoring
     }
 
     /**
-     * Whether this meter has recorded usage IN THE CURRENT PLANE.
+     * Whether this meter has recorded usage IN THE CURRENT PLANE. Public so the console read
+     * model shares the exact predicate the delete guard enforces — two copies drifted apart once
+     * before, and the operator saw a "Recorded usage" answer the guard disagreed with.
      *
      * The engine owns `billing_usage_events` and — correctly, for a library that must not know
      * about planes — it carries no `environment` column, so `EnvironmentScope` cannot reach it.
@@ -105,7 +107,7 @@ readonly class MeterAuthoring
      * PRODUCTION `api_calls` permanently undeletable. It failed in the safe direction, but it was
      * still wrong and unexplainable to the operator.
      */
-    private function hasUsage(Meter $meter): bool
+    public function hasUsage(Meter $meter): bool
     {
         if (! $this->schema->hasTable(self::USAGE_TABLE)) {
             return false;

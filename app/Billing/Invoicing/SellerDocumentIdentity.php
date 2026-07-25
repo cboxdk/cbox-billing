@@ -38,10 +38,15 @@ readonly class SellerDocumentIdentity
         try {
             $entity = $sellers->entity($seller);
         } catch (RuntimeException $e) {
+            // The catalog throws for two different reasons — the entity is defined nowhere, or it
+            // IS defined in config but is missing a required field. Reporting the first
+            // unconditionally sent an operator with a half-filled config entry to the wrong screen
+            // to look for something that was already there, so the underlying reason is carried
+            // through rather than replaced.
             throw new RuntimeException(
-                "Cannot render a legal document for selling entity [{$seller}]: it is registered "
-                .'neither in the seller register nor in `billing.seller.entities`. Add it under '
-                .'Settings → Seller entities before issuing documents in its name.',
+                "Cannot render a legal document for selling entity [{$seller}]: its registered "
+                .'identity could not be resolved. Check Settings → Seller entities, or the '
+                ."`billing.seller.entities` config, before issuing documents in its name. ({$e->getMessage()})",
                 previous: $e,
             );
         }

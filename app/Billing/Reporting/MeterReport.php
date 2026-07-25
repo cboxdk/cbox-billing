@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace App\Billing\Reporting;
 
+use App\Billing\Catalog\MeterAuthoring;
 use App\Models\Meter;
 use App\Models\Plan;
 use App\Models\PlanEntitlement;
 use App\Models\Product;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\ConnectionInterface;
-use Illuminate\Database\Schema\Builder as SchemaBuilder;
 
 /**
  * Read model for the Meters screens — the routable meter list and detail page. Projects
@@ -19,11 +18,8 @@ use Illuminate\Database\Schema\Builder as SchemaBuilder;
  */
 readonly class MeterReport
 {
-    private const USAGE_TABLE = 'billing_usage_events';
-
     public function __construct(
-        private ConnectionInterface $db,
-        private SchemaBuilder $schema,
+        private MeterAuthoring $meters,
     ) {}
 
     /**
@@ -113,12 +109,16 @@ readonly class MeterReport
         ];
     }
 
+    /**
+     * Delegates to the authoring guard so the console SHOWS exactly what the delete action will
+     * enforce. These were two separate copies of the same probe: the guard became plane-scoped
+     * while this one stayed global, so a production meter page reported "Recorded usage: yes" and
+     * hid the Delete affordance because a SANDBOX had recorded usage under the same key —
+     * relocating the operator confusion rather than removing it. The mid-migration table-exists
+     * guard lives inside the shared implementation.
+     */
     private function hasUsage(Meter $meter): bool
     {
-        if (! $this->schema->hasTable(self::USAGE_TABLE)) {
-            return false;
-        }
-
-        return $this->db->table(self::USAGE_TABLE)->where('meter', $meter->key)->exists();
+        return $this->meters->hasUsage($meter);
     }
 }

@@ -7,6 +7,9 @@ namespace Tests\Feature;
 use App\Models\SellerEntity;
 use App\Models\SellerExternalSales;
 use App\Models\SellerPhysicalPresence;
+use Cbox\Geo\ValueObjects\SubdivisionCode;
+use Cbox\Nexus\Contracts\NexusThresholdSource;
+use Cbox\Nexus\ValueObjects\EconomicNexusThreshold;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -92,5 +95,39 @@ class NexusConsoleTest extends TestCase
         $this->signedInWith()->post('/nexus/presence', ['subdivision' => 'US-ZZ'])
             ->assertSessionHasErrors('subdivision');
         $this->assertSame(0, SellerPhysicalPresence::query()->count());
+    }
+
+    /**
+     * A state whose threshold could not be resolved has NO standing — the engine has no opinion.
+     * Rendering it alongside genuine "below threshold" rows reads as compliance, and that is the
+     * failure a self-hosted deployment actually hits: the threshold dataset is fetched over the
+     * network, so a firewalled install resolves null for EVERY state and shows a clean board while
+     * the seller crosses thresholds nationwide.
+     */
+    public function test_a_state_with_no_resolvable_threshold_is_surfaced_not_shown_as_below(): void
+    {
+        $seller = $this->defaultSeller();
+
+        // Real activity in a state, so it is actually evaluated — the failure being guarded is a
+        // state that HAS sales but whose threshold cannot be resolved.
+        SellerExternalSales::query()->create([
+            'seller_entity_id' => $seller->id, 'subdivision' => 'US-CA', 'channel' => 'marketplace',
+            'period_year' => now()->year, 'sales_dollars' => 250_000, 'transactions' => 400,
+        ]);
+
+        // A threshold source that resolves nothing — exactly what a firewalled deployment gets.
+        $this->app->bind(NexusThresholdSource::class, fn (): NexusThresholdSource => new class implements NexusThresholdSource
+        {
+            public function thresholdFor(SubdivisionCode $state): ?EconomicNexusThreshold
+            {
+                return null;
+            }
+        });
+
+        $response = $this->signedInWith()->get('/nexus');
+
+        $response->assertOk();
+        $response->assertSee('threshold unknown', false);
+        $response->assertSee('not below', false);
     }
 }

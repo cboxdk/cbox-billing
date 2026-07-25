@@ -50,6 +50,15 @@ class NexusController extends Controller
             'triggeredCount' => count($report->triggered()),
             'approachingCount' => count($report->approaching()),
             'registeredCount' => count($report->registered()),
+            // Counted from the evaluation itself (a null threshold) rather than from a status
+            // case, so this works against the currently published engine. A state whose threshold
+            // could not be resolved has NO standing — folding it in with genuine "below
+            // threshold" results is what let an unreachable dataset look like a clean bill of
+            // health. Tracked separately for the engine-side status; see laravel-nexus ADR.
+            'unknownCount' => count(array_filter(
+                $report->evaluations,
+                static fn ($evaluation): bool => $evaluation->threshold === null,
+            )),
             'presence' => SellerPhysicalPresence::query()
                 ->where('seller_entity_id', $sellerId)->orderBy('subdivision')->get(),
             'externalSales' => SellerExternalSales::query()

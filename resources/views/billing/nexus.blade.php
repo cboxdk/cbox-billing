@@ -18,6 +18,10 @@
         'approaching' => 'warning',
         'registered' => 'success',
         'below' => 'neutral',
+        // NOT neutral. "Unknown" means the threshold could not be resolved — the engine has no
+        // opinion — and a quiet grey pill next to genuine Belows reads as compliance. It is the
+        // one row on this page an operator must act on before trusting anything else here.
+        'unknown' => 'warning',
     ];
 @endphp
 
@@ -32,6 +36,7 @@
             <span class="cbx-pill cbx-pill--danger">{{ $triggeredCount }} triggered</span>
             <span class="cbx-pill cbx-pill--warning">{{ $approachingCount }} approaching</span>
             <span class="cbx-pill cbx-pill--success">{{ $registeredCount }} registered</span>
+            @if ($unknownCount > 0)<span class="cbx-pill cbx-pill--warning">{{ $unknownCount }} unknown</span>@endif
         </div>
     </header>
 
@@ -58,7 +63,16 @@
                 @forelse ($evaluations as $e)
                     <tr>
                         <td style="font-weight:500">{{ UsStates::name($e->state->value) }} <span class="num mut" style="font-size:11px">{{ $e->state->value }}</span></td>
-                        <td><span class="cbx-pill cbx-pill--{{ $statusPill[$e->status->value] ?? 'neutral' }}">{{ ucfirst($e->status->value) }}</span></td>
+                        <td>
+                            <span class="cbx-pill cbx-pill--{{ $statusPill[$e->status->value] ?? 'neutral' }}">{{ ucfirst($e->status->value) }}</span>
+                            {{-- The engine's own reason, surfaced only where it changes what the
+                                 operator should do. A bare "Unknown" pill with an em-dash threshold
+                                 is what made the unreachable-dataset case invisible. --}}
+                            @if ($e->threshold === null)
+                                <span class="cbx-pill cbx-pill--warning">threshold unknown</span>
+                                <div class="mut" style="font-size:11px;margin-top:3px">No threshold could be resolved for this state, so its nexus standing is unknown — not below. Check the threshold dataset is reachable.</div>
+                            @endif
+                        </td>
                         <td class="mut" style="font-size:12.5px">{{ $e->threshold?->describe() ?? '—' }}</td>
                         <td class="num">{{ $e->progress !== null ? number_format($e->progress * 100, 1).'%' : '—' }}</td>
                         <td style="font-size:11.5px">

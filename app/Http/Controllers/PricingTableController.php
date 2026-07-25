@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Billing\Storefront\CheckoutLinkBuilder;
 use App\Billing\Storefront\Exceptions\PricingTableActionDenied;
 use App\Billing\Storefront\PricingTableAuthoring;
 use App\Billing\Storefront\PricingTablePresenter;
@@ -149,7 +150,7 @@ class PricingTableController extends Controller
             'currencies.*' => ['string', 'size:3'],
             'default_currency' => ['nullable', 'string', 'size:3'],
             'cta_label' => ['nullable', 'string', 'max:80'],
-            'cta_url_template' => ['nullable', 'string', 'max:2048'],
+            'cta_url_template' => ['nullable', 'string', 'max:2048', $this->safeCtaScheme()],
             'columns' => ['nullable', 'array'],
             'columns.*.plan_id' => ['nullable', 'integer', 'exists:plans,id'],
             'columns.*.annual_plan_id' => ['nullable', 'integer', 'exists:plans,id'],
@@ -172,6 +173,24 @@ class PricingTableController extends Controller
             columns: $this->columns($request),
             featureIds: $this->featureIds($request),
         );
+    }
+
+    /**
+     * Refuse a CTA target whose scheme is not `http`/`https` (or relative). The template is
+     * rendered into an `href` on the PUBLIC pricing table and its embed, so a `javascript:`
+     * target would execute on the billing origin — the same origin that serves this console.
+     * Blade's escaping does not help: a scheme contains no HTML-special characters.
+     *
+     * The rule lives on {@see CheckoutLinkBuilder} so the render path enforces the identical
+     * check; this one exists to fail loudly at save time rather than silently at render time.
+     */
+    private function safeCtaScheme(): callable
+    {
+        return static function (string $attribute, mixed $value, callable $fail): void {
+            if (is_string($value) && $value !== '' && ! CheckoutLinkBuilder::isSafeTarget($value)) {
+                $fail('The CTA link must be a http(s) or relative URL. Schemes such as javascript: are not allowed, because the link is rendered on your public pricing page.');
+            }
+        };
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Cbox\Billing\Reporting\MrrMovement;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -33,6 +34,8 @@ use Illuminate\Support\Carbon;
  */
 class SubscriptionMrrMovement extends Model
 {
+    use BelongsToEnvironment;
+
     public const KIND_NEW = 'new';
 
     public const KIND_EXPANSION = 'expansion';

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Billing\Catalog;
 
 use App\Billing\Catalog\Exceptions\CatalogActionDenied;
+use App\Billing\Mode\BillingContext;
 use App\Models\Meter;
 use Cbox\Billing\Metering\Enums\Aggregation;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Schema\Builder as SchemaBuilder;
 
 /**
@@ -24,6 +26,7 @@ readonly class MeterAuthoring
     public function __construct(
         private ConnectionInterface $db,
         private SchemaBuilder $schema,
+        private BillingContext $context,
     ) {}
 
     /**
@@ -91,13 +94,31 @@ readonly class MeterAuthoring
         $meter->delete();
     }
 
+    /**
+     * Whether this meter has recorded usage IN THE CURRENT PLANE.
+     *
+     * The engine owns `billing_usage_events` and — correctly, for a library that must not know
+     * about planes — it carries no `environment` column, so `EnvironmentScope` cannot reach it.
+     * The plane filter therefore has to be applied here, through the organization that DOES know
+     * its plane. Without it, a meter key that exists independently in production and a sandbox
+     * shares one usage check: recording test usage against the sandbox `api_calls` made the
+     * PRODUCTION `api_calls` permanently undeletable. It failed in the safe direction, but it was
+     * still wrong and unexplainable to the operator.
+     */
     private function hasUsage(Meter $meter): bool
     {
         if (! $this->schema->hasTable(self::USAGE_TABLE)) {
             return false;
         }
 
-        return $this->db->table(self::USAGE_TABLE)->where('meter', $meter->key)->exists();
+        $environment = $this->context->environmentKey();
+
+        return $this->db->table(self::USAGE_TABLE)
+            ->where('meter', $meter->key)
+            ->whereIn('org', function (QueryBuilder $query) use ($environment): void {
+                $query->select('id')->from('organizations')->where('environment', $environment);
+            })
+            ->exists();
     }
 
     private function assertKeyUnique(string $key, ?int $ignoreId): void

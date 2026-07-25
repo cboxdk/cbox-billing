@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Billing\Mode\Concerns\BelongsToEnvironment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -28,6 +29,8 @@ use Illuminate\Support\Carbon;
  */
 class PlanRetirementEvent extends Model
 {
+    use BelongsToEnvironment;
+
     public const TYPE_REMINDER = 'reminder';
 
     public const TYPE_MIGRATED = 'migrated';

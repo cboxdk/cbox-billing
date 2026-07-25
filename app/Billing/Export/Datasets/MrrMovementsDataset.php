@@ -7,13 +7,13 @@ namespace App\Billing\Export\Datasets;
 use App\Billing\Export\Enums\SyncMode;
 use App\Billing\Export\Support\Coerce;
 use App\Billing\Export\ValueObjects\ExportColumn;
-use Illuminate\Database\Query\Builder;
 
 /**
  * One row per recorded MRR movement — the recurring-revenue bridge a finance team reconciles
  * (new · expansion · contraction · churn · reactivation), each with the previous and new
  * monthly-recurring figure in minor units. Append-only: a movement is a historical fact and is
- * never rewritten. The plane comes from the movement's organization (no own `livemode` column).
+ * never rewritten. The table carries its own `environment` column, so the base plane scope
+ * applies directly — no join through the organization is needed.
  */
 class MrrMovementsDataset extends AbstractDataset
 {
@@ -66,11 +66,6 @@ class MrrMovementsDataset extends AbstractDataset
             ExportColumn::timestamp('occurred_at', 'When the movement occurred.'),
             ExportColumn::timestamp('created_at', 'Row creation instant.'),
         ];
-    }
-
-    protected function scopePlane(Builder $builder, string $environment): void
-    {
-        $builder->whereIn('subscription_mrr_movements.organization_id', $this->planeIds('organizations', $environment));
     }
 
     protected function projectRow(array $record): array

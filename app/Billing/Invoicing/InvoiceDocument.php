@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Invoicing;
 
 use App\Billing\Invoicing\Enums\InvoiceStatus;
+use App\Billing\Invoicing\ValueObjects\TaxBand;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\Invoice;
 use App\Models\Organization;
@@ -64,6 +65,7 @@ class InvoiceDocument extends FPDF
         $this->parties();
         $this->lineItems();
         $this->totals();
+        $this->taxNotes();
     }
 
     /** The footer band (seller identity + number), drawn on every page by FPDF. */
@@ -196,6 +198,16 @@ class InvoiceDocument extends FPDF
             $details[] = ['Paid', $this->invoice->paid_at->format('Y-m-d')];
         }
 
+        // Art. 226(7): the date/period of supply where it differs from the issue date. A
+        // subscription invoice always covers a service period, and it was stored on the row but
+        // never printed — an invoice with no supply period is non-compliant on its face.
+        if ($this->invoice->period_start !== null && $this->invoice->period_end !== null) {
+            $details[] = [
+                'Supply',
+                $this->invoice->period_start->format('Y-m-d').' – '.$this->invoice->period_end->format('Y-m-d'),
+            ];
+        }
+
         $details[] = ['Currency', $this->invoice->currency];
 
         $this->SetFont('Helvetica', '', 9);
@@ -249,11 +261,23 @@ class InvoiceDocument extends FPDF
         $labelW = 40.0;
         $valueW = 210.0 - self::MARGIN - $x - $labelW;
 
-        $rows = [
-            ['Subtotal', $this->money($this->invoice->subtotal_minor), false],
-            ['Tax', $this->money($this->invoice->tax_minor), false],
-            [$this->isCreditNote ? 'Total credited' : 'Total due', $this->money($this->invoice->total_minor), true],
-        ];
+        $rows = [['Subtotal', $this->money($this->invoice->subtotal_minor), false]];
+
+        // Art. 226(8)-(10): the taxable amount PER RATE and the VAT amount per rate, not one
+        // aggregate figure. A mixed-rate invoice showing a single "Tax" line is not a valid VAT
+        // invoice. With exactly one rate in play the breakdown collapses back to a single row, so
+        // the common case is unchanged in appearance — it just now names the rate.
+        $breakdown = $this->taxBreakdown();
+
+        if ($breakdown === []) {
+            $rows[] = ['Tax', $this->money($this->invoice->tax_minor), false];
+        } else {
+            foreach ($breakdown as $band) {
+                $rows[] = ['VAT '.$band->rate.'% of '.$this->money($band->net), $this->money($band->tax), false];
+            }
+        }
+
+        $rows[] = [$this->isCreditNote ? 'Total credited' : 'Total due', $this->money($this->invoice->total_minor), true];
 
         foreach ($rows as [$label, $value, $grand]) {
             $this->SetX($x);
@@ -277,6 +301,140 @@ class InvoiceDocument extends FPDF
             $this->Cell($labelW, 8, $this->enc($label), 0, 0);
             $this->Cell($valueW, 8, $this->enc($value), 0, 1, 'R');
         }
+    }
+
+    /**
+     * Taxable amount and VAT per applied rate — Art. 226(8)-(10).
+     *
+     * Grouped by the rate stored on each line. Lines carrying no positive rate (a reverse-charged,
+     * zero-rated or exempt supply) are excluded here and explained by {@see taxLegend()} instead,
+     * so a zero figure is never presented as though it were a 0% standard rate.
+     *
+     * Lines record the rate and the net, but not a per-line VAT amount, so the invoice's own
+     * `tax_minor` is APPORTIONED across the bands by taxable amount rather than each band being
+     * recomputed from its rate. That matters: recomputing would round independently per band and
+     * the parts would not necessarily sum to the tax actually charged. The residual from integer
+     * division is given to the largest band, so the breakdown always ties out to the total exactly.
+     *
+     * @return list<TaxBand>
+     */
+    private function taxBreakdown(): array
+    {
+        /** @var array<string, TaxBand> $bands */
+        $bands = [];
+
+        foreach ($this->invoice->lines as $line) {
+            $rate = $line->tax_rate;
+
+            if (! is_string($rate) || $rate === '' || (float) $rate <= 0.0) {
+                continue;
+            }
+
+            $key = rtrim(rtrim(number_format((float) $rate, 2, '.', ''), '0'), '.');
+            $net = $line->net_minor ?? $line->amount_minor;
+
+            $bands[$key] = isset($bands[$key])
+                ? $bands[$key]->plusNet($net)
+                : new TaxBand($key, $net, 0);
+        }
+
+        if ($bands === []) {
+            return [];
+        }
+
+        ksort($bands, SORT_NUMERIC);
+
+        $ordered = array_values($bands);
+        $totalNet = array_sum(array_map(static fn (TaxBand $b): int => $b->net, $ordered));
+        $totalTax = $this->invoice->tax_minor;
+
+        if ($totalNet <= 0) {
+            return [];
+        }
+
+        $assigned = 0;
+        $largest = 0;
+
+        foreach ($ordered as $i => $band) {
+            $share = intdiv($band->net * $totalTax, $totalNet);
+            $ordered[$i] = $band->withTax($share);
+            $assigned += $share;
+
+            if ($band->net > $ordered[$largest]->net) {
+                $largest = $i;
+            }
+        }
+
+        // The rounding residual lands on the largest taxable amount, so the printed parts sum to
+        // the tax actually charged.
+        $ordered[$largest] = $ordered[$largest]->withTax($ordered[$largest]->tax + ($totalTax - $assigned));
+
+        return array_values($ordered);
+    }
+
+    /**
+     * The legal explanations for lines that were not taxed at a standard rate — most importantly
+     * the "Reverse charge" mention required by Art. 226(11a) wherever the customer is liable for
+     * the VAT. Without it a cross-border EU B2B invoice renders as "Tax 0.00" with no explanation
+     * and is not a valid VAT document: the buyer's auditor rejects it and the seller cannot
+     * evidence the treatment.
+     *
+     * The per-line `tax_note` the tax engine produces is preferred; the treatment supplies the
+     * mandated wording when no note was stored.
+     *
+     * @return list<string>
+     */
+    private function taxLegend(): array
+    {
+        $notes = [];
+
+        foreach ($this->invoice->lines as $line) {
+            $treatment = $line->tax_treatment;
+
+            if (! is_string($treatment) || $treatment === '' || $treatment === 'standard') {
+                continue;
+            }
+
+            $note = is_string($line->tax_note) && $line->tax_note !== ''
+                ? $line->tax_note
+                : match ($treatment) {
+                    'reverse_charge' => 'Reverse charge — VAT to be accounted for by the recipient.',
+                    'zero_rated' => 'Zero-rated supply.',
+                    'exempt' => 'Exempt supply — no VAT charged.',
+                    'not_registered' => 'No VAT charged: the supplier is not registered in the customer\'s jurisdiction.',
+                    default => null,
+                };
+
+            if ($note !== null && ! in_array($note, $notes, true)) {
+                $notes[] = $note;
+            }
+        }
+
+        return $notes;
+    }
+
+    /** Render the tax legend under the totals, when there is one. */
+    private function taxNotes(): void
+    {
+        $notes = $this->taxLegend();
+
+        if ($notes === []) {
+            return;
+        }
+
+        $this->Ln(4);
+        $this->SetFont('Helvetica', 'B', 8.5);
+        $this->color(self::RGB_INK);
+        $this->Cell(0, 5, $this->enc('VAT treatment'), 0, 1);
+
+        $this->SetFont('Helvetica', '', 8.5);
+        $this->color(self::RGB_MUTED);
+
+        foreach ($notes as $note) {
+            $this->MultiCell(0, 4.4, $this->enc($note), 0, 'L');
+        }
+
+        $this->color(self::RGB_INK);
     }
 
     /** A section eyebrow label. */

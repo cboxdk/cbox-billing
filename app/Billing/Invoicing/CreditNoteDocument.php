@@ -60,6 +60,7 @@ class CreditNoteDocument extends FPDF
         $this->parties();
         $this->lineItems();
         $this->totals();
+        $this->taxNotes();
     }
 
     public function Footer(): void
@@ -196,6 +197,76 @@ class CreditNoteDocument extends FPDF
         }
 
         $this->Ln(4.0);
+    }
+
+    /**
+     * The VAT-treatment legend, mirrored from the invoice this note reverses.
+     *
+     * A credit note must carry the same legal mention as the document it credits — Art. 226(11a)
+     * applies to the reversal too, so a reverse-charged invoice credited back must still say so.
+     * Credit-note LINES do not store the tax fields, so the treatment is read from the referenced
+     * invoice's lines; when that invoice is no longer resolvable the legend is simply omitted
+     * rather than guessed at.
+     *
+     * @return list<string>
+     */
+    private function taxLegend(): array
+    {
+        $invoice = $this->creditNote->invoice;
+
+        if ($invoice === null) {
+            return [];
+        }
+
+        $notes = [];
+
+        foreach ($invoice->lines as $line) {
+            $treatment = $line->tax_treatment;
+
+            if (! is_string($treatment) || $treatment === '' || $treatment === 'standard') {
+                continue;
+            }
+
+            $note = is_string($line->tax_note) && $line->tax_note !== ''
+                ? $line->tax_note
+                : match ($treatment) {
+                    'reverse_charge' => 'Reverse charge — VAT to be accounted for by the recipient.',
+                    'zero_rated' => 'Zero-rated supply.',
+                    'exempt' => 'Exempt supply — no VAT charged.',
+                    'not_registered' => 'No VAT charged: the supplier is not registered in the customer\'s jurisdiction.',
+                    default => null,
+                };
+
+            if ($note !== null && ! in_array($note, $notes, true)) {
+                $notes[] = $note;
+            }
+        }
+
+        return $notes;
+    }
+
+    /** Render the tax legend under the totals, when there is one. */
+    private function taxNotes(): void
+    {
+        $notes = $this->taxLegend();
+
+        if ($notes === []) {
+            return;
+        }
+
+        $this->Ln(4);
+        $this->SetFont('Helvetica', 'B', 8.5);
+        $this->color(self::RGB_INK);
+        $this->Cell(0, 5, $this->enc('VAT treatment'), 0, 1);
+
+        $this->SetFont('Helvetica', '', 8.5);
+        $this->color(self::RGB_MUTED);
+
+        foreach ($notes as $note) {
+            $this->MultiCell(0, 4.4, $this->enc($note), 0, 'L');
+        }
+
+        $this->color(self::RGB_INK);
     }
 
     private function totals(): void

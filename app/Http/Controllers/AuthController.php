@@ -91,9 +91,17 @@ class AuthController extends Controller
                 $userInfo = $this->idp->fetchUserInfo((string) $tokens['access_token']);
 
                 if (($userInfo['sub'] ?? null) === ($claims['sub'] ?? null)) {
+                    // `roles` and `permissions` ARE taken from UserInfo: Cbox ID emits them only
+                    // there, never in the id_token, and they are already scoped per client at the
+                    // source. Dropping them would leave `permissions` permanently empty, so the
+                    // moment `CBOX_ID_RBAC_ENFORCE` is turned on every permission-gated console
+                    // route would 403 for every operator — including ones who genuinely hold the
+                    // slug. `org` is the claim this allow-list exists to protect and stays out:
+                    // it is the console authorization decision and must come from the verified,
+                    // signature/iss/aud/azp/nonce-bound id_token.
                     $profile = array_intersect_key(
                         $userInfo,
-                        array_flip(['name', 'email', 'picture', 'preferred_username', 'org_name']),
+                        array_flip(['name', 'email', 'picture', 'preferred_username', 'org_name', 'roles', 'permissions']),
                     );
 
                     $claims = array_merge($claims, array_filter($profile, static fn ($v) => $v !== null && $v !== ''));

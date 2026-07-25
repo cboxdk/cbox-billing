@@ -28,12 +28,25 @@ return [
     | outside a config file returns null in exactly the deployments that need this
     | set. Config files are evaluated while the cache is built, so this survives.
     |
-    | Accepts a single address, a CIDR, a comma-separated list, or `*` when the
-    | ingress is the only possible path in. There is deliberately no default:
-    | trusting a proxy you do not control lets a client spoof its own address.
+    | Accepts a single address, a CIDR, or a comma-separated list.
+    |
+    | DO NOT USE `*`. It trusts every hop, so Symfony returns the LEFTMOST
+    | `X-Forwarded-For` entry — which the client writes. That inverts the whole
+    | point: instead of one shared rate-limit bucket, a single source rotates
+    | through unlimited attacker-chosen buckets, and the IP recorded against a
+    | quote acceptance — the field that makes the e-signature evidentiary —
+    | becomes attacker-supplied. Naming the actual proxy range makes Symfony walk
+    | in from the right and stop at the first untrusted hop, which is the real
+    | client address as your ingress saw it.
+    |
+    | The default below is the private ranges (RFC 1918 plus loopback), which is
+    | correct for the usual Docker/Kubernetes shape where the ingress controller
+    | shares a private network with the app and the public internet cannot reach
+    | the pod directly. Narrow it to your ingress CIDR if you can; widen it only
+    | if you understand the consequence above.
     |
     */
 
-    'proxies' => env('TRUSTED_PROXIES'),
+    'proxies' => env('TRUSTED_PROXIES', '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1,::1'),
 
 ];

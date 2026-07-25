@@ -79,12 +79,20 @@ return Application::configure(basePath: dirname(__DIR__))
         // termination.
         //
         // Only the HEADERS are set here. The proxy LIST comes from `config/trustedproxy.php`,
-        // which `TrustProxies` reads at request time — deliberately not `env()` here, because
-        // `config:cache` (run by the deploy script) stops `.env` being loaded, so an `env()` call
-        // outside a config file returns null in exactly the deployments that need this set.
+        // which `TrustProxies` reads at request time — deliberately not `env()` here, because this
+        // closure runs before the environment bootstrapper AND `config:cache` (which the deploy
+        // script and the container entrypoint both run) stops `.env` being parsed at all. Either
+        // one alone makes an `env()` call here resolve to null.
+        //
+        // X_FORWARDED_HOST is deliberately NOT trusted. Nothing in the app calls `trustHosts()`,
+        // so trusting it would let a caller set `X-Forwarded-Host: evil.test` and get back an
+        // absolute hosted-checkout or customer-portal URL on that host — carrying a valid session
+        // token — which the operator's app then forwards to a real customer
+        // (CheckoutSessionController and PortalSessionController both build their `url` from the
+        // request root). The canonical host comes from `app.url`, which is already configured, so
+        // there is nothing to gain here and a live phishing vector to lose.
         $middleware->trustProxies(
             headers: Request::HEADER_X_FORWARDED_FOR
-                | Request::HEADER_X_FORWARDED_HOST
                 | Request::HEADER_X_FORWARDED_PORT
                 | Request::HEADER_X_FORWARDED_PROTO,
         );

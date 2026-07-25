@@ -64,6 +64,61 @@ class TrustedProxyConfigTest extends TestCase
         );
     }
 
+    /**
+     * With a wildcard, Symfony trusts every hop and returns the LEFTMOST forwarded entry — which
+     * the client writes. That inverts the fix: instead of one shared rate-limit bucket, a single
+     * source rotates through unlimited attacker-chosen buckets, and the IP recorded against a
+     * quote e-signature becomes attacker-supplied. Naming the real proxy range makes Symfony walk
+     * in from the right and stop at the first untrusted hop.
+     */
+    public function test_a_named_proxy_range_returns_the_real_client_not_a_spoofed_one(): void
+    {
+        config()->set('trustedproxy.proxies', '10.0.0.0/8');
+
+        $middleware = new TrustProxies;
+        $request = Request::create('https://billing.example.test/api/v1/reserve', 'POST');
+        $request->server->set('REMOTE_ADDR', '10.0.0.5');
+        // The client forged the first entry; the ingress appended the address it actually saw.
+        $request->headers->set('X-Forwarded-For', '1.2.3.4, 203.0.113.9');
+
+        $middleware->handle($request, static fn (Request $r): Request => $r);
+
+        $this->assertSame(
+            '203.0.113.9',
+            $request->ip(),
+            'A client-forged leading X-Forwarded-For entry must not win — that would let one '
+            .'source rotate through unlimited rate-limit buckets.',
+        );
+    }
+
+    /** The shipped default must not be a wildcard. */
+    public function test_the_default_proxy_range_is_not_a_wildcard(): void
+    {
+        $default = (require base_path('config/trustedproxy.php'))['proxies'];
+
+        $this->assertNotSame('*', $default);
+        $this->assertStringNotContainsString('0.0.0.0/0', (string) $default);
+    }
+
+    /**
+     * `X-Forwarded-Host` must NOT be trusted. Nothing calls `trustHosts()`, so trusting it would
+     * let a caller set `X-Forwarded-Host: evil.test` and receive an absolute hosted-checkout URL
+     * on that host — carrying a valid session token — which the operator then hands to a customer.
+     */
+    public function test_the_forwarded_host_header_is_not_trusted(): void
+    {
+        config()->set('trustedproxy.proxies', '10.0.0.0/8');
+
+        $middleware = new TrustProxies;
+        $request = Request::create('https://billing.example.test/api/v1/checkout-sessions', 'POST');
+        $request->server->set('REMOTE_ADDR', '10.0.0.5');
+        $request->headers->set('X-Forwarded-Host', 'evil.test');
+
+        $middleware->handle($request, static fn (Request $r): Request => $r);
+
+        $this->assertSame('billing.example.test', $request->getHost());
+    }
+
     /** The config key the framework actually reads must exist and be env-driven. */
     public function test_the_config_file_is_present_and_env_driven(): void
     {

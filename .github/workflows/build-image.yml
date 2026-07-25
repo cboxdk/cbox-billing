@@ -6,13 +6,18 @@ name: Build Image
 # deps are public and the push uses the built-in GITHUB_TOKEN. This is the image
 # cbox-billing-cloud overlays FROM.
 
+# GATED ON CI. Previously this triggered directly on push, so a merge that failed
+# PHPStan, the tests, `composer audit` or the licence check still built and pushed
+# `:latest` — and cbox-billing-cloud overlays `:latest` by default. The QA gate
+# existed but did not gate the artifact. `workflow_run` fires only after CI reports,
+# and the `conclusion == 'success'` guard is what actually blocks a red build.
 on:
-  push:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
     branches: [main]
+  push:
     tags: ['v*']
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
   workflow_dispatch:
 
 concurrency:
@@ -21,9 +26,14 @@ concurrency:
 
 jobs:
   build:
-    # Guarded so it only runs for the canonical repo, and never for a fork's
-    # pull_request (which would not have package:write anyway).
-    if: github.repository == 'cboxdk/cbox-billing' && github.event_name != 'pull_request'
+    # Guarded so it only runs for the canonical repo, never for a fork's pull_request
+    # (which would not have package:write anyway), and — for the workflow_run trigger —
+    # only when CI actually PASSED. Without the conclusion check, workflow_run fires on
+    # a failed CI run too, which would defeat the point of gating.
+    if: >-
+      github.repository == 'cboxdk/cbox-billing'
+      && github.event_name != 'pull_request'
+      && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

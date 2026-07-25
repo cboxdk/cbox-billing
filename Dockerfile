@@ -23,10 +23,12 @@ COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --prefer-dist --no-interaction --no-progress --optimize-autoloader
 
 # Frontend build (Node 22 ships in the standard tier). Tailwind v4 via the vite
-# plugin — a plain `vite build`. `npm install` (not `npm ci`): this repo commits no
-# package-lock.json yet, so there is no lockfile to install from.
-COPY package.json ./
-RUN npm install --no-audit --no-fund
+# plugin — a plain `vite build`. `npm ci` against the committed lockfile: every build
+# resolves the identical tree with integrity checks, so a yanked or compromised
+# transitive package cannot silently enter a billing app's browser bundle, and the
+# tree can be diffed in review.
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY . .
 RUN npm run build && rm -rf node_modules
 
@@ -41,3 +43,12 @@ COPY --from=build --chown=www-data:www-data /var/www/html /var/www/html
 # `migrate` would race across replicas.
 ENV APP_ENV=production \
     PHP_OPCACHE_ENABLE=1
+
+# Run as an unprivileged user. Without this the published image runs the billing
+# system of record as ROOT, with the full PHP build toolchain present from the base
+# image — so any RCE in the app is immediately root in the container. The Helm chart
+# already enforces runAsNonRoot/uid 33, so this closes the gap for exactly the
+# audience the product targets: self-hosters running `docker run` or a plain compose
+# file, who get no such enforcement. uid 33 is www-data, which already owns the
+# application tree copied above.
+USER www-data

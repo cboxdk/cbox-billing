@@ -71,22 +71,18 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // TRUSTED PROXIES. The app ships a Dockerfile and a Helm chart, so it effectively always
-        // runs behind a load balancer or ingress. Without this, `X-Forwarded-For` is ignored and
-        // `$request->ip()` is the PROXY's address for every request — which quietly breaks three
-        // things: (1) `throttle:cbox-webhook` and the license-activation limiter share a single
-        // bucket across all callers, so one source can exhaust the limiter for every gateway
-        // callback and every deployment heartbeat — an availability attack on the settlement path,
-        // which is the exact thing those limiters exist to prevent; (2) the quote acceptance
-        // e-signature records the balancer's IP instead of the signer's, and that field is what
-        // makes the artifact evidentiary; (3) `$request->secure()` is false behind TLS
+        // TRUSTED PROXIES. The app effectively always runs behind an ingress (it ships a
+        // Dockerfile and a Helm chart), and until the proxy is trusted `X-Forwarded-For` is
+        // ignored: the per-IP limiters on the payment-webhook and license-activation routes all
+        // collapse into one shared bucket, the IP recorded on a quote e-signature is the
+        // balancer's rather than the signer's, and `$request->secure()` is false behind TLS
         // termination.
         //
-        // Deliberately env-driven with no default: trusting proxies you do not control lets a
-        // client spoof its own IP. Set TRUSTED_PROXIES to your balancer's address or CIDR, or to
-        // `*` when the ingress is the only possible ingress path.
+        // Only the HEADERS are set here. The proxy LIST comes from `config/trustedproxy.php`,
+        // which `TrustProxies` reads at request time — deliberately not `env()` here, because
+        // `config:cache` (run by the deploy script) stops `.env` being loaded, so an `env()` call
+        // outside a config file returns null in exactly the deployments that need this set.
         $middleware->trustProxies(
-            at: env('TRUSTED_PROXIES'),
             headers: Request::HEADER_X_FORWARDED_FOR
                 | Request::HEADER_X_FORWARDED_HOST
                 | Request::HEADER_X_FORWARDED_PORT

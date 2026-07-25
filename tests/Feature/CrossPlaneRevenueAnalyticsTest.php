@@ -39,9 +39,17 @@ class CrossPlaneRevenueAnalyticsTest extends TestCase
         return app(BillingContext::class);
     }
 
+    /**
+     * Create the organization IN THE CURRENT PLANE, not unscoped. An earlier version of this
+     * fixture created the org in production and then wrote the movement in the sandbox, which is a
+     * state the app cannot actually produce — and, worse, it meant these tests would still pass if
+     * the migration's plane derivation were wrong. Creating both in the same plane exercises the
+     * real shape: the stamping trait derives the movement's plane from the ambient context, and the
+     * org it points at lives there too.
+     */
     private function org(string $id): void
     {
-        Organization::query()->withoutGlobalScopes()->firstOrCreate(['id' => $id], [
+        Organization::query()->firstOrCreate(['id' => $id], [
             'name' => 'Org '.$id,
             'billing_email' => $id.'@example.test',
             'billing_country' => 'DK',
@@ -50,9 +58,8 @@ class CrossPlaneRevenueAnalyticsTest extends TestCase
 
     public function test_a_sandbox_mrr_movement_is_invisible_to_the_production_waterfall(): void
     {
-        $this->org('org_plane');
-
         $this->context()->setMode(BillingMode::Test);
+        $this->org('org_plane');
 
         SubscriptionMrrMovement::query()->create([
             'organization_id' => 'org_plane',
@@ -99,9 +106,8 @@ class CrossPlaneRevenueAnalyticsTest extends TestCase
 
     public function test_a_sandbox_retirement_event_stays_out_of_the_production_worklist(): void
     {
-        $this->org('org_plane');
-
         $this->context()->setMode(BillingMode::Test);
+        $this->org('org_plane');
 
         $product = Product::query()->create(['key' => 'retire-app', 'name' => 'Retire App']);
         $plan = Plan::query()->create([

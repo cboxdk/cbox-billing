@@ -115,8 +115,21 @@ readonly class MeterAuthoring
 
         return $this->db->table(self::USAGE_TABLE)
             ->where('meter', $meter->key)
-            ->whereIn('org', function (QueryBuilder $query) use ($environment): void {
-                $query->select('id')->from('organizations')->where('environment', $environment);
+            ->where(function (QueryBuilder $outer) use ($environment): void {
+                // Usage belonging to an org in THIS plane.
+                $outer->whereIn('org', function (QueryBuilder $query) use ($environment): void {
+                    $query->select('id')->from('organizations')->where('environment', $environment);
+                })
+                    // …or ORPHANED usage, whose organization no longer exists in any plane.
+                    // `environment:reset` deletes `organizations` but leaves `billing_usage_events`
+                    // (the engine table has no plane column, so the eraser skips it) while KEEPING
+                    // `meters`, which is config. Without this arm, a reset sandbox reports
+                    // `hasUsage() === false` for every meter whose history is still on disk, and the
+                    // guard that exists precisely so usage history is never orphaned would let the
+                    // meter hard-delete instead of archive.
+                    ->orWhereNotIn('org', function (QueryBuilder $query): void {
+                        $query->select('id')->from('organizations');
+                    });
             })
             ->exists();
     }

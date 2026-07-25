@@ -33,6 +33,16 @@ use Illuminate\Support\Facades\Schema;
  *
  * A movement whose subscription has since been hard-deleted falls back to its organization's
  * plane; one with neither stays `production`, which is the pre-migration behaviour for that row.
+ *
+ * DEPLOY NOTE: this is heavier than the additive group-A column migrations. On Postgres the whole
+ * `up()` runs in one transaction and is therefore atomic — there is no half-backfilled state to
+ * recover from — but that transaction holds three things at once: an `ADD COLUMN … DEFAULT`
+ * (fast on PG 11+, no table rewrite), a NON-CONCURRENT index build (blocks writes for its
+ * duration), and a full-table `UPDATE` that MVCC-rewrites every row of the append-only movement
+ * log, roughly doubling its physical size until the next VACUUM. That is fine at current volumes
+ * and was measured as such; if `subscription_mrr_movements` has grown large by the time this
+ * ships, split the index into its own migration with `public $withinTransaction = false;` and
+ * `CREATE INDEX CONCURRENTLY`, and chunk the backfill.
  */
 return new class extends Migration
 {

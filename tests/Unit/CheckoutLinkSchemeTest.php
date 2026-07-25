@@ -87,6 +87,45 @@ class CheckoutLinkSchemeTest extends TestCase
         $this->assertSame('https://app.example.test/signup?plan=business&cur=DKK', $built);
     }
 
+    /**
+     * A relative target may legitimately carry a colon inside its QUERY — `?return=https://…` is
+     * the common shape for a signup deep link. Only a colon before the first `/`, `?` or `#` can
+     * be a scheme. Rejecting the rest would silently drop such tables back to the default checkout
+     * URL and break the operator's link with no error anywhere.
+     */
+    public function test_a_relative_target_with_a_colon_in_the_query_is_allowed(): void
+    {
+        $this->assertTrue(CheckoutLinkBuilder::isSafeTarget('signup?return=https://merchant.example/done'));
+        $this->assertTrue(CheckoutLinkBuilder::isSafeTarget('/signup?next=https://merchant.example'));
+        $this->assertTrue(CheckoutLinkBuilder::isSafeTarget('/signup#section:2'));
+        $this->assertTrue(CheckoutLinkBuilder::isSafeTarget('signup/step:2'));
+    }
+
+    /**
+     * The CONFIGURED fallback is validated too. It arrives from
+     * `CBOX_BILLING_STOREFRONT_CHECKOUT_URL`, so checking only the per-table template left the
+     * whole allow-list bypassable by one env var — and that value reaches the public `href` on
+     * EVERY pricing table at once, which is worse than the per-table case.
+     */
+    public function test_an_unsafe_configured_fallback_is_refused_too(): void
+    {
+        $built = (new CheckoutLinkBuilder('javascript:alert(document.cookie)'))
+            ->build(null, 'business', 'DKK', 'month', 49900);
+
+        $this->assertStringNotContainsStringIgnoringCase('javascript:', $built);
+        $this->assertStringStartsWith('/', $built);
+    }
+
+    /** Both unsafe: address the app root rather than emitting a dangerous or dead link. */
+    public function test_both_targets_unsafe_falls_back_to_the_app_root(): void
+    {
+        $built = (new CheckoutLinkBuilder('data:text/html,<script>alert(1)</script>'))
+            ->build('javascript:alert(1)', 'business', 'DKK', 'month', 49900);
+
+        $this->assertStringStartsWith('/?', $built);
+        $this->assertStringContainsString('plan=business', $built);
+    }
+
     /** With no template at all, the configured default is still used. */
     public function test_an_absent_template_uses_the_configured_default(): void
     {

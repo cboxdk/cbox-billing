@@ -16,7 +16,7 @@
        returns a Promise<boolean>. Use inside JS-driven flows (e.g. the portal).
 --}}
 <div class="cbx-confirm-backdrop" id="cbxConfirmBackdrop" hidden></div>
-<div class="cbx-confirm" id="cbxConfirm" role="dialog" aria-modal="true" aria-labelledby="cbxConfirmTitle" aria-describedby="cbxConfirmBody" hidden>
+<div class="cbx-confirm" id="cbxConfirm" role="dialog" aria-modal="true" aria-labelledby="cbxConfirmTitle" aria-describedby="cbxConfirmPlane cbxConfirmBody" hidden>
     @isset($activeEnvironment)
         {{-- The plane, stated STRUCTURALLY rather than left to each call site's prose.
              Every data-confirm body was authored per call site, and none of them named the
@@ -25,7 +25,7 @@
              the moment of decision the operator's eye is nowhere near the strip at the top of the
              page. Money-moving confirmations have to carry the plane themselves. --}}
         @php $isProduction = ! ($testMode ?? false); @endphp
-        <p class="cbx-confirm-plane" style="display:flex;align-items:center;gap:7px;margin:0 0 10px;padding:6px 10px;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:.04em;{{ $isProduction ? 'background:var(--destructive);color:var(--destructive-foreground)' : 'background:var(--warning);color:var(--warning-foreground)' }}">
+        <p class="cbx-confirm-plane" id="cbxConfirmPlane" style="display:flex;align-items:center;gap:7px;margin:0 0 10px;padding:6px 10px;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:.04em;{{ $isProduction ? 'background:var(--destructive);color:var(--destructive-foreground)' : 'background:var(--warning);color:var(--warning-foreground)' }}">
             <span style="width:7px;height:7px;border-radius:9999px;background:currentColor"></span>
             @if ($isProduction)
                 PRODUCTION — real customers

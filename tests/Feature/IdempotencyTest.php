@@ -197,11 +197,11 @@ class IdempotencyTest extends TestCase
     }
 
     /**
-     * A thrown exception previously left the claim held forever, so every retry of that key got
-     * 409 "already in progress" permanently — locking the caller out of the key they were told to
-     * retry with.
+     * A thrown exception is ambiguous in exactly the same way a 5xx is — the controller may have
+     * committed and then thrown in a post-commit listener — so the claim is KEPT for the stale
+     * reaper rather than freed. Freeing it would let the client's retry double-apply.
      */
-    public function test_a_thrown_exception_frees_the_key_rather_than_wedging_it(): void
+    public function test_a_thrown_exception_keeps_the_claim_for_the_reaper(): void
     {
         Route::post('/_test/throw', function (): never {
             throw new RuntimeException('kaboom');
@@ -214,6 +214,9 @@ class IdempotencyTest extends TestCase
             // expected
         }
 
-        $this->assertDatabaseMissing('idempotency_keys', ['idempotency_key' => 'k-throw']);
+        $this->assertDatabaseHas('idempotency_keys', [
+            'idempotency_key' => 'k-throw',
+            'response_status' => null,
+        ]);
     }
 }

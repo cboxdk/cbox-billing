@@ -142,6 +142,25 @@ class CreditNotePdfTest extends TestCase
         app(CreditNotePdfRenderer::class)->render($note->fresh());
     }
 
+    /**
+     * The refusal is correct for new issuance, but it changes the failure mode for HISTORICAL
+     * documents: one whose seller was removed from the register since it was issued now errors on
+     * download rather than rendering a wrong PDF. `billing:verify-seller-identities` exists so a
+     * release finds that before a customer does.
+     */
+    public function test_the_verify_command_flags_an_issued_document_whose_seller_no_longer_resolves(): void
+    {
+        $this->creditNoteFor('org_verify');
+
+        $this->artisan('billing:verify-seller-identities')->assertExitCode(0);
+
+        SellerEntity::query()->where('id', 'seller_x')->delete();
+
+        $this->artisan('billing:verify-seller-identities')
+            ->expectsOutputToContain('no longer resolve')
+            ->assertExitCode(1);
+    }
+
     public function test_the_portal_route_404s_a_cross_org_credit_note(): void
     {
         // A credit note owned by ANOTHER organization.

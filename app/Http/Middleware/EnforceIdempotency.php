@@ -10,7 +10,6 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Throwable;
 
 /**
  * Opt-in request idempotency for the mutating management endpoints. A client that sends an
@@ -91,19 +90,19 @@ class EnforceIdempotency
                 : $this->conflict('A request with this Idempotency-Key is already in progress.');
         }
 
-        // A thrown exception must not leave the claim held forever. The row is claimed BEFORE the
-        // controller runs, and the release below only executes when a Response is returned — so an
-        // exception propagating past this middleware left `response_status` null permanently, and
-        // every later retry of that key got 409 "already in progress" for good. That locked the
-        // caller out of the exact key they were told to retry with. `finally` frees a claim that
-        // failed before any effect could commit.
-        try {
-            $response = $next($request);
-        } catch (Throwable $e) {
-            $record->delete();
-
-            throw $e;
-        }
+        // A thrown exception is treated exactly like a 5xx below — the claim is KEPT, not freed.
+        //
+        // An earlier revision of this fix deleted the claim here, on the reasoning that an
+        // exception means nothing committed. That is wrong in the one case that matters: a
+        // controller can commit its transaction and THEN throw in a post-commit listener,
+        // serializer or notifier. Freeing the key there would let the client's retry — the very
+        // thing an Idempotency-Key exists to make safe — run the mutation a second time.
+        //
+        // The claim is therefore left incomplete for the stale-claim reaper
+        // (`stale_after_minutes`, already scheduled), which is the same ambiguity-handling the
+        // 5xx branch relies on. The key is unusable for the retry window rather than dangerous —
+        // and it is no longer wedged FOREVER, which was the original bug.
+        $response = $next($request);
 
         $status = $response->getStatusCode();
 

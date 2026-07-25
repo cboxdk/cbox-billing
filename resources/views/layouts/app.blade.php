@@ -107,7 +107,13 @@
                 <form method="POST" action="{{ route('billing.environment.switch') }}" style="display:inline">
                     @csrf
                     <input type="hidden" name="environment" value="production">
-                    <button type="submit" class="cbx-btn cbx-btn--sm cbx-btn--ghost" style="height:20px">Switch to production</button>
+                    {{-- Explicitly re-coloured for the SOLID strip. `--ghost` is transparent with
+                         `--muted-foreground` text, which was tuned for the old translucent fill;
+                         on solid warning it drops to 2.35:1 in light and 1.30:1 in dark — i.e. the
+                         one control that gets an operator OUT of a sandbox becomes invisible. The
+                         same applies to the focus ring, so `--ring` is overridden locally too;
+                         warning-foreground on warning is 7.38:1 / 9.44:1. --}}
+                    <button type="submit" class="cbx-btn cbx-btn--sm cbx-btn--ghost" style="height:20px;background:transparent;color:var(--warning-foreground);border-color:var(--warning-foreground);--ring:var(--warning-foreground)">Switch to production</button>
                 </form>
             </div>
         @endif

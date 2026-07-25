@@ -64,6 +64,13 @@ readonly class EnvironmentDataMap
     public function transactionalTables(): array
     {
         return [
+            // Analytics/worklist rows that hang off the book. Listed BEFORE `organizations`
+            // deliberately: both already vanish via ON DELETE CASCADE once their org/subscription
+            // goes, so wiping them afterwards would count zero and make the reset report
+            // under-state what it removed. Naming them here also keeps this list the actual single
+            // source of truth for "what belongs to a plane" — the next partitioned table that has
+            // no cascade path would otherwise be missed silently.
+            'subscription_mrr_movements', 'plan_retirement_events',
             // Tenant + subscription book.
             'organizations', 'subscriptions', 'subscription_coupons', 'invoices', 'credit_notes', 'refunds',
             'coupon_redemptions', 'seat_assignments', 'wallet_adjustments', 'payment_retries',

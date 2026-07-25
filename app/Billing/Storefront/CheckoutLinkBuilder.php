@@ -70,9 +70,15 @@ readonly class CheckoutLinkBuilder implements BuildsCheckoutLinks
             return false;
         }
 
-        // No scheme at all — a path-relative target such as `/signup?plan={plan}`.
+        // No scheme parsed — a path-relative target such as `/signup?plan={plan}`. Only a colon
+        // BEFORE the first `/`, `?` or `#` could be a scheme; one inside a query or fragment is
+        // ordinary data. Checking the whole first slash-segment would reject the legitimate and
+        // common `signup?return=https://merchant.example/done`, silently dropping such a table
+        // back to the default checkout URL and breaking the operator's deep link.
         if ($scheme === null) {
-            return ! str_contains(explode('/', $trimmed)[0], ':');
+            $delimiter = strcspn($trimmed, '/?#');
+
+            return ! str_contains(substr($trimmed, 0, $delimiter), ':');
         }
 
         return in_array(strtolower($scheme), self::ALLOWED_SCHEMES, true);
@@ -142,6 +148,17 @@ readonly class CheckoutLinkBuilder implements BuildsCheckoutLinks
             return $preferred;
         }
 
-        return $fallback;
+        // The CONFIGURED fallback is checked too. It comes from
+        // `CBOX_BILLING_STOREFRONT_CHECKOUT_URL` via the service provider, so validating only the
+        // per-table template left the whole allow-list bypassable by one env var — and that value
+        // lands in the same public `href` on every pricing table at once, which is strictly worse
+        // than the per-table case this class was hardened against.
+        if (self::isSafeTarget($fallback)) {
+            return $fallback;
+        }
+
+        // Neither is usable. Address the app root rather than emitting an unsafe link or a dead
+        // `#`: the CTA stays clickable and lands somewhere real.
+        return '/';
     }
 }

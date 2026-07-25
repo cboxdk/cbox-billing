@@ -54,6 +54,15 @@ class NexusIntegrationTest extends TestCase
         ]);
     }
 
+    /** A paid invoice issued at a specific instant — the two-calendar-year window needs dating. */
+    private function invoiceIssuedAt(string $number, string $orgId, int $totalMinor, Carbon $issuedAt): void
+    {
+        Invoice::query()->create([
+            'organization_id' => $orgId, 'seller' => 'us-co', 'number' => $number, 'currency' => 'USD',
+            'total_minor' => $totalMinor, 'status' => 'paid', 'issued_at' => $issuedAt,
+        ]);
+    }
+
     private function invoice(string $number, string $orgId, int $totalMinor, string $status, string $currency = 'USD'): void
     {
         Invoice::query()->create([
@@ -221,5 +230,47 @@ class NexusIntegrationTest extends TestCase
         $this->assertSame(['US-WA'], array_map(static fn ($e) => $e->state->value, $report->triggered()));
         $this->assertTrue($report->forState('US-WA')?->physicalPresence);
         $this->assertSame(['US-NY'], array_map(static fn ($e) => $e->state->value, $report->registered()));
+    }
+
+    /**
+     * "Previous OR current calendar year" tests each year SEPARATELY. Summing them — which a
+     * single window starting at last January does — roughly doubles the measured figure, so a
+     * seller steadily under a threshold reads as over it and registers, files and collects tax in
+     * a state where it has no obligation.
+     */
+    public function test_the_two_calendar_years_are_evaluated_separately_not_summed(): void
+    {
+        $this->defaultUsSeller();
+        $this->orgIn('org_ca_split', 'US-CA');
+
+        // $60k in each of the two years. Summed that is $120k (over California's $100k threshold);
+        // evaluated correctly it is $60k, which is under.
+        $this->invoiceIssuedAt('CA-SPLIT-1', 'org_ca_split', 6_000_000, Carbon::now());
+        $this->invoiceIssuedAt('CA-SPLIT-2', 'org_ca_split', 6_000_000, Carbon::now()->subYear());
+
+        $activity = $this->app->make(SalesLedger::class)->activityFor(new SubdivisionCode('US-CA'));
+
+        $this->assertNotNull($activity);
+        $this->assertSame(
+            60_000,
+            $activity->salesDollars,
+            'Each calendar year must be measured on its own and the larger reported — summing them '
+            .'would report $120,000 and trigger a registration obligation that does not exist.',
+        );
+    }
+
+    /** The larger of the two years wins, whichever one it is. */
+    public function test_the_larger_year_is_reported(): void
+    {
+        $this->defaultUsSeller();
+        $this->orgIn('org_ca_larger', 'US-CA');
+
+        $this->invoiceIssuedAt('CA-BIG-1', 'org_ca_larger', 2_000_000, Carbon::now());
+        $this->invoiceIssuedAt('CA-BIG-2', 'org_ca_larger', 9_000_000, Carbon::now()->subYear());
+
+        $activity = $this->app->make(SalesLedger::class)->activityFor(new SubdivisionCode('US-CA'));
+
+        $this->assertNotNull($activity);
+        $this->assertSame(90_000, $activity->salesDollars);
     }
 }

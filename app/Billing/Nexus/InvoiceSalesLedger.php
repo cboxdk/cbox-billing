@@ -53,13 +53,24 @@ readonly class InvoiceSalesLedger implements SalesLedger
         }
 
         $now = Carbon::now();
-        $windowStart = $now->copy()->startOfYear()->subYear();
 
-        [$platformDollars, $platformTransactions] = $this->platformActivity($state, $windowStart, $now);
-        [$externalDollars, $externalTransactions] = $this->externalActivity($state, $now);
+        // "Previous OR current calendar year" means each year is tested SEPARATELY — a threshold
+        // is crossed when either year exceeds it. Summing the two, which is what a single window
+        // starting at last January does, roughly DOUBLES the measured figure: a seller at $60k a
+        // year into California reads $120k and registers, files and collects tax in a state where
+        // it has no obligation. The two metrics are maxed independently because the engine tests
+        // them with OR, so a state triggers if either year crosses either one.
+        $currentStart = $now->copy()->startOfYear();
+        $previousStart = $currentStart->copy()->subYear();
+        $nextStart = $currentStart->copy()->addYear();
 
-        $salesDollars = $platformDollars + $externalDollars;
-        $transactions = $platformTransactions + $externalTransactions;
+        // Each window is a whole calendar year, half-open [start, next). The current year runs to
+        // NEXT January rather than to `now`, so an invoice issued this instant is inside it.
+        [$currentDollars, $currentTransactions] = $this->windowActivity($state, $currentStart, $nextStart, $now);
+        [$previousDollars, $previousTransactions] = $this->windowActivity($state, $previousStart, $currentStart, $now);
+
+        $salesDollars = max($currentDollars, $previousDollars);
+        $transactions = max($currentTransactions, $previousTransactions);
 
         if ($salesDollars === 0 && $transactions === 0) {
             return null;
@@ -68,9 +79,22 @@ readonly class InvoiceSalesLedger implements SalesLedger
         return new SellerActivity(
             salesDollars: $salesDollars,
             transactions: $transactions,
-            periodStart: $windowStart->toDateTimeImmutable(),
+            periodStart: $previousStart->toDateTimeImmutable(),
             periodEnd: $now->toDateTimeImmutable(),
         );
+    }
+
+    /**
+     * Platform plus external-channel activity for one calendar-year window.
+     *
+     * @return array{0: int, 1: int} [dollars, transactions]
+     */
+    private function windowActivity(SubdivisionCode $state, Carbon $from, Carbon $until, Carbon $asOf): array
+    {
+        [$platformDollars, $platformTransactions] = $this->platformActivity($state, $from, $until, $asOf);
+        [$externalDollars, $externalTransactions] = $this->externalActivity($state, $from, $until, $asOf);
+
+        return [$platformDollars + $externalDollars, $platformTransactions + $externalTransactions];
     }
 
     /**
@@ -79,7 +103,7 @@ readonly class InvoiceSalesLedger implements SalesLedger
      *
      * @return array{0: int, 1: int} [dollars, transactions]
      */
-    private function platformActivity(SubdivisionCode $state, Carbon $windowStart, Carbon $asOf): array
+    private function platformActivity(SubdivisionCode $state, Carbon $windowStart, Carbon $windowEnd, Carbon $asOf): array
     {
         // Buyer place of supply lives on the organization (env-scoped). Resolve the
         // matching orgs first, then aggregate their invoices — keeps the columns on
@@ -98,6 +122,7 @@ readonly class InvoiceSalesLedger implements SalesLedger
             ->where('seller', $this->sellers->default()->id)
             ->whereIn('status', [InvoiceStatus::Open, InvoiceStatus::Paid])
             ->where('issued_at', '>=', $windowStart)
+            ->where('issued_at', '<', $windowEnd)
             ->whereIn('organization_id', $organizationIds);
 
         $dollars = 0;
@@ -113,7 +138,7 @@ readonly class InvoiceSalesLedger implements SalesLedger
             $minor = (int) (clone $scoped)->sum('total_minor');
 
             if ($currency === 'USD') {
-                $dollars += intdiv($minor, 100);
+                $dollars += (int) round($minor / 100);
 
                 continue;
             }
@@ -124,7 +149,7 @@ readonly class InvoiceSalesLedger implements SalesLedger
             $conversion = $this->fx->tryConvert(Money::ofMinor($minor, $currency), 'USD', $asOf);
 
             if ($conversion !== null) {
-                $dollars += intdiv($conversion->converted->minor(), 100);
+                $dollars += (int) round($conversion->converted->minor() / 100);
 
                 continue;
             }
@@ -149,12 +174,15 @@ readonly class InvoiceSalesLedger implements SalesLedger
      *
      * @return array{0: int, 1: int} [dollars, transactions]
      */
-    private function externalActivity(SubdivisionCode $state, Carbon $now): array
+    private function externalActivity(SubdivisionCode $state, Carbon $from, Carbon $until, Carbon $asOf): array
     {
+        // Scoped to the SAME single calendar year as the platform side, so the two halves of a
+        // window agree. Previously this always pulled both years while the platform side used one
+        // continuous span — two different windows summed into one figure.
         $entries = SellerExternalSales::query()
             ->where('seller_entity_id', $this->sellers->default()->id)
             ->where('subdivision', $state->value)
-            ->whereIn('period_year', [$now->year, $now->year - 1])
+            ->where('period_year', $from->year)
             ->get(['sales_dollars', 'transactions']);
 
         $dollars = 0;

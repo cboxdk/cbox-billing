@@ -10,6 +10,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 /**
  * Opt-in request idempotency for the mutating management endpoints. A client that sends an
@@ -90,7 +91,19 @@ class EnforceIdempotency
                 : $this->conflict('A request with this Idempotency-Key is already in progress.');
         }
 
-        $response = $next($request);
+        // A thrown exception must not leave the claim held forever. The row is claimed BEFORE the
+        // controller runs, and the release below only executes when a Response is returned — so an
+        // exception propagating past this middleware left `response_status` null permanently, and
+        // every later retry of that key got 409 "already in progress" for good. That locked the
+        // caller out of the exact key they were told to retry with. `finally` frees a claim that
+        // failed before any effect could commit.
+        try {
+            $response = $next($request);
+        } catch (Throwable $e) {
+            $record->delete();
+
+            throw $e;
+        }
 
         $status = $response->getStatusCode();
 
@@ -99,10 +112,19 @@ class EnforceIdempotency
                 'response_status' => $status,
                 'response_body' => $this->bodyForStorage($response),
             ])->save();
-        } else {
-            // No effect committed — free the key so the caller can retry it cleanly.
+        } elseif ($status >= 400 && $status < 500) {
+            // A 4xx is the server REFUSING the request — validation, authorization, a domain
+            // invariant. Nothing committed, so free the key and let the caller fix and retry it.
             $record->delete();
         }
+
+        // A 5xx deliberately KEEPS the claim. "Non-2xx means nothing committed" holds for a
+        // refusal but not for a server error: a controller can commit its transaction and then
+        // throw in a post-commit listener, serializer or notifier. Freeing the key there would let
+        // the client's retry — the very thing an Idempotency-Key exists to make safe — run the
+        // mutation a second time and, say, issue a second license or a duplicate payment intent.
+        // The stale-claim reaper (`stale_after_minutes`, already scheduled) releases it instead,
+        // so the key is unusable for the retry window rather than dangerous.
 
         // The redaction directive is an internal contract between the controller and this
         // middleware — never leak it to the client.

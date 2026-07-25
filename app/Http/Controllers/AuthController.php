@@ -76,13 +76,27 @@ class AuthController extends Controller
             $tokens = $this->idp->exchangeCode($this->queryString($request, 'code'), is_string($verifier) ? $verifier : '');
             $claims = $this->idp->verifyIdToken($tokens['id_token'], is_string($nonce) ? $nonce : '');
 
-            // The id_token carries identity + auth facts (sub, org, amr); profile
-            // fields (name, email) come from UserInfo. Merge them, but only when the
-            // UserInfo subject matches the id_token subject.
+            // The id_token carries identity + AUTHORIZATION facts (sub, org, roles, permissions,
+            // amr) and is cryptographically bound — signature, iss, aud, azp and nonce are all
+            // verified. UserInfo is a plain HTTP GET against an endpoint URL that itself came from
+            // a cached discovery document, and carries none of those bindings.
+            //
+            // So UserInfo contributes PROFILE fields only, via an explicit allow-list. A blanket
+            // array_merge let the weaker source overwrite every id_token claim except `sub` —
+            // including `org`, which IS the console authorization decision in OperatorAccess.
+            // Whether Cbox ID currently lets a user influence its own UserInfo `org` is not the
+            // point: taking an authorization-bearing claim from the weaker of two sources buys
+            // nothing, so it should not be possible in the first place.
             if (! empty($tokens['access_token'])) {
                 $userInfo = $this->idp->fetchUserInfo((string) $tokens['access_token']);
+
                 if (($userInfo['sub'] ?? null) === ($claims['sub'] ?? null)) {
-                    $claims = array_merge($claims, array_filter($userInfo, static fn ($v) => $v !== null && $v !== ''));
+                    $profile = array_intersect_key(
+                        $userInfo,
+                        array_flip(['name', 'email', 'picture', 'preferred_username', 'org_name']),
+                    );
+
+                    $claims = array_merge($claims, array_filter($profile, static fn ($v) => $v !== null && $v !== ''));
                 }
             }
         } catch (Throwable $e) {
@@ -142,10 +156,22 @@ class AuthController extends Controller
         return redirect()->route('login');
     }
 
-    /** Demo sign-in is offered only when there is no live provider to authenticate against. */
+    /**
+     * Demo sign-in is offered only OUTSIDE production, and only when there is no live provider
+     * to authenticate against.
+     *
+     * The environment check is not redundant. `isConfigured()` is true only while all three of
+     * issuer/client-id/redirect are set, so a production deploy that loses ONE of them — a
+     * rotation, a bad secrets mount, a config-cache miss — silently re-enabled an unauthenticated
+     * POST /auth/demo that mints a full console session. `EnsureOperator` is the second gate and
+     * would normally deny it, except that the demo org is exactly what `.env.example` tells
+     * developers to allowlist, and `.env` files get copied. Two plausible misconfigurations, one
+     * of them documented as the normal local setup. Coupling a credential-less login to "is the
+     * IdP configured" is the wrong question; "is this production" is the right one.
+     */
     private function demoAllowed(): bool
     {
-        return ! $this->idp->isConfigured();
+        return ! app()->isProduction() && ! $this->idp->isConfigured();
     }
 
     /** A single query parameter as a string; array/absent values collapse to empty. */

@@ -13,6 +13,8 @@ use Database\Seeders\CatalogSeeder;
 use Database\Seeders\LicensingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Route;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -162,5 +164,56 @@ class IdempotencyTest extends TestCase
         ['plaintext' => $token] = ApiToken::issue('operator', null);
 
         return ['Authorization' => 'Bearer '.$token];
+    }
+
+    /**
+     * A 5xx must NOT free the claim. "Non-2xx means nothing committed" holds for a refusal but
+     * not for a server error — a controller can commit its transaction and then throw in a
+     * post-commit listener. Freeing the key there lets the client's retry (the very thing the
+     * header exists to make safe) run the mutation twice.
+     */
+    public function test_a_server_error_keeps_the_claim_so_a_retry_cannot_double_apply(): void
+    {
+        Route::post('/_test/boom', fn () => response()->json(['error' => 'boom'], 500))
+            ->middleware(['api', 'idempotency']);
+
+        $this->postJson('/_test/boom', ['a' => 1], ['Idempotency-Key' => 'k-5xx']);
+
+        $this->assertDatabaseHas('idempotency_keys', [
+            'idempotency_key' => 'k-5xx',
+            'response_status' => null,
+        ]);
+    }
+
+    /** A 4xx IS a refusal — nothing committed, so the caller may fix the request and retry. */
+    public function test_a_client_refusal_frees_the_key(): void
+    {
+        Route::post('/_test/refuse', fn () => response()->json(['error' => 'nope'], 422))
+            ->middleware(['api', 'idempotency']);
+
+        $this->postJson('/_test/refuse', ['a' => 1], ['Idempotency-Key' => 'k-4xx']);
+
+        $this->assertDatabaseMissing('idempotency_keys', ['idempotency_key' => 'k-4xx']);
+    }
+
+    /**
+     * A thrown exception previously left the claim held forever, so every retry of that key got
+     * 409 "already in progress" permanently — locking the caller out of the key they were told to
+     * retry with.
+     */
+    public function test_a_thrown_exception_frees_the_key_rather_than_wedging_it(): void
+    {
+        Route::post('/_test/throw', function (): never {
+            throw new RuntimeException('kaboom');
+        })->middleware(['api', 'idempotency']);
+
+        try {
+            $this->withoutExceptionHandling()
+                ->postJson('/_test/throw', ['a' => 1], ['Idempotency-Key' => 'k-throw']);
+        } catch (RuntimeException) {
+            // expected
+        }
+
+        $this->assertDatabaseMissing('idempotency_keys', ['idempotency_key' => 'k-throw']);
     }
 }

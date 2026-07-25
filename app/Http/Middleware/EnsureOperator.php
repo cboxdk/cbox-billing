@@ -57,6 +57,16 @@ class EnsureOperator
             ]);
         }
 
-        return response()->view('errors.operator', [], Response::HTTP_FORBIDDEN);
+        // Outside production, a missing allowlist is nearly always a first-run setup gap rather
+        // than a real authorization decision — the operator following the quickstart lands here
+        // with no idea why. Hand them the exact variable and their own org id so the dead end is
+        // self-solving. Never in production, where the same text would be a config hint to an
+        // unauthenticated visitor.
+        $setupHint = ! $this->operators->isConfigured() && ! app()->isProduction();
+
+        return response()->view('errors.operator', [
+            'setupHint' => $setupHint,
+            'sessionOrg' => $setupHint ? $user?->org : null,
+        ], Response::HTTP_FORBIDDEN);
     }
 }

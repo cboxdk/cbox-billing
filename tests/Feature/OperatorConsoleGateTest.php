@@ -68,6 +68,36 @@ class OperatorConsoleGateTest extends TestCase
         return $this;
     }
 
+    /**
+     * The console ships with an EMPTY allowlist and is deny-by-default, so a first run always
+     * lands on this page — previously with no indication of what to set. Outside production the
+     * page now names the variable and fills in the operator's own org id, so the dead end is
+     * self-solving for someone who never opens .env.example.
+     */
+    public function test_the_denial_page_names_the_missing_setting_outside_production(): void
+    {
+        config()->set('billing.console.operator_orgs', []);
+        config()->set('billing.console.operator_subjects', []);
+
+        $response = $this->signedIn('org_nobody')->get('/');
+
+        $response->assertForbidden();
+        $response->assertSee('CBOX_BILLING_OPERATOR_ORGS=org_nobody', false);
+    }
+
+    /** The same hint must never reach an unauthenticated visitor in production. */
+    public function test_the_denial_page_gives_no_config_hint_in_production(): void
+    {
+        config()->set('billing.console.operator_orgs', []);
+        config()->set('billing.console.operator_subjects', []);
+        app()->detectEnvironment(static fn (): string => 'production');
+
+        $response = $this->signedIn('org_nobody')->get('/');
+
+        $response->assertForbidden();
+        $response->assertDontSee('CBOX_BILLING_OPERATOR_ORGS', false);
+    }
+
     public function test_a_non_operator_session_is_forbidden_on_every_console_route(): void
     {
         foreach (self::CONSOLE_ROUTES as [$verb, $path]) {

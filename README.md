@@ -39,14 +39,27 @@ wiring, the hosted checkout/portal, and the customer-facing self-service surface
 
 ```bash
 git clone … && cd cbox-billing
-composer setup          # installs deps, copies .env, generates the app key,
-                        # runs migrations, builds front-end assets
+composer setup:local    # deps, .env configured for local dev, app key,
+                        # migrate + seed, front-end assets
 composer run dev        # serve + queue + vite + logs
 ```
 
-Seed the catalog and a first organization with `php artisan migrate:fresh --seed`.
+That leaves a working install with a seeded catalog on SQLite and no external
+services — nothing to edit by hand. Sign in with the demo button, then try the
+enforcement hot path against the one seeded org with headroom:
+
+```bash
+php artisan billing:token "local dev"
+curl -s http://localhost:8000/api/v1/reserve \
+  -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+  -d '{"org":"org_fjord","meters":[{"meter":"api.requests","estimate":1}]}'
+```
+
+Use **`composer setup`** (no `:local`) when provisioning a server — it keeps
+`.env.example`'s production-safe defaults and expects real values.
+
 The provider console is served at `/`; the metered hot path and self-service
-surface live under `/api/v1`.
+surface live under `/api/v1`. Full walkthrough: [docs/quickstart.md](docs/quickstart.md).
 
 Required env lives in `.env.example` (keep secrets out of git): the Cbox ID OIDC
 issuer/client credentials, and — per gateway you enable — the gateway API and

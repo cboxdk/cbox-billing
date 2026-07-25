@@ -3,7 +3,12 @@
     "name": "cboxdk/cbox-billing",
     "type": "project",
     "description": "Cbox Billing — the self-hostable billing, metering and entitlement application (provider console + self-service portal) built on cboxdk/laravel-billing and cboxdk/laravel-id.",
-    "keywords": ["billing", "metering", "entitlements", "subscriptions"],
+    "keywords": [
+        "billing",
+        "metering",
+        "entitlements",
+        "subscriptions"
+    ],
     "license": "Elastic-2.0",
     "require": {
         "php": "^8.4",
@@ -50,6 +55,14 @@
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
             "@php artisan migrate --force",
+            "npm install --ignore-scripts",
+            "npm run build"
+        ],
+        "setup:local": [
+            "composer install",
+            "@php bin/setup-local.php",
+            "@php artisan key:generate",
+            "@php artisan migrate:fresh --seed --force",
             "npm install --ignore-scripts",
             "npm run build"
         ],

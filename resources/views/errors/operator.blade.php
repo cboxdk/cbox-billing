@@ -17,6 +17,11 @@
         .card form { margin: 20px 0 0; }
         .card .cbx-btn { width: 100%; height: 40px; font-size: 14px; }
         .foot { font-size: 11px; color: var(--muted-foreground); margin-top: 22px; }
+        .setup { margin-top: 20px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); text-align: left; }
+        .setup strong { display: block; font-size: 13px; margin-bottom: 6px; }
+        .setup p { font-size: 12.5px; margin: 0 0 10px; }
+        .setup pre { margin: 0; overflow-x: auto; }
+        .setup code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: var(--foreground); }
     </style>
 </head>
 <body class="canvas-gradient">
@@ -29,9 +34,19 @@
         <p>Your Cbox ID sign-in succeeded, but this account is not a member of an organization permitted to operate the Cbox Billing provider console.</p>
         <p>If you believe this is a mistake, ask your administrator to add your organization to the operator allowlist.</p>
 
+        @if (! empty($setupHint))
+            {{-- Local/dev only. The console is fail-closed and ships with an EMPTY allowlist, so a
+                 first run always lands here — previously with no indication of what to set. --}}
+            <div class="setup" role="note">
+                <strong>Setting this up locally?</strong>
+                <p>The console is deny-by-default and no operator allowlist is configured yet. Add your organization to <code>.env</code> and restart:</p>
+                <pre><code>CBOX_BILLING_OPERATOR_ORGS={{ $sessionOrg ?: 'your-org-id' }}</code></pre>
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('logout') }}">
             @csrf
-            <button type="submit" class="cbx-btn cbx-btn-secondary">Sign out</button>
+            <button type="submit" class="cbx-btn cbx-btn--secondary">Sign out</button>
         </form>
 
         <p class="foot">Provider console · access restricted to operators</p>

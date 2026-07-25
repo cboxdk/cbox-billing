@@ -60,14 +60,14 @@ Route::middleware(['throttle:cbox-management', 'billing.audit'])->group(function
     Route::get('plans', [PlanController::class, 'index'])->name('plans.index');
 
     // Merchant platforms provision the orgs they bill for on demand (idempotent upsert).
-    Route::put('organizations/{org}', [OrganizationController::class, 'upsert'])->name('organizations.upsert');
+    Route::put('organizations/{org}', [OrganizationController::class, 'upsert'])->middleware('idempotency')->name('organizations.upsert');
 
     Route::get('subscriptions/{org}', [SubscriptionController::class, 'show'])->name('subscriptions.show');
     Route::post('subscriptions', [SubscriptionController::class, 'store'])->middleware('idempotency')->name('subscriptions.store');
     Route::post('subscriptions/{org}/preview', [SubscriptionController::class, 'preview'])->name('subscriptions.preview');
     Route::post('subscriptions/{org}/change', [SubscriptionController::class, 'change'])->middleware('idempotency')->name('subscriptions.change');
-    Route::post('subscriptions/{org}/cancel', [SubscriptionController::class, 'cancel'])->name('subscriptions.cancel');
-    Route::post('subscriptions/{org}/reactivate', [SubscriptionController::class, 'reactivate'])->name('subscriptions.reactivate');
+    Route::post('subscriptions/{org}/cancel', [SubscriptionController::class, 'cancel'])->middleware('idempotency')->name('subscriptions.cancel');
+    Route::post('subscriptions/{org}/reactivate', [SubscriptionController::class, 'reactivate'])->middleware('idempotency')->name('subscriptions.reactivate');
 
     /*
      * Subscription-management depth (ADR-0012): pause/resume, seat-quantity changes with
@@ -75,11 +75,11 @@ Route::middleware(['throttle:cbox-management', 'billing.audit'])->group(function
      * over the engine lifecycle + the app's depth service. The quantity + add-on writes are
      * idempotency-keyed (a retried charge must not re-prorate).
      */
-    Route::post('subscriptions/{org}/pause', [SubscriptionController::class, 'pause'])->name('subscriptions.pause');
-    Route::post('subscriptions/{org}/resume', [SubscriptionController::class, 'resume'])->name('subscriptions.resume');
+    Route::post('subscriptions/{org}/pause', [SubscriptionController::class, 'pause'])->middleware('idempotency')->name('subscriptions.pause');
+    Route::post('subscriptions/{org}/resume', [SubscriptionController::class, 'resume'])->middleware('idempotency')->name('subscriptions.resume');
     Route::post('subscriptions/{org}/quantity', [SubscriptionController::class, 'quantity'])->middleware('idempotency')->name('subscriptions.quantity');
     Route::post('subscriptions/{org}/addons', [SubscriptionController::class, 'addAddOn'])->middleware('idempotency')->name('subscriptions.addons.add');
-    Route::delete('subscriptions/{org}/addons/{key}', [SubscriptionController::class, 'removeAddOn'])->name('subscriptions.addons.remove');
+    Route::delete('subscriptions/{org}/addons/{key}', [SubscriptionController::class, 'removeAddOn'])->middleware('idempotency')->name('subscriptions.addons.remove');
 
     /*
      * Seats (purchased + explicitly-assigned model). Purchased Full seats ARE the
@@ -91,8 +91,8 @@ Route::middleware(['throttle:cbox-management', 'billing.audit'])->group(function
      */
     Route::get('subscriptions/{org}/seats', [SeatController::class, 'show'])->name('subscriptions.seats.show');
     Route::post('subscriptions/{org}/seats', [SeatController::class, 'setPurchased'])->middleware('idempotency')->name('subscriptions.seats.set');
-    Route::post('subscriptions/{org}/seats/assign', [SeatController::class, 'assign'])->name('subscriptions.seats.assign');
-    Route::post('subscriptions/{org}/seats/unassign', [SeatController::class, 'unassign'])->name('subscriptions.seats.unassign');
+    Route::post('subscriptions/{org}/seats/assign', [SeatController::class, 'assign'])->middleware('idempotency')->name('subscriptions.seats.assign');
+    Route::post('subscriptions/{org}/seats/unassign', [SeatController::class, 'unassign'])->middleware('idempotency')->name('subscriptions.seats.unassign');
 
     Route::get('usage/{org}', UsageSummaryController::class)->name('usage.summary');
     Route::get('invoices/{org}', InvoiceController::class)->name('invoices.index');
@@ -102,8 +102,8 @@ Route::middleware(['throttle:cbox-management', 'billing.audit'])->group(function
      * as the rest of the management API; each returns the `{url}` of a hosted page keyed by an
      * opaque, expiring session token (the URL — not the provider auth gate — authorizes it).
      */
-    Route::post('checkout-sessions', CheckoutSessionController::class)->name('checkout-sessions.create');
-    Route::post('portal-sessions', PortalSessionController::class)->name('portal-sessions.create');
+    Route::post('checkout-sessions', CheckoutSessionController::class)->middleware('idempotency')->name('checkout-sessions.create');
+    Route::post('portal-sessions', PortalSessionController::class)->middleware('idempotency')->name('portal-sessions.create');
 
     /*
      * Embedded-intent API (ADR-0009 Path B): a product mounts the gateway's own element and
@@ -111,11 +111,11 @@ Route::middleware(['throttle:cbox-management', 'billing.audit'])->group(function
      * scope; each is a thin controller over the bound PaymentGateway and the gateway-customer
      * mapping (the gateway customer id — never the raw org id — is the account on every intent).
      */
-    Route::post('setup-intents', SetupIntentController::class)->name('setup-intents.create');
-    Route::post('payment-intents', PaymentIntentController::class)->name('payment-intents.create');
+    Route::post('setup-intents', SetupIntentController::class)->middleware('idempotency')->name('setup-intents.create');
+    Route::post('payment-intents', PaymentIntentController::class)->middleware('idempotency')->name('payment-intents.create');
     Route::get('payment-methods/{org}', [PaymentMethodController::class, 'index'])->name('payment-methods.index');
-    Route::post('payment-methods/{org}/default', [PaymentMethodController::class, 'setDefault'])->name('payment-methods.default');
-    Route::delete('payment-methods/{org}/{id}', [PaymentMethodController::class, 'destroy'])->name('payment-methods.destroy');
+    Route::post('payment-methods/{org}/default', [PaymentMethodController::class, 'setDefault'])->middleware('idempotency')->name('payment-methods.default');
+    Route::delete('payment-methods/{org}/{id}', [PaymentMethodController::class, 'destroy'])->middleware('idempotency')->name('payment-methods.destroy');
 
     /*
      * On-prem license management (operator-authed). Issue a signed, offline-verifiable license
@@ -125,15 +125,15 @@ Route::middleware(['throttle:cbox-management', 'billing.audit'])->group(function
      * separate, unauthenticated refresh path. Issue is idempotency-keyed.
      */
     Route::post('licenses', [LicenseController::class, 'store'])->middleware('idempotency')->name('licenses.store');
-    Route::post('licenses/{id}/renew', [LicenseController::class, 'renew'])->name('licenses.renew');
-    Route::post('licenses/{id}/revoke', [LicenseController::class, 'revoke'])->name('licenses.revoke');
+    Route::post('licenses/{id}/renew', [LicenseController::class, 'renew'])->middleware('idempotency')->name('licenses.renew');
+    Route::post('licenses/{id}/revoke', [LicenseController::class, 'revoke'])->middleware('idempotency')->name('licenses.revoke');
 
     /*
      * Test clock advance (sandbox only): fast-forward a test clock's virtual time and run the
      * due billing logic for its bound test subscriptions. Restricted to a test-mode token
      * (the controller refuses a live credential), so it can never touch live data.
      */
-    Route::post('test/clocks/{id}/advance', [TestClockController::class, 'advance'])->name('test.clocks.advance');
+    Route::post('test/clocks/{id}/advance', [TestClockController::class, 'advance'])->middleware('idempotency')->name('test.clocks.advance');
 
     /*
      * Environment management (operator-only) — the CI + programmatic surface for named billing
@@ -147,6 +147,6 @@ Route::middleware(['throttle:cbox-management', 'billing.audit'])->group(function
     Route::get('environments', [EnvironmentManagementController::class, 'index'])->name('environments.index');
     Route::post('environments', [EnvironmentManagementController::class, 'store'])->middleware('idempotency')->name('environments.store');
     Route::get('environments/{key}', [EnvironmentManagementController::class, 'show'])->where('key', '[a-z0-9][a-z0-9-]*')->name('environments.show');
-    Route::post('environments/{key}/reset', [EnvironmentManagementController::class, 'reset'])->where('key', '[a-z0-9][a-z0-9-]*')->name('environments.reset');
-    Route::delete('environments/{key}', [EnvironmentManagementController::class, 'destroy'])->where('key', '[a-z0-9][a-z0-9-]*')->name('environments.destroy');
+    Route::post('environments/{key}/reset', [EnvironmentManagementController::class, 'reset'])->middleware('idempotency')->where('key', '[a-z0-9][a-z0-9-]*')->name('environments.reset');
+    Route::delete('environments/{key}', [EnvironmentManagementController::class, 'destroy'])->middleware('idempotency')->where('key', '[a-z0-9][a-z0-9-]*')->name('environments.destroy');
 });

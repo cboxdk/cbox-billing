@@ -17,12 +17,24 @@ use Illuminate\Support\Collection;
  * (config), payment gateways from config, the enforcement {@see ApiToken}s from the
  * database, and the inbound settlement-webhook verification config.
  */
-readonly class SettingsReport
+class SettingsReport
 {
     public function __construct(
         private SellerCatalog $sellers,
         private Config $config,
     ) {}
+
+    /**
+     * Request-scoped memo for {@see sellers()}.
+     *
+     * This class is a read model resolved per request, not a value object — hence not `readonly`.
+     * The memo exists because `taxRegistrations()` iterates `sellers()` and the navigation
+     * composer calls both on every console render, so the seller path (a query plus a catalog
+     * lookup per row) was executing twice per page.
+     *
+     * @var list<array<string, mixed>>|null
+     */
+    private ?array $sellerRows = null;
 
     /**
      * The selling entities of record — the operator-authored DB register (Wave 4) unioned
@@ -34,6 +46,13 @@ readonly class SettingsReport
      */
     public function sellers(): array
     {
+        // Memoized for the request. `taxRegistrations()` iterates `sellers()`, and the navigation
+        // composer calls BOTH on every console render — so without this the whole seller path,
+        // including its per-row catalog lookup, ran twice per page.
+        if ($this->sellerRows !== null) {
+            return $this->sellerRows;
+        }
+
         $models = SellerEntity::query()->with('taxRegistrations')->orderBy('legal_name')->get();
         $dbIds = $models->pluck('id')->all();
         $configDefault = $this->config->get('billing.seller.default');
@@ -82,7 +101,7 @@ readonly class SettingsReport
             ];
         }
 
-        return $rows;
+        return $this->sellerRows = $rows;
     }
 
     /**

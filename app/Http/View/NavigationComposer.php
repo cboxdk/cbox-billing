@@ -9,6 +9,7 @@ use App\Billing\Licensing\LicenseReport;
 use App\Billing\Reporting\InvoiceReport;
 use App\Billing\Reporting\SettingsReport;
 use App\Billing\Support\SubscriptionStanding;
+use App\Models\ApiToken;
 use App\Models\CboxIdAccessGrant;
 use App\Models\Coupon;
 use App\Models\CreditNote;
@@ -124,6 +125,9 @@ readonly class NavigationComposer
     {
         $subs = SubscriptionStanding::counts();
         $invoiceCounts = $this->invoices->counts();
+        // Issued once and reused: the two usage entries are the same number, and this ran as two
+        // separate COUNT queries on every console render.
+        $meterCount = Meter::query()->count();
 
         return [
             'subscriptions' => [
@@ -144,8 +148,8 @@ readonly class NavigationComposer
                 'credit-notes' => CreditNote::query()->count(),
             ],
             'usage' => [
-                'meters' => Meter::query()->count(),
-                'meters-manage' => Meter::query()->count(),
+                'meters' => $meterCount,
+                'meters-manage' => $meterCount,
             ],
             'experiments' => [
                 'all' => Experiment::query()->count(),
@@ -160,12 +164,17 @@ readonly class NavigationComposer
                 'organizations' => Organization::query()->count(),
                 'access-grants' => CboxIdAccessGrant::query()->count(),
             ],
-            'licenses' => ['issued' => $this->licenses->counts()['all']],
+            // A COUNT, not `LicenseReport::counts()` — that reads every issued_licenses row plus
+            // the whole revocation set into PHP to classify each one, and the nav needs only the
+            // total.
+            'licenses' => ['issued' => $this->licenses->total()],
             'settings' => [
                 'sellers' => count($this->settings->sellers()),
                 'tax' => count($this->settings->taxRegistrations()),
                 'gateways' => count($this->settings->gateways()),
-                'tokens' => $this->settings->apiTokens()->count(),
+                // A COUNT, not `apiTokens()->count()` — that hydrated every ApiToken AND its
+                // organization relation just to produce an integer.
+                'tokens' => ApiToken::query()->count(),
                 'webhooks' => WebhookEndpoint::query()->count(),
                 'fx' => FxRate::query()->count(),
             ],

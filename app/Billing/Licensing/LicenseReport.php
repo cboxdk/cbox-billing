@@ -214,6 +214,18 @@ readonly class LicenseReport
     }
 
     /**
+     * How many licenses have been issued — a COUNT, nothing more.
+     *
+     * {@see counts()} classifies every license by status, which means reading each row plus the
+     * whole revocation set into PHP. The navigation badge needs only the total, and it was paying
+     * that full price on every console render.
+     */
+    public function total(): int
+    {
+        return (int) $this->container->make('db')->table('issued_licenses')->count();
+    }
+
+    /**
      * Standing counts for the nav + header, keyed by the same status vocabulary.
      *
      * @return array{all: int, active: int, expiring: int, expired: int, revoked: int}

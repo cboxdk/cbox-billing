@@ -38,7 +38,10 @@ class TestModeConsoleTest extends TestCase
         $this->withSession(['console.environment' => 'sandbox'] + $this->session)
             ->get('/')
             ->assertOk()
-            ->assertSee('TEST MODE');
+            // "SANDBOX" leads the strip: the plane is the first token an operator reads, not a
+            // mid-sentence aside. The strip is also a solid warning fill rather than a soft tint,
+            // which is what makes it legible in the default light theme.
+            ->assertSee('SANDBOX —', false);
     }
 
     public function test_the_test_clock_page_creates_and_advances_a_clock(): void

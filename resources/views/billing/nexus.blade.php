@@ -89,7 +89,7 @@
                         <td class="num mut">{{ $p->effective_from?->format('Y-m-d') ?? 'always' }}</td>
                         <td class="num mut">{{ $p->effective_to?->format('Y-m-d') ?? 'ongoing' }}</td>
                         <td>
-                            <form method="POST" action="{{ route('billing.nexus.presence.destroy', $p->id) }}" onsubmit="return confirm('Remove physical presence in {{ $p->subdivision }}?')">
+                            <form method="POST" action="{{ route('billing.nexus.presence.destroy', $p->id) }}" data-confirm="Remove the declared physical presence in {{ $p->subdivision }}? Nexus for that state will be re-evaluated from economic thresholds alone." data-confirm-title="Remove physical presence?" data-confirm-label="Remove">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Remove</button>
                             </form>
@@ -133,7 +133,7 @@
                         <td class="num">{{ number_format($x->transactions) }}</td>
                         <td class="mut">{{ $x->source ?? '—' }}</td>
                         <td>
-                            <form method="POST" action="{{ route('billing.nexus.external-sales.destroy', $x->id) }}" onsubmit="return confirm('Remove this external-sales entry?')">
+                            <form method="POST" action="{{ route('billing.nexus.external-sales.destroy', $x->id) }}" data-confirm="Remove this external-channel sales entry? Its amounts stop counting toward economic-nexus thresholds." data-confirm-title="Remove external sales?" data-confirm-label="Remove">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="cbx-btn cbx-btn--ghost cbx-btn--sm">Remove</button>
                             </form>

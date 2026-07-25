@@ -93,10 +93,16 @@
         @if (! empty($testMode))
             {{-- Persistent, unmistakable sandbox indicator. When the console is on a non-production
                  environment every list/detail/report below is scoped to that isolated dataset. --}}
-            <div class="cbx-testmode-strip" role="status" style="display:flex;align-items:center;justify-content:center;gap:10px;height:30px;background:var(--warning-soft);color:var(--warning);border-bottom:1px solid var(--warning);font-size:11px;font-weight:600;letter-spacing:.03em">
+            {{-- SOLID fill, not a soft tint. This strip is a safety control, not chrome: it is the
+                 one element telling an operator whether the void/refund they are about to perform
+                 touches real customers. On the soft tint it rendered warning-on-warning-soft at
+                 2.17:1 in the DEFAULT light theme — below the 4.5:1 AA floor for text this size,
+                 i.e. the least legible thing on the page. The `--warning` / `--warning-foreground`
+                 pair is the designed accessible combination and passes in both themes. --}}
+            <div class="cbx-testmode-strip" role="status" style="display:flex;align-items:center;justify-content:center;gap:10px;min-height:32px;background:var(--warning);color:var(--warning-foreground);border-bottom:1px solid var(--warning);font-size:12px;font-weight:700;letter-spacing:.04em">
                 <span style="display:inline-flex;align-items:center;gap:6px">
-                    <span style="width:7px;height:7px;border-radius:9999px;background:var(--warning)"></span>
-                    TEST MODE — {{ $activeEnvironment->name }} sandbox. No real charges or emails.
+                    <span style="width:7px;height:7px;border-radius:9999px;background:var(--warning-foreground)"></span>
+                    SANDBOX — {{ $activeEnvironment->name }}. No real charges or emails.
                 </span>
                 <form method="POST" action="{{ route('billing.environment.switch') }}" style="display:inline">
                     @csrf

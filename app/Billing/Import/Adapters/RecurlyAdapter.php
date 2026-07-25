@@ -109,14 +109,15 @@ readonly class RecurlyAdapter extends AbstractSourceAdapter
     {
         $code = (string) ($this->string($r, 'code', 'id') ?? '');
         $first = $this->firstCurrency($r);
+        $priceCurrency = $this->currency($this->string($first, 'currency') ?? $this->string($r, 'currency'));
 
         return new NormalizedPrice(
             sourceId: $code,
             planSourceId: $code,
-            currency: $this->currency($this->string($first, 'currency') ?? $this->string($r, 'currency')),
+            currency: $priceCurrency,
             // Decimal major units → minor.
-            amountMinor: $this->minorFromMajor($first, 'unit_amount')
-                ?? $this->minorFromMajor($r, 'unit_amount')
+            amountMinor: $this->minorFromMajor($first, $priceCurrency, 'unit_amount')
+                ?? $this->minorFromMajor($r, $priceCurrency, 'unit_amount')
                 ?? $this->minorFromMinor($r, 'unit_amount_in_cents')
                 ?? 0,
             createdAt: $this->timestamp($r, 'created_at'),
@@ -205,21 +206,23 @@ readonly class RecurlyAdapter extends AbstractSourceAdapter
     /** @param array<string, mixed> $r */
     private function invoice(array $r): NormalizedInvoice
     {
+        $invoiceCurrency = $this->currency($this->string($r, 'currency'));
+
         return new NormalizedInvoice(
             sourceId: (string) ($this->string($r, 'uuid', 'id', 'number') ?? ''),
             customerSourceId: (string) ($this->string($r, 'account.code', 'account_code') ?? ''),
             subscriptionSourceId: $this->string($r, 'subscription.uuid', 'subscription_id'),
             number: (string) ($this->string($r, 'number', 'id') ?? ''),
-            currency: $this->currency($this->string($r, 'currency')),
-            // Recurly invoice amounts are decimal major units.
-            subtotalMinor: $this->minorFromMajor($r, 'subtotal') ?? 0,
-            taxMinor: $this->minorFromMajor($r, 'tax') ?? 0,
-            totalMinor: $this->minorFromMajor($r, 'total') ?? 0,
+            currency: $invoiceCurrency,
+            // Recurly invoice amounts are decimal major units, scaled by the currency exponent.
+            subtotalMinor: $this->minorFromMajor($r, $invoiceCurrency, 'subtotal') ?? 0,
+            taxMinor: $this->minorFromMajor($r, $invoiceCurrency, 'tax') ?? 0,
+            totalMinor: $this->minorFromMajor($r, $invoiceCurrency, 'total') ?? 0,
             status: $this->invoiceStatus((string) ($this->string($r, 'state', 'status') ?? 'open')),
             issuedAt: $this->timestamp($r, 'created_at', 'date'),
             periodStart: $this->timestamp($r, 'line_items.0.start_date'),
             periodEnd: $this->timestamp($r, 'line_items.0.end_date'),
-            lines: $this->invoiceLines($r),
+            lines: $this->invoiceLines($r, $invoiceCurrency),
         );
     }
 
@@ -227,7 +230,7 @@ readonly class RecurlyAdapter extends AbstractSourceAdapter
      * @param  array<string, mixed>  $r
      * @return list<NormalizedInvoiceLine>
      */
-    private function invoiceLines(array $r): array
+    private function invoiceLines(array $r, ?string $currency): array
     {
         $data = $this->dig($r, 'line_items');
         $lines = [];
@@ -243,8 +246,8 @@ readonly class RecurlyAdapter extends AbstractSourceAdapter
                 $lines[] = new NormalizedInvoiceLine(
                     description: (string) ($this->string($line, 'description') ?? 'Line item'),
                     quantity: $this->int($line, 'quantity') ?? 1,
-                    unitAmountMinor: $this->minorFromMajor($line, 'unit_amount') ?? 0,
-                    amountMinor: $this->minorFromMajor($line, 'amount') ?? 0,
+                    unitAmountMinor: $this->minorFromMajor($line, $currency, 'unit_amount') ?? 0,
+                    amountMinor: $this->minorFromMajor($line, $currency, 'amount') ?? 0,
                 );
             }
         }

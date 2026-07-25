@@ -16,6 +16,8 @@ use App\Billing\Cpq\QuoteReport;
 use App\Billing\Cpq\ValueObjects\QuoteDraft;
 use App\Billing\Cpq\ValueObjects\QuoteLineDraft;
 use App\Billing\Cpq\ValueObjects\QuoteTermsDraft;
+use App\Billing\Support\MinorUnits;
+use App\Billing\Support\Rules\IsoCurrency;
 use App\Models\Coupon;
 use App\Models\Organization;
 use App\Models\Plan;
@@ -187,7 +189,10 @@ class QuoteController extends Controller
             'prospect_name' => ['nullable', 'string', 'max:200'],
             'prospect_email' => ['nullable', 'email', 'max:200'],
             'seller_entity_id' => ['nullable', 'string', 'exists:seller_entities,id'],
-            'currency' => ['required', 'string', 'size:3'],
+            // A known ISO 4217 code, not merely three characters: every downstream money path
+            // resolves the currency to read its exponent, so an unknown code stored here becomes
+            // a 500 on the first render or calculation rather than a 422 on this request.
+            'currency' => ['required', 'string', 'size:3', new IsoCurrency],
             'valid_until' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'coupon_id' => ['nullable', 'integer', 'exists:coupons,id'],
@@ -235,7 +240,7 @@ class QuoteController extends Controller
                 termUnit: $request->string('term_unit')->toString(),
                 billingInterval: $request->string('billing_interval')->toString(),
                 startDate: $request->filled('start_date') ? $request->string('start_date')->toString() : null,
-                minimumCommitmentMinor: $request->filled('minimum_commitment') ? $this->toMinor($request->input('minimum_commitment')) : null,
+                minimumCommitmentMinor: $request->filled('minimum_commitment') ? $this->toMinor($request->input('minimum_commitment'), $currency) : null,
                 ramp: $this->rampSteps($request, $currency),
             ),
             lines: $this->lines($request, $currency),
@@ -268,7 +273,7 @@ class QuoteController extends Controller
             if ($discountKind !== null && isset($row['discount_value']) && is_numeric($row['discount_value'])) {
                 $discountValue = $discountKind === QuoteDiscountKind::Percent
                     ? (int) $row['discount_value']
-                    : $this->toMinor($row['discount_value']);
+                    : $this->toMinor($row['discount_value'], $currency);
             }
 
             $lines[] = new QuoteLineDraft(
@@ -276,7 +281,7 @@ class QuoteController extends Controller
                 planId: $type === QuoteLineType::Plan && isset($row['plan_id']) && is_numeric($row['plan_id']) ? (int) $row['plan_id'] : null,
                 description: isset($row['description']) && is_string($row['description']) && $row['description'] !== '' ? $row['description'] : null,
                 quantity: isset($row['quantity']) && is_numeric($row['quantity']) ? max(1, (int) $row['quantity']) : 1,
-                unitAmountMinor: $type === QuoteLineType::Custom && isset($row['unit_amount']) && is_numeric($row['unit_amount']) ? $this->toMinor($row['unit_amount']) : null,
+                unitAmountMinor: $type === QuoteLineType::Custom && isset($row['unit_amount']) && is_numeric($row['unit_amount']) ? $this->toMinor($row['unit_amount'], $currency) : null,
                 discountKind: $discountKind,
                 discountValue: $discountValue,
                 // A plan line defaults to recurring; a custom line is a one-off unless flagged.
@@ -309,35 +314,25 @@ class QuoteController extends Controller
 
             $steps[] = [
                 'from_period_index' => isset($row['from_period_index']) && is_numeric($row['from_period_index']) ? (int) $row['from_period_index'] : 0,
-                'amount_minor' => $this->toMinor($row['amount']),
+                'amount_minor' => $this->toMinor($row['amount'], $currency),
             ];
         }
 
         return $steps === [] ? null : $steps;
     }
 
-    /** Parse a major-unit decimal (e.g. "1234.56") into integer minor units, exactly. */
-    private function toMinor(mixed $value): int
+    /**
+     * Parse a major-unit decimal (e.g. "1234.56") into integer minor units for `$currency`.
+     *
+     * Delegates to {@see MinorUnits} rather than multiplying by 100: the quote currency is
+     * whatever the operator picked from the live plan prices, so JPY (exponent 0) and BHD
+     * (exponent 3) are both reachable here, and a blanket ×100 bills 100× over and 10× under
+     * respectively — silently, because the order form RENDERS through the exponent-correct
+     * {@see MoneyFormatter} and therefore looks right.
+     */
+    private function toMinor(mixed $value, string $currency): int
     {
-        if (is_string($value)) {
-            $string = trim($value);
-        } elseif (is_int($value) || is_float($value)) {
-            $string = (string) $value;
-        } else {
-            return 0;
-        }
-
-        if ($string === '' || ! is_numeric($string)) {
-            return 0;
-        }
-
-        $negative = str_starts_with($string, '-');
-        $string = ltrim($string, '+-');
-        [$whole, $fraction] = array_pad(explode('.', $string, 2), 2, '');
-        $fraction = substr(str_pad($fraction, 2, '0'), 0, 2);
-        $minor = (int) $whole * 100 + (int) $fraction;
-
-        return $negative ? -$minor : $minor;
+        return MinorUnits::parse($value, $currency);
     }
 
     /**

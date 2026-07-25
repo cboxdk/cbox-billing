@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Billing\Invoicing;
 
+use App\Billing\Seller\SellerCatalog;
 use App\Models\Invoice;
-use Illuminate\Contracts\Config\Repository as Config;
 use RuntimeException;
 
 /**
@@ -20,7 +20,7 @@ use RuntimeException;
 readonly class InvoicePdfRenderer
 {
     public function __construct(
-        private Config $config,
+        private SellerCatalog $sellers,
     ) {}
 
     /** The rendered PDF bytes for `$invoice`. */
@@ -72,14 +72,14 @@ readonly class InvoicePdfRenderer
     }
 
     /**
-     * The selling entity's registered identity for the invoice header, from the seller
-     * config. Falls back to just the seller key when the entity is not configured, rather
-     * than inventing legal details.
+     * The selling entity's registered identity for the invoice header — resolved from the
+     * seller REGISTER first and the config only as a fallback. An entity in neither is a hard
+     * failure: a legal document must not be mastheaded with a placeholder identity.
      *
      * @return array{key: string, legal_name: string, registration_number: string|null, establishment: string|null, tax_registrations: list<array{country: string, number: string}>}
      */
     private function seller(string $seller): array
     {
-        return SellerDocumentIdentity::resolve($this->config, $seller);
+        return SellerDocumentIdentity::resolve($this->sellers, $seller);
     }
 }

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Billing\Invoicing;
 
+use App\Billing\Seller\SellerCatalog;
 use App\Models\CreditNote;
-use Illuminate\Contracts\Config\Repository as Config;
 use RuntimeException;
 
 /**
@@ -18,7 +18,7 @@ use RuntimeException;
 readonly class CreditNotePdfRenderer
 {
     public function __construct(
-        private Config $config,
+        private SellerCatalog $sellers,
     ) {}
 
     /** The rendered PDF bytes for `$creditNote`. */
@@ -35,7 +35,7 @@ readonly class CreditNotePdfRenderer
         $document = new CreditNoteDocument(
             $creditNote,
             $organization,
-            SellerDocumentIdentity::resolve($this->config, $creditNote->seller),
+            SellerDocumentIdentity::resolve($this->sellers, $creditNote->seller),
             $this->logoPath(),
         );
 

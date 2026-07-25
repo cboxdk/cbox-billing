@@ -10,7 +10,9 @@ use App\Models\ApiToken;
 use App\Models\CreditNote;
 use App\Models\CreditNoteLine;
 use App\Models\Organization;
+use App\Models\SellerEntity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -25,6 +27,17 @@ class CreditNotePdfTest extends TestCase
 
     private function creditNoteFor(string $org, string $number = 'CN-000042'): CreditNote
     {
+        // A legal document is rendered from the seller REGISTER, so the entity issuing it has to
+        // exist. Rendering one for an unregistered seller is refused outright — see
+        // test_rendering_is_refused_for_an_unregistered_selling_entity below.
+        SellerEntity::query()->firstOrCreate(['id' => 'seller_x'], [
+            'legal_name' => 'Seller X ApS',
+            'registration_number' => 'DK12345678',
+            'establishment' => 'DK',
+            'currency' => 'DKK',
+            'invoice_prefix' => 'SX',
+        ]);
+
         Organization::query()->firstOrCreate(['id' => $org], [
             'name' => ucfirst($org).' Ltd',
             'billing_email' => $org.'@example.test',
@@ -88,6 +101,45 @@ class CreditNotePdfTest extends TestCase
 
         $response->assertOk();
         $this->assertSame('application/pdf', $response->headers->get('content-type'));
+    }
+
+    /**
+     * The register is the source of truth for a document masthead. An operator who registers a
+     * selling entity in the console must see THAT identity on the PDF — previously the renderer
+     * read the config only, so a console-registered seller produced a document mastheaded with
+     * the raw key, no registration number and no VAT line. Such an invoice fails EU Directive
+     * 2006/112/EC Art. 226(3) and 226(5), and nothing errored to say so.
+     */
+    public function test_the_document_carries_the_registered_legal_identity(): void
+    {
+        $note = $this->creditNoteFor('org_ident');
+
+        SellerEntity::query()->where('id', 'seller_x')->update([
+            'legal_name' => 'Acme GmbH',
+            'registration_number' => 'HRB 12345',
+            'establishment' => 'DE',
+        ]);
+
+        $pdf = app(CreditNotePdfRenderer::class)->render($note->fresh());
+
+        $this->assertStringContainsString('Acme GmbH', $pdf);
+        $this->assertStringContainsString('HRB 12345', $pdf);
+        $this->assertStringNotContainsString('seller_x', $pdf);
+    }
+
+    /**
+     * A legal document must never be mastheaded with a placeholder identity, so an entity in
+     * neither the register nor the config is refused rather than rendered with the bare key.
+     */
+    public function test_rendering_is_refused_for_an_unregistered_selling_entity(): void
+    {
+        $note = $this->creditNoteFor('org_unreg');
+        SellerEntity::query()->where('id', 'seller_x')->delete();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/registered neither in the seller register nor/');
+
+        app(CreditNotePdfRenderer::class)->render($note->fresh());
     }
 
     public function test_the_portal_route_404s_a_cross_org_credit_note(): void

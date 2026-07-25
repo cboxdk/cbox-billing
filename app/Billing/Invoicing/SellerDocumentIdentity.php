@@ -4,42 +4,62 @@ declare(strict_types=1);
 
 namespace App\Billing\Invoicing;
 
-use Illuminate\Contracts\Config\Repository as Config;
+use App\Billing\Seller\SellerCatalog;
+use RuntimeException;
 
 /**
  * Resolves a selling entity's registered identity for a legal document header (invoice OR credit
- * note) from the seller config — the single place both PDF renderers read the seller's legal
- * name, registration and tax registrations, so an invoice and its credit note carry an identical
- * masthead. Falls back to just the seller key when the entity is not configured, rather than
- * inventing legal details.
+ * note) — the single place both PDF renderers read the seller's legal name, registration and tax
+ * registrations, so an invoice and its credit note carry an identical masthead.
+ *
+ * REGISTER FIRST, THEN CONFIG. Resolution goes through {@see SellerCatalog}, which reads the
+ * `seller_entities` table before falling back to `billing.seller.entities`. That ordering is not
+ * cosmetic: the console writes seller entities to the DB, and this class previously read ONLY the
+ * config. An operator who registered "Acme GmbH" in the console therefore got invoices mastheaded
+ * with the raw seller KEY, no registration number and no VAT line — while tax was still computed
+ * against the DB entity. Such a document fails EU Directive 2006/112/EC Art. 226(3) and 226(5), so
+ * the buyer cannot deduct input VAT, and nothing errored to say so.
+ *
+ * A legal document must never be rendered with invented or placeholder identity, so an entity that
+ * resolves in neither the register nor the config is a hard failure ({@see resolve()} throws)
+ * rather than a silent degradation to the bare key.
  */
 readonly class SellerDocumentIdentity
 {
     /**
+     * The registered identity for `$seller`, for a document masthead.
+     *
      * @return array{key: string, legal_name: string, registration_number: string|null, establishment: string|null, tax_registrations: list<array{country: string, number: string}>}
+     *
+     * @throws RuntimeException when the entity exists in neither the register nor the config.
      */
-    public static function resolve(Config $config, string $seller): array
+    public static function resolve(SellerCatalog $sellers, string $seller): array
     {
-        $entities = $config->get('billing.seller.entities', []);
-        $entity = is_array($entities) && is_array($entities[$seller] ?? null) ? $entities[$seller] : [];
-
-        $legalName = $entity['legal_name'] ?? null;
-        $registration = $entity['registration_number'] ?? null;
-        $establishment = $entity['establishment'] ?? null;
+        try {
+            $entity = $sellers->entity($seller);
+        } catch (RuntimeException $e) {
+            throw new RuntimeException(
+                "Cannot render a legal document for selling entity [{$seller}]: it is registered "
+                .'neither in the seller register nor in `billing.seller.entities`. Add it under '
+                .'Settings → Seller entities before issuing documents in its name.',
+                previous: $e,
+            );
+        }
 
         $registrations = [];
 
-        foreach (is_array($entity['tax_registrations'] ?? null) ? $entity['tax_registrations'] : [] as $registrationRow) {
-            if (is_array($registrationRow) && is_string($registrationRow['country'] ?? null) && is_string($registrationRow['number'] ?? null)) {
-                $registrations[] = ['country' => $registrationRow['country'], 'number' => $registrationRow['number']];
-            }
+        foreach ($entity->taxRegistrations as $registration) {
+            $registrations[] = [
+                'country' => $registration->country->value,
+                'number' => $registration->number,
+            ];
         }
 
         return [
-            'key' => $seller,
-            'legal_name' => is_string($legalName) ? $legalName : $seller,
-            'registration_number' => is_string($registration) ? $registration : null,
-            'establishment' => is_string($establishment) ? $establishment : null,
+            'key' => $entity->id,
+            'legal_name' => $entity->legalName,
+            'registration_number' => $entity->registrationNumber !== '' ? $entity->registrationNumber : null,
+            'establishment' => $entity->establishment->value,
             'tax_registrations' => $registrations,
         ];
     }

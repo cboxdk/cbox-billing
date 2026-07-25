@@ -51,10 +51,16 @@ readonly class RevenueMetrics
      */
     private function subscriptionMrrs(): iterable
     {
+        // `lazyById()`, NOT `cursor()`. Eloquent's `cursor()` streams straight off the base query
+        // builder and never calls `eagerLoadRelations()`, so the `with()` above is silently
+        // DISCARDED and every row then lazy-loads its org, plan, prices, tiers and coupon —
+        // ~6 queries per serving subscription on the console landing page (measured: 369 queries
+        // at 50 subscriptions, 1,261 at 200, and it keeps climbing). `lazyById()` chunks via
+        // `->get()`, so eager loads apply while memory stays bounded.
         $subscriptions = Subscription::query()
             ->serving()
-            ->with(['organization', 'plan.prices.tiers'])
-            ->cursor();
+            ->with(['organization', 'plan.prices.tiers', 'coupon'])
+            ->lazyById(500);
 
         foreach ($subscriptions as $subscription) {
             yield new SubscriptionMrr($subscription->status, SubscriptionRevenue::monthly($subscription));
@@ -82,18 +88,17 @@ readonly class RevenueMetrics
     public function outstanding(): Money
     {
         $currency = $this->primaryCurrency();
-        $total = Money::zero($currency);
 
-        $open = Invoice::query()
+        // Summed in SQL, not in PHP. Hydrating every open invoice into an Eloquent model just to
+        // add up one integer column costs a model per row — at 100k open invoices that is 100k
+        // objects built and discarded on every dashboard load. The amounts are integer minor
+        // units in a single currency, so the database can add them exactly.
+        $total = Invoice::query()
             ->where('status', InvoiceStatus::Open->value)
             ->where('currency', $currency)
-            ->get();
+            ->sum('total_minor');
 
-        foreach ($open as $invoice) {
-            $total = $total->plus($invoice->total());
-        }
-
-        return $total;
+        return Money::ofMinor((int) $total, $currency);
     }
 
     public function openInvoiceCount(): int
@@ -117,8 +122,8 @@ readonly class RevenueMetrics
 
         $subscriptions = Subscription::query()
             ->serving()
-            ->with(['organization', 'plan.prices.tiers'])
-            ->get();
+            ->with(['organization', 'plan.prices.tiers', 'coupon'])
+            ->lazyById(500);
 
         foreach ($subscriptions as $subscription) {
             if (! $this->mrr->contributes($subscription->status)) {

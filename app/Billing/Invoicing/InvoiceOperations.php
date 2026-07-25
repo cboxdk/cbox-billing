@@ -175,6 +175,9 @@ readonly class InvoiceOperations implements RunsInvoiceOperations
         $invoice = Invoice::query()->create([
             'organization_id' => $organizationId,
             'seller' => $sellerId,
+            // Frozen at issue: an issued legal document must not change when the register is
+            // later edited (EU Directive 2006/112/EC).
+            'seller_identity' => SellerDocumentIdentity::resolve($this->sellers, $sellerId),
             'number' => $issued->number,
             'currency' => $issued->currency,
             'subtotal_minor' => $totals->net->minor(),

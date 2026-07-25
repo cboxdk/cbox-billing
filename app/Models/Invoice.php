@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $period_start
  * @property Carbon|null $period_end
  * @property string $seller
+ * @property array<array-key, mixed>|null $seller_identity
  * @property string $number
  * @property string $currency
  * @property int $subtotal_minor
@@ -43,7 +44,7 @@ class Invoice extends Model
 
     protected $fillable = [
         'organization_id', 'subscription_id', 'period_start', 'period_end',
-        'seller', 'number', 'currency',
+        'seller', 'seller_identity', 'number', 'currency',
         'subtotal_minor', 'tax_minor', 'total_minor',
         'status', 'issued_at', 'due_at', 'paid_at', 'gateway_reference',
         'exemption_certificate_id', 'exemption_reason',
@@ -53,6 +54,7 @@ class Invoice extends Model
     protected function casts(): array
     {
         return [
+            'seller_identity' => 'array',
             'status' => InvoiceStatus::class,
             'subtotal_minor' => 'integer',
             'tax_minor' => 'integer',

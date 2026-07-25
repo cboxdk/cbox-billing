@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing\Invoicing;
 
+use App\Billing\Seller\SellerCatalog;
 use App\Models\CreditNote;
 use App\Models\CreditNoteLine;
 use App\Models\Invoice;
@@ -23,6 +24,8 @@ use Illuminate\Support\Carbon;
  */
 class PersistIssuedCreditNote
 {
+    public function __construct(private readonly SellerCatalog $sellers) {}
+
     public function handle(CreditNoteIssued $event): void
     {
         $note = $event->creditNote;
@@ -39,6 +42,13 @@ class PersistIssuedCreditNote
             'invoice_id' => $invoice?->id,
             'organization_id' => $note->account,
             'seller' => $note->seller->id,
+            // INHERITED from the invoice being reversed, not re-resolved. A credit note must
+            // carry the same legal identity as the document it credits — if the register changed
+            // between the two, re-resolving would produce a reversal that disagrees with its own
+            // invoice. Only a credit note whose invoice predates snapshots falls back to the
+            // register.
+            'seller_identity' => $invoice->seller_identity
+                ?? SellerDocumentIdentity::resolve($this->sellers, $note->seller->id),
             'currency' => $note->currency,
             'net_minor' => $note->net->negated()->minor(),
             'tax_minor' => $note->tax->negated()->minor(),

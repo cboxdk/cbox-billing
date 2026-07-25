@@ -27,6 +27,69 @@ use RuntimeException;
 readonly class SellerDocumentIdentity
 {
     /**
+     * The identity to print on an ALREADY-ISSUED document: its own snapshot when it has one, and
+     * the live register only as a fallback for rows issued before snapshots existed.
+     *
+     * Under EU Directive 2006/112/EC the content of an issued invoice is fixed. Reading the live
+     * register meant an operator correcting a legal name — or an establishment country, which is
+     * the tax jurisdiction shown — silently rewrote every document that seller had ever issued.
+     *
+     * @param  array<array-key, mixed>|null  $snapshot  The document's stored `seller_identity`.
+     * @return array{key: string, legal_name: string, registration_number: string|null, establishment: string|null, tax_registrations: list<array{country: string, number: string}>}
+     *
+     * @throws RuntimeException when there is no snapshot AND the entity no longer resolves.
+     */
+    public static function forDocument(SellerCatalog $sellers, string $seller, ?array $snapshot): array
+    {
+        $restored = self::fromSnapshot($snapshot);
+
+        return $restored ?? self::resolve($sellers, $seller);
+    }
+
+    /**
+     * Rebuild an identity from a stored snapshot, or null when there is nothing usable there.
+     *
+     * Validated rather than trusted: a snapshot missing its legal name is worse than no snapshot,
+     * because it would mast head a legal document with a blank. Such a row falls back to the live
+     * register, which is the pre-snapshot behaviour.
+     *
+     * @param  array<array-key, mixed>|null  $snapshot
+     * @return array{key: string, legal_name: string, registration_number: string|null, establishment: string|null, tax_registrations: list<array{country: string, number: string}>}|null
+     */
+    private static function fromSnapshot(?array $snapshot): ?array
+    {
+        if ($snapshot === null) {
+            return null;
+        }
+
+        $key = $snapshot['key'] ?? null;
+        $legalName = $snapshot['legal_name'] ?? null;
+
+        if (! is_string($key) || $key === '' || ! is_string($legalName) || $legalName === '') {
+            return null;
+        }
+
+        $registrations = [];
+
+        foreach (is_array($snapshot['tax_registrations'] ?? null) ? $snapshot['tax_registrations'] : [] as $row) {
+            if (is_array($row) && is_string($row['country'] ?? null) && is_string($row['number'] ?? null)) {
+                $registrations[] = ['country' => $row['country'], 'number' => $row['number']];
+            }
+        }
+
+        $registration = $snapshot['registration_number'] ?? null;
+        $establishment = $snapshot['establishment'] ?? null;
+
+        return [
+            'key' => $key,
+            'legal_name' => $legalName,
+            'registration_number' => is_string($registration) && $registration !== '' ? $registration : null,
+            'establishment' => is_string($establishment) && $establishment !== '' ? $establishment : null,
+            'tax_registrations' => $registrations,
+        ];
+    }
+
+    /**
      * The registered identity for `$seller`, for a document masthead.
      *
      * @return array{key: string, legal_name: string, registration_number: string|null, establishment: string|null, tax_registrations: list<array{country: string, number: string}>}

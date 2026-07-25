@@ -35,7 +35,7 @@ readonly class CreditNotePdfRenderer
         $document = new CreditNoteDocument(
             $creditNote,
             $organization,
-            SellerDocumentIdentity::resolve($this->sellers, $creditNote->seller),
+            SellerDocumentIdentity::forDocument($this->sellers, $creditNote->seller, $creditNote->seller_identity),
             $this->logoPath(),
         );
 

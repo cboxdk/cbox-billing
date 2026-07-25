@@ -37,7 +37,7 @@ readonly class InvoicePdfRenderer
         $document = new InvoiceDocument(
             $invoice,
             $organization,
-            $this->seller($invoice->seller),
+            $this->seller($invoice->seller, $invoice->seller_identity),
             $this->isCreditNote($invoice),
             $this->logoPath(),
         );
@@ -72,14 +72,16 @@ readonly class InvoicePdfRenderer
     }
 
     /**
-     * The selling entity's registered identity for the invoice header — resolved from the
-     * seller REGISTER first and the config only as a fallback. An entity in neither is a hard
-     * failure: a legal document must not be mastheaded with a placeholder identity.
+     * The selling entity's registered identity for the invoice header — the identity FROZEN on
+     * the document at issue, falling back to the live register only for rows issued before
+     * snapshots existed. An entity resolvable in neither is a hard failure: a legal document must
+     * not be mastheaded with a placeholder identity.
      *
+     * @param  array<array-key, mixed>|null  $snapshot  The identity frozen on the document at issue.
      * @return array{key: string, legal_name: string, registration_number: string|null, establishment: string|null, tax_registrations: list<array{country: string, number: string}>}
      */
-    private function seller(string $seller): array
+    private function seller(string $seller, ?array $snapshot): array
     {
-        return SellerDocumentIdentity::resolve($this->sellers, $seller);
+        return SellerDocumentIdentity::forDocument($this->sellers, $seller, $snapshot);
     }
 }

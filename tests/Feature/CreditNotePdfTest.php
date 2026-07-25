@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Invoicing\CreditNotePdfRenderer;
+use App\Billing\Invoicing\SellerDocumentIdentity;
 use App\Billing\Seller\SellerAuthoring;
+use App\Billing\Seller\SellerCatalog;
 use App\Billing\Support\MoneyFormatter;
 use App\Models\ApiToken;
 use App\Models\CreditNote;
@@ -46,6 +48,10 @@ class CreditNotePdfTest extends TestCase
         ]);
 
         $note = CreditNote::query()->create([
+            // Mirrors what PersistIssuedCreditNote does in production: the seller's legal identity
+            // is FROZEN onto the document at issue, so a later edit to the register cannot rewrite
+            // an already-issued document.
+            'seller_identity' => SellerDocumentIdentity::resolve(app(SellerCatalog::class), 'seller_x'),
             'number' => $number, 'invoice_number' => 'CBOX-'.$org.'-1', 'organization_id' => $org,
             'seller' => 'seller_x', 'currency' => 'DKK', 'net_minor' => 8_000, 'tax_minor' => 2_000,
             'gross_minor' => 10_000, 'reason' => 'Goodwill', 'kind' => 'adjustment', 'issued_at' => now(),
@@ -144,6 +150,13 @@ class CreditNotePdfTest extends TestCase
     public function test_rendering_is_refused_for_an_unregistered_selling_entity(): void
     {
         $note = $this->creditNoteFor('org_unreg');
+
+        // A document issued BEFORE snapshots existed has nothing frozen to fall back on, so an
+        // entity since removed from both the register and the config leaves nothing truthful to
+        // print. (A document WITH a snapshot renders fine in the same situation — that is the
+        // point of the snapshot, and it is asserted separately.)
+        $note->forceFill(['seller_identity' => null])->save();
+
         SellerEntity::query()->where('id', 'seller_x')->delete();
 
         $this->expectException(RuntimeException::class);
@@ -192,6 +205,74 @@ class CreditNotePdfTest extends TestCase
             'A credit note still references this seller, so the delete guard must see it even '
             .'after the invoice-number prefix changed.',
         );
+    }
+
+    /**
+     * The content of an issued invoice is FIXED (EU Directive 2006/112/EC). Rendering read the
+     * live register, so an operator correcting a legal name — or an establishment country, which
+     * is the tax jurisdiction printed — silently rewrote every document that seller had ever
+     * issued. The exposure grew when rendering moved from config (deploy-gated) to the register
+     * (editable by any operator with the console permission).
+     */
+    public function test_editing_the_register_does_not_alter_an_already_issued_document(): void
+    {
+        $note = $this->creditNoteFor('org_frozen');
+
+        $before = app(CreditNotePdfRenderer::class)->render($note->fresh());
+        $this->assertStringContainsString('Seller X ApS', $before);
+
+        SellerEntity::query()->where('id', 'seller_x')->update([
+            'legal_name' => 'Renamed Holding GmbH',
+            'registration_number' => 'HRB 99999',
+            'establishment' => 'DE',
+        ]);
+
+        $after = app(CreditNotePdfRenderer::class)->render($note->fresh());
+
+        $this->assertStringContainsString('Seller X ApS', $after);
+        $this->assertStringNotContainsString('Renamed Holding GmbH', $after);
+        $this->assertStringNotContainsString('HRB 99999', $after);
+    }
+
+    /**
+     * A document issued before the snapshot column existed has nothing frozen on it, and there is
+     * nothing truthful to backfill — inventing a snapshot from the CURRENT register would be the
+     * very thing this prevents. Such a row keeps rendering from the live register, exactly as it
+     * did before.
+     */
+    /** A snapshotted document survives the seller being removed entirely — no 500 on download. */
+    public function test_a_snapshotted_document_still_renders_after_the_seller_is_deleted(): void
+    {
+        $note = $this->creditNoteFor('org_gone');
+
+        SellerEntity::query()->where('id', 'seller_x')->delete();
+
+        $pdf = app(CreditNotePdfRenderer::class)->render($note->fresh());
+
+        $this->assertStringContainsString('Seller X ApS', $pdf);
+    }
+
+    public function test_a_document_without_a_snapshot_falls_back_to_the_live_register(): void
+    {
+        $note = $this->creditNoteFor('org_legacy');
+        $note->forceFill(['seller_identity' => null])->save();
+
+        SellerEntity::query()->where('id', 'seller_x')->update(['legal_name' => 'Live Register ApS']);
+
+        $pdf = app(CreditNotePdfRenderer::class)->render($note->fresh());
+
+        $this->assertStringContainsString('Live Register ApS', $pdf);
+    }
+
+    /** A malformed snapshot is not trusted — a blank masthead is worse than the live register. */
+    public function test_an_unusable_snapshot_falls_back_rather_than_rendering_a_blank(): void
+    {
+        $note = $this->creditNoteFor('org_broken');
+        $note->forceFill(['seller_identity' => ['key' => 'seller_x', 'legal_name' => '']])->save();
+
+        $pdf = app(CreditNotePdfRenderer::class)->render($note->fresh());
+
+        $this->assertStringContainsString('Seller X ApS', $pdf);
     }
 
     public function test_the_portal_route_404s_a_cross_org_credit_note(): void

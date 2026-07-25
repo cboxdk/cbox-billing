@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $invoice_id
  * @property string $organization_id
  * @property string $seller
+ * @property array<array-key, mixed>|null $seller_identity
  * @property string $currency
  * @property int $net_minor
  * @property int $tax_minor
@@ -40,7 +41,7 @@ class CreditNote extends Model
     use BelongsToMode;
 
     protected $fillable = [
-        'number', 'invoice_number', 'invoice_id', 'organization_id', 'seller',
+        'number', 'invoice_number', 'invoice_id', 'organization_id', 'seller', 'seller_identity',
         'currency', 'net_minor', 'tax_minor', 'gross_minor', 'reason', 'kind',
         'issued_at',
     ];
@@ -49,6 +50,7 @@ class CreditNote extends Model
     protected function casts(): array
     {
         return [
+            'seller_identity' => 'array',
             'net_minor' => 'integer',
             'tax_minor' => 'integer',
             'gross_minor' => 'integer',

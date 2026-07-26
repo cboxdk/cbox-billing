@@ -119,9 +119,10 @@ for await (const invoice of client.invoices.list('org_acme')) {
 const methods = await client.paymentMethods.list('org_acme').all();
 ```
 
-> Note: the management API currently returns each collection as a single `{ data: [...] }`
-> page (no server-side cursor). `AutoPager` is written against a cursor seam, so the same
-> iteration code keeps working unchanged if/when the API adds cursor pagination.
+> The management API paginates with an opaque keyset cursor (`has_more` + `next_cursor`), so
+> a collection can span many pages. Iterate the `AutoPager` — as above — to walk all of them.
+> `.data()` returns only the FIRST page: reaching for it on an account with a long invoice
+> history silently truncates the result rather than erroring.
 
 ## Typed errors
 

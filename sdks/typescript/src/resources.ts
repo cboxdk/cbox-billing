@@ -164,12 +164,12 @@ export class SubscriptionsResource {
   }
 
   /** Preview a plan change without applying it. */
-  preview(org: string, plan: string): Promise<T.PlanChangePreview> {
+  preview(org: string, plan: string, opts?: WriteOptions): Promise<T.PlanChangePreview> {
     return this.http.request({
       method: 'POST',
       path: `/subscriptions/${encodeURIComponent(org)}/preview`,
       body: { plan },
-      idempotency: false,
+      ...idem(opts),
     });
   }
 
@@ -189,7 +189,7 @@ export class SubscriptionsResource {
       method: 'POST',
       path: `/subscriptions/${encodeURIComponent(org)}/cancel`,
       body,
-      idempotency: false,
+      
       ...idem(opts),
     });
   }
@@ -199,7 +199,7 @@ export class SubscriptionsResource {
     return this.http.request({
       method: 'POST',
       path: `/subscriptions/${encodeURIComponent(org)}/reactivate`,
-      idempotency: false,
+      
       ...idem(opts),
     });
   }
@@ -209,7 +209,7 @@ export class SubscriptionsResource {
     return this.http.request({
       method: 'POST',
       path: `/subscriptions/${encodeURIComponent(org)}/pause`,
-      idempotency: false,
+      
       ...idem(opts),
     });
   }
@@ -219,7 +219,7 @@ export class SubscriptionsResource {
     return this.http.request({
       method: 'POST',
       path: `/subscriptions/${encodeURIComponent(org)}/resume`,
-      idempotency: false,
+      
       ...idem(opts),
     });
   }
@@ -245,11 +245,11 @@ export class SubscriptionsResource {
   }
 
   /** Detach an add-on by key. */
-  removeAddOn(org: string, key: string): Promise<T.Subscription> {
+  removeAddOn(org: string, key: string, opts?: WriteOptions): Promise<T.Subscription> {
     return this.http.request({
       method: 'DELETE',
       path: `/subscriptions/${encodeURIComponent(org)}/addons/${encodeURIComponent(key)}`,
-      idempotency: false,
+      ...idem(opts),
     });
   }
 }
@@ -274,22 +274,22 @@ export class SeatsResource {
   }
 
   /** Assign a free purchased seat to a member. */
-  assign(org: string, subject: string): Promise<T.SeatBreakdown> {
+  assign(org: string, subject: string, opts?: WriteOptions): Promise<T.SeatBreakdown> {
     return this.http.request({
       method: 'POST',
       path: `/subscriptions/${encodeURIComponent(org)}/seats/assign`,
       body: { subject },
-      idempotency: false,
+      ...idem(opts),
     });
   }
 
   /** Free a member's seat (they become Light). */
-  unassign(org: string, subject: string): Promise<T.SeatBreakdown> {
+  unassign(org: string, subject: string, opts?: WriteOptions): Promise<T.SeatBreakdown> {
     return this.http.request({
       method: 'POST',
       path: `/subscriptions/${encodeURIComponent(org)}/seats/unassign`,
       body: { subject },
-      idempotency: false,
+      ...idem(opts),
     });
   }
 }
@@ -326,7 +326,7 @@ export class CheckoutResource {
 
   /** Open a hosted checkout session; returns the `{ url }` the customer pays at. */
   createSession(body: T.CheckoutSessionRequest, opts?: WriteOptions): Promise<T.HostedSession> {
-    return this.http.request({ method: 'POST', path: '/checkout-sessions', body, idempotency: false, ...idem(opts) });
+    return this.http.request({ method: 'POST', path: '/checkout-sessions', body, ...idem(opts) });
   }
 }
 
@@ -335,7 +335,7 @@ export class PortalResource {
 
   /** Open a hosted customer-portal session; returns the `{ url }`. */
   createSession(body: T.PortalSessionRequest, opts?: WriteOptions): Promise<T.HostedSession> {
-    return this.http.request({ method: 'POST', path: '/portal-sessions', body, idempotency: false, ...idem(opts) });
+    return this.http.request({ method: 'POST', path: '/portal-sessions', body, ...idem(opts) });
   }
 }
 
@@ -345,12 +345,12 @@ export class PaymentIntentsResource {
 
   /** Create a SetupIntent (save a card off-session). */
   createSetupIntent(org: string, opts?: WriteOptions): Promise<T.GatewayIntent> {
-    return this.http.request({ method: 'POST', path: '/setup-intents', body: { org }, idempotency: false, ...idem(opts) });
+    return this.http.request({ method: 'POST', path: '/setup-intents', body: { org }, ...idem(opts) });
   }
 
   /** Create a PaymentIntent (charge on-session) for an invoice or an ad-hoc amount. */
   createPaymentIntent(body: T.PaymentIntentRequest, opts?: WriteOptions): Promise<T.GatewayIntent> {
-    return this.http.request({ method: 'POST', path: '/payment-intents', body, idempotency: false, ...idem(opts) });
+    return this.http.request({ method: 'POST', path: '/payment-intents', body, ...idem(opts) });
   }
 }
 
@@ -369,22 +369,22 @@ export class PaymentMethodsResource {
   }
 
   /** Make a saved method the off-session default. */
-  async setDefault(org: string, id: string): Promise<T.PaymentMethod[]> {
+  async setDefault(org: string, id: string, opts?: WriteOptions): Promise<T.PaymentMethod[]> {
     const res = await this.http.request<T.DataEnvelope<T.PaymentMethod>>({
       method: 'POST',
       path: `/payment-methods/${encodeURIComponent(org)}/default`,
       body: { id },
-      idempotency: false,
+      ...idem(opts),
     });
     return res.data;
   }
 
   /** Detach a saved method. */
-  async detach(org: string, id: string): Promise<void> {
+  async detach(org: string, id: string, opts?: WriteOptions): Promise<void> {
     await this.http.request({
       method: 'DELETE',
       path: `/payment-methods/${encodeURIComponent(org)}/${encodeURIComponent(id)}`,
-      idempotency: false,
+      ...idem(opts),
     });
   }
 }
@@ -404,7 +404,7 @@ export class LicensesResource {
       method: 'POST',
       path: `/licenses/${encodeURIComponent(id)}/renew`,
       body,
-      idempotency: false,
+      
       ...idem(opts),
     });
   }
@@ -415,7 +415,7 @@ export class LicensesResource {
       method: 'POST',
       path: `/licenses/${encodeURIComponent(id)}/revoke`,
       body,
-      idempotency: false,
+      
       ...idem(opts),
     });
   }
@@ -444,7 +444,7 @@ export class TestClocksResource {
       method: 'POST',
       path: `/test/clocks/${encodeURIComponent(id)}/advance`,
       body: { target },
-      idempotency: false,
+      
       ...idem(opts),
     });
   }

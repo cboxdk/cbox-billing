@@ -18,6 +18,11 @@ use Tests\TestCase;
  */
 class CumulativeUsageIngestTest extends TestCase
 {
+    // The event-log window is half-open, [from, to): a read bounded at `$now` excludes an event
+    // stamped at that exact millisecond, which is every event these tests just appended. The
+    // reads below therefore bound at `$now + 1` — the same correction the ingest itself needed
+    // when the engine tightened the window semantics.
+
     use RefreshDatabase;
 
     public function test_m1_two_readings_for_one_meter_in_a_batch_do_not_double_count(): void
@@ -27,7 +32,7 @@ class CumulativeUsageIngestTest extends TestCase
 
         // Establish a pre-batch durable baseline of 100.
         $ingest->ingest('org_m1', [['meter' => 'api.requests', 'cumulative' => 100, 'seq' => 1]]);
-        $this->assertSame(100, app(EventLog::class)->sum('org_m1', 'api.requests', 0, $now));
+        $this->assertSame(100, app(EventLog::class)->sum('org_m1', 'api.requests', 0, $now + 1));
 
         // A batch with two readings for the SAME meter: 150 then 180. The durable sum must land
         // on 180 (deltas 50 + 30), never 230 (both measuring the stale pre-batch 100). The
@@ -39,7 +44,7 @@ class CumulativeUsageIngestTest extends TestCase
         ]);
 
         $this->assertSame(2, $appended);
-        $this->assertSame(180, app(EventLog::class)->sum('org_m1', 'api.requests', 0, $now));
+        $this->assertSame(180, app(EventLog::class)->sum('org_m1', 'api.requests', 0, $now + 1));
     }
 
     public function test_a_second_meter_in_the_same_batch_keeps_its_own_baseline(): void
@@ -54,7 +59,7 @@ class CumulativeUsageIngestTest extends TestCase
             ['meter' => 'api.requests', 'cumulative' => 55, 'seq' => 3],
         ]);
 
-        $this->assertSame(55, app(EventLog::class)->sum('org_m1b', 'api.requests', 0, $now));
-        $this->assertSame(90, app(EventLog::class)->sum('org_m1b', 'events.ingested', 0, $now));
+        $this->assertSame(55, app(EventLog::class)->sum('org_m1b', 'api.requests', 0, $now + 1));
+        $this->assertSame(90, app(EventLog::class)->sum('org_m1b', 'events.ingested', 0, $now + 1));
     }
 }

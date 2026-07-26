@@ -83,12 +83,20 @@ class AppServiceProvider extends ServiceProvider
         $enforcement = self::intLimit($limits['enforcement'] ?? null, 600);
         $management = self::intLimit($limits['management'] ?? null, 60);
         $webhook = self::intLimit($limits['webhook'] ?? null, 120);
+        $public = self::intLimit($limits['public'] ?? null, 60);
 
         RateLimiter::for('cbox-enforcement', static fn (Request $request): Limit => Limit::perMinute($enforcement)->by(self::throttleKey($request)));
 
         RateLimiter::for('cbox-management', static fn (Request $request): Limit => Limit::perMinute($management)->by(self::throttleKey($request)));
 
         RateLimiter::for('cbox-webhook', static fn (Request $request): Limit => Limit::perMinute($webhook)->by($request->ip() ?? 'webhook'));
+
+        // The PUBLIC, unauthenticated surfaces: the pricing table, its embed, the paywall and the
+        // quote order form. These carried no limiter at all, and the paywall in particular answers
+        // whether a named org holds a capability — so an unthrottled caller could walk tenant
+        // identifiers and read a per-customer entitlement map. Keyed per IP, since there is no
+        // credential to key on by design.
+        RateLimiter::for('cbox-public', static fn (Request $request): Limit => Limit::perMinute($public)->by($request->ip() ?? 'public'));
     }
 
     /** The per-caller throttle key: the (hashed) bearer token, or the client IP. */

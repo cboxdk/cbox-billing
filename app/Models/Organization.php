@@ -8,6 +8,7 @@ use App\Billing\Mode\Concerns\BelongsToMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * A billing organization (tenant). Its primary key is the cbox-id organization
@@ -37,6 +38,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $environment_key
  * @property string|null $billing_email
  * @property string|null $locale
+ * @property string|null $external_ref
  * @property string|null $billing_currency
  * @property string|null $billing_country
  * @property string|null $billing_subdivision
@@ -59,7 +61,7 @@ class Organization extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'id', 'name', 'environment_key', 'billing_email', 'locale', 'billing_currency',
+        'id', 'external_ref', 'name', 'environment_key', 'billing_email', 'locale', 'billing_currency',
         'billing_country', 'billing_subdivision', 'tax_id', 'tax_id_validated',
         'customer_type', 'tax_id_validated_at', 'tax_id_validation_reference', 'tax_id_validation_source',
     ];
@@ -134,6 +136,42 @@ class Organization extends Model
         return $this->subscriptions()
             ->serving()
             ->latest('current_period_start')
+            ->first();
+    }
+
+    /**
+     * Mint an opaque ULID for a new organization when the caller did not set one.
+     *
+     * The id used to BE the consumer's tenant key, which made it guessable — and the
+     * unauthenticated paywall endpoint discloses whether a given org holds a capability. An
+     * opaque id removes the enumeration path entirely rather than rate-limiting it; the caller's
+     * own key lives on {@see Organization::$external_ref}, which is where lookups belong.
+     */
+    protected static function booted(): void
+    {
+        static::creating(static function (self $organization): void {
+            // Read through getKey() rather than the typed `$id` property: on an unsaved model the
+            // attribute is genuinely null, while the docblock promises a string, so a direct
+            // check reads as always-false to static analysis and always-true at runtime.
+            if (blank($organization->getKey())) {
+                $organization->setAttribute('id', (string) Str::ulid());
+            }
+        });
+    }
+
+    /**
+     * Resolve an organization from a value that may be EITHER its opaque id or the caller's own
+     * `external_ref`, within the current plane.
+     *
+     * Accepting both is what keeps the integrator's DX intact after the id stopped being their
+     * key: they can keep addressing orgs by the tenant key they already hold. Public,
+     * unauthenticated surfaces must NOT use this — they take the opaque id only, or the
+     * enumeration oracle comes straight back.
+     */
+    public static function resolveRef(string $ref): ?self
+    {
+        return static::query()
+            ->where(fn ($query) => $query->where('id', $ref)->orWhere('external_ref', $ref))
             ->first();
     }
 }

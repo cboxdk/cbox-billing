@@ -760,6 +760,11 @@ return [
         'enforcement' => (int) env('CBOX_BILLING_THROTTLE_ENFORCEMENT', 600),
         'management' => (int) env('CBOX_BILLING_THROTTLE_MANAGEMENT', 60),
         'webhook' => (int) env('CBOX_BILLING_THROTTLE_WEBHOOK', 120),
+
+        // The unauthenticated public surfaces (pricing table, embed, paywall, quote order form).
+        // Keyed per IP, because there is no credential to key on by design. Low by default: a
+        // real customer loads these a handful of times, while an enumeration sweep does not.
+        'public' => (int) env('CBOX_BILLING_THROTTLE_PUBLIC', 60),
     ],
 
     /*

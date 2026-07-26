@@ -100,4 +100,46 @@ class NexusAlertsTest extends TestCase
         $this->assertSame(0, NexusAlertDispatch::query()->count());
         Mail::assertNothingOutgoing();
     }
+
+    public function test_a_deployment_whose_thresholds_cannot_be_resolved_alerts_instead_of_going_silent(): void
+    {
+        Mail::fake();
+        config(['billing.nexus.alerts.recipients' => ['ops@example.test']]);
+
+        $this->triggeredScenario();
+
+        // The real-world shape of this: the dataset mirror serves a layout the consumer does not
+        // read, so EVERY state resolves null and the engine reports Unknown rather than claiming
+        // Below. An empty threshold source reproduces it exactly.
+        $this->app->singleton(NexusThresholdSource::class, fn (): NexusThresholdSource => new ArrayNexusThresholdSource([]));
+        $this->app->forgetInstance(NexusEngine::class);
+
+        $newly = $this->app->make(NexusAlertEmitter::class)->sweep();
+
+        // Before the fix the sweep read only triggered() and approaching(), so this deployment
+        // sent NOTHING — and a seller reads silence from a nexus monitor as "nothing to do"
+        // while their thresholds are going unmeasured.
+        $this->assertNotSame([], $newly, 'An unresolvable threshold must alert, not go quiet.');
+        $this->assertSame('unknown', $newly[0]->status->value);
+
+        Mail::assertQueued(NexusAlertMail::class, 1);
+        $this->assertSame(1, NexusAlertDispatch::query()->where('status', 'unknown')->count());
+    }
+
+    public function test_an_unknown_state_alerts_only_once_per_period(): void
+    {
+        Mail::fake();
+        config(['billing.nexus.alerts.recipients' => ['ops@example.test']]);
+
+        $this->triggeredScenario();
+        $this->app->singleton(NexusThresholdSource::class, fn (): NexusThresholdSource => new ArrayNexusThresholdSource([]));
+        $this->app->forgetInstance(NexusEngine::class);
+
+        $emitter = $this->app->make(NexusAlertEmitter::class);
+
+        $this->assertNotSame([], $emitter->sweep());
+        // A broken mirror stays broken, and the sweep runs daily — without the idempotency
+        // ledger covering Unknown too, that would be a mail every morning until someone fixed it.
+        $this->assertSame([], $emitter->sweep(), 'The same unknown state must not re-alert.');
+    }
 }

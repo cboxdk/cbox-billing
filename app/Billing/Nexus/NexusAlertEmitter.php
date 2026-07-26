@@ -52,8 +52,18 @@ readonly class NexusAlertEmitter
 
         $newly = [];
 
-        // Triggered first (act now), then Approaching (watch) — a state is only ever in one.
-        foreach ([...$report->triggered(), ...$report->approaching()] as $evaluation) {
+        // Triggered first (act now), then Approaching (watch), then Unknown — a state is only
+        // ever in one.
+        //
+        // UNKNOWN MUST ALERT. It means the threshold could not be resolved — a firewalled or
+        // misconfigured deployment, or a dataset the mirror is not serving — and the engine
+        // deliberately reports it rather than claiming `Below`, because "no obligation" and
+        // "cannot tell" are different answers. Sweeping only Triggered and Approaching threw
+        // that distinction away at the one place a human would have seen it: a deployment
+        // where EVERY state resolves Unknown sends no mail at all, so the seller reads silence
+        // as "nothing to do" while crossing thresholds unmeasured. Silence is the worst
+        // possible rendering of "I don't know" for a tax obligation.
+        foreach ([...$report->triggered(), ...$report->approaching(), ...$report->unknown()] as $evaluation) {
             if ($this->recordOnce($sellerId, $evaluation->state->value, $periodKey, $evaluation->status->value)) {
                 $newly[] = $evaluation;
             }

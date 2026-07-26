@@ -119,7 +119,9 @@ class InvoiceLifecycleConsoleTest extends TestCase
         // Partial net 50 000; tax reversed in proportion: 24 750 * 50 000 / 99 000 = 12 500.
         $this->withSession($this->session)->post('/invoices/'.$invoice->id.'/refund', [
             'mode' => 'partial',
-            'amount_minor' => 50_000,
+            // MAJOR units, as the console form now posts: 500,00 DKK == 50 000 minor. The
+            // assertions below stay in minor units, so they also prove the conversion.
+            'amount' => '500.00',
             'reason' => 'goodwill',
             'idempotency_key' => 'k-part-1',
         ])->assertRedirect()->assertSessionHas('status');
@@ -140,7 +142,7 @@ class InvoiceLifecycleConsoleTest extends TestCase
         ])->assertSessionHas('status');
 
         $this->withSession($this->session)->post('/invoices/'.$invoice->id.'/refund', [
-            'mode' => 'partial', 'amount_minor' => 1000, 'reason' => 'requested', 'idempotency_key' => 'k-b',
+            'mode' => 'partial', 'amount' => '10.00', 'reason' => 'requested', 'idempotency_key' => 'k-b',
         ]);
 
         // Only the first credit note exists — the second was capped out.

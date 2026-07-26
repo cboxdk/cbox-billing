@@ -10,6 +10,7 @@ use App\Billing\Approvals\Enums\ApprovalActionType;
 use App\Billing\Invoicing\Contracts\RunsInvoiceOperations;
 use App\Billing\Invoicing\Exceptions\InvoiceActionDenied;
 use App\Billing\Invoicing\ValueObjects\ManualLine;
+use App\Billing\Support\MinorUnits;
 use App\Models\Invoice;
 use App\Models\Organization;
 use Cbox\Billing\Refund\Enums\RefundReason;
@@ -43,7 +44,11 @@ class InvoiceOpsController extends Controller
     {
         $request->validate([
             'mode' => ['required', 'in:full,partial'],
-            'amount_minor' => ['required_if:mode,partial', 'nullable', 'integer', 'gt:0'],
+            // MAJOR units, in the invoice's own currency — the operator types 50,00 for fifty
+            // kroner, not 5000. The field was minor units with a placeholder of "e.g. 5000",
+            // which made a 100x slip a plausible typo on the one console action that sends money
+            // out of the business.
+            'amount' => ['required_if:mode,partial', 'nullable', 'numeric', 'gt:0'],
             'reason' => ['required', 'string', 'in:'.implode(',', array_map(static fn (RefundReason $r): string => $r->value, RefundReason::cases()))],
             'idempotency_key' => ['required', 'string', 'max:100'],
         ]);
@@ -56,7 +61,9 @@ class InvoiceOpsController extends Controller
         // refund is captured for a second operator and issues NO credit note until approved.
         $action = $registry->build(ApprovalActionType::InvoiceRefund, [
             'invoice_id' => $invoice->id,
-            'net_minor' => $mode === 'partial' ? $request->integer('amount_minor') : null,
+            'net_minor' => $mode === 'partial'
+                ? MinorUnits::parse($request->input('amount'), $invoice->currency)
+                : null,
             'reason' => $reason,
             'idempotency_key' => $request->string('idempotency_key')->toString(),
         ]);

@@ -6,6 +6,7 @@ namespace App\Billing\Support;
 
 use Brick\Math\Exception\MathException;
 use Brick\Math\RoundingMode;
+use Brick\Money\Currency;
 use Brick\Money\Exception\UnknownCurrencyException;
 use Brick\Money\Money as BrickMoney;
 
@@ -29,6 +30,41 @@ use Brick\Money\Money as BrickMoney;
  */
 class MinorUnits
 {
+    /**
+     * The number of decimal places `$currency` uses — 0 for JPY/KRW, 2 for most, 3 for BHD.
+     *
+     * Exposed so a form can present a major-unit field with the right step and precision rather
+     * than assuming two decimals.
+     *
+     * @throws UnknownCurrencyException when `$currency` is not ISO 4217
+     */
+    public static function exponent(string $currency): int
+    {
+        return Currency::of(strtoupper($currency))->getDefaultFractionDigits();
+    }
+
+    /**
+     * The smallest representable major-unit step for `$currency` ("1", "0.01", "0.001").
+     *
+     * @throws UnknownCurrencyException when `$currency` is not ISO 4217
+     */
+    public static function step(string $currency): string
+    {
+        $exponent = self::exponent($currency);
+
+        return $exponent === 0 ? '1' : '0.'.str_repeat('0', $exponent - 1).'1';
+    }
+
+    /**
+     * Render `$minor` back as a plain major-unit decimal, for pre-filling a form field.
+     *
+     * @throws UnknownCurrencyException when `$currency` is not ISO 4217
+     */
+    public static function toMajor(int $minor, string $currency): string
+    {
+        return (string) BrickMoney::ofMinor($minor, strtoupper($currency))->getAmount();
+    }
+
     /**
      * Parse `$value` as a major-unit amount in `$currency`.
      *

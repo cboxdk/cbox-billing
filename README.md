@@ -88,9 +88,10 @@ records:
 
 ## License
 
-[Elastic License 2.0](LICENSE) (ELv2). You are free to use, modify, and
-self-host Cbox Billing — including inside your own commercial products — but you
-may not provide it to third parties as a hosted or managed service.
+[MIT](LICENSE). Use it, modify it, self-host it, embed it in your own products,
+or offer it to third parties as a hosted service — no restrictions beyond keeping
+the copyright notice.
 
-The TypeScript SDK under [`sdks/typescript`](sdks/typescript) remains MIT so it
-can be embedded freely in customer applications.
+The engine and its satellites (`cboxdk/laravel-billing`, `laravel-tax`,
+`laravel-nexus`, the client SDK and the gateway adapters) and the TypeScript SDK
+under [`sdks/typescript`](sdks/typescript) are MIT on the same terms.

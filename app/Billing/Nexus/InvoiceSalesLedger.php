@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\SellerExternalSales;
 use Cbox\Billing\Money\Money;
 use Cbox\Geo\ValueObjects\SubdivisionCode;
+use Cbox\Nexus\Contracts\NexusThresholdSource;
 use Cbox\Nexus\Contracts\SalesLedger;
 use Cbox\Nexus\ValueObjects\SellerActivity;
 use Illuminate\Support\Carbon;
@@ -44,6 +45,7 @@ readonly class InvoiceSalesLedger implements SalesLedger
     public function __construct(
         private SellerCatalog $sellers,
         private FxConverter $fx,
+        private NexusThresholdSource $thresholds,
     ) {}
 
     public function activityFor(SubdivisionCode $state): ?SellerActivity
@@ -58,8 +60,7 @@ readonly class InvoiceSalesLedger implements SalesLedger
         // is crossed when either year exceeds it. Summing the two, which is what a single window
         // starting at last January does, roughly DOUBLES the measured figure: a seller at $60k a
         // year into California reads $120k and registers, files and collects tax in a state where
-        // it has no obligation. The two metrics are maxed independently because the engine tests
-        // them with OR, so a state triggers if either year crosses either one.
+        // it has no obligation.
         $currentStart = $now->copy()->startOfYear();
         $previousStart = $currentStart->copy()->subYear();
         $nextStart = $currentStart->copy()->addYear();
@@ -69,12 +70,26 @@ readonly class InvoiceSalesLedger implements SalesLedger
         [$currentDollars, $currentTransactions] = $this->windowActivity($state, $currentStart, $nextStart, $now);
         [$previousDollars, $previousTransactions] = $this->windowActivity($state, $previousStart, $currentStart, $now);
 
-        $salesDollars = max($currentDollars, $previousDollars);
-        $transactions = max($currentTransactions, $previousTransactions);
-
-        if ($salesDollars === 0 && $transactions === 0) {
+        if ($currentDollars === 0 && $currentTransactions === 0 && $previousDollars === 0 && $previousTransactions === 0) {
             return null;
         }
+
+        // REPORT ONE YEAR'S PAIR, NEVER A MIXTURE. Maxing the two metrics independently — which
+        // this did — invents a year that never happened: $600k/40 transactions followed by
+        // $80k/150 reads as $600k AND 150. For an `and` state (NY at $500k+100, CT at $100k+200)
+        // both legs then appear satisfied although neither year crossed both, and the seller is
+        // told to register, collect and remit somewhere it has no obligation.
+        //
+        // The threshold is consulted here — the same source the engine uses — so the stronger
+        // year can be chosen by the state's own rule: `progress()` already takes the max leg for
+        // an `or` state and the min leg for an `and` state, which is exactly the comparison
+        // wanted. Ties and an unresolvable threshold fall back to the higher dollars, still as a
+        // whole pair.
+        [$salesDollars, $transactions] = $this->strongerYear(
+            $state,
+            [$currentDollars, $currentTransactions],
+            [$previousDollars, $previousTransactions],
+        );
 
         return new SellerActivity(
             salesDollars: $salesDollars,
@@ -82,6 +97,38 @@ readonly class InvoiceSalesLedger implements SalesLedger
             periodStart: $previousStart->toDateTimeImmutable(),
             periodEnd: $now->toDateTimeImmutable(),
         );
+    }
+
+    /**
+     * The stronger of two calendar years, kept whole.
+     *
+     * "Stronger" is the state's own question, so it is asked of the state's own threshold:
+     * {@see EconomicNexusThreshold::progress()} returns the nearer leg for an `or` state and the
+     * further leg for an `and` state, so the year with the greater progress is the year most
+     * likely to establish nexus under that state's rule. With no resolvable threshold there is
+     * no rule to apply, so the higher-dollar year is reported — still a real year, never a
+     * synthesised one.
+     *
+     * @param  array{0: int, 1: int}  $current
+     * @param  array{0: int, 1: int}  $previous
+     * @return array{0: int, 1: int}
+     */
+    private function strongerYear(SubdivisionCode $state, array $current, array $previous): array
+    {
+        $threshold = $this->thresholds->thresholdFor($state);
+
+        if ($threshold === null) {
+            return $current[0] >= $previous[0] ? $current : $previous;
+        }
+
+        $currentProgress = $threshold->progress($current[0], $current[1]);
+        $previousProgress = $threshold->progress($previous[0], $previous[1]);
+
+        if ($currentProgress === $previousProgress) {
+            return $current[0] >= $previous[0] ? $current : $previous;
+        }
+
+        return $currentProgress > $previousProgress ? $current : $previous;
     }
 
     /**

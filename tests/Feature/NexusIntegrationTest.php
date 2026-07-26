@@ -273,4 +273,53 @@ class NexusIntegrationTest extends TestCase
         $this->assertNotNull($activity);
         $this->assertSame(90_000, $activity->salesDollars);
     }
+
+    public function test_an_and_state_is_not_triggered_by_mixing_metrics_across_two_years(): void
+    {
+        $this->defaultUsSeller();
+        $this->orgIn('ct-buyer', 'US-CT');
+
+        // Connecticut is an AND state: $100k AND 200 transactions. Neither year crosses BOTH.
+        //   previous year: $600k over 40 transactions  — dollars yes, transactions no
+        //   current year:  $80k  over 250 transactions — transactions yes, dollars no
+        $previous = Carbon::now()->subYear()->startOfYear()->addMonth();
+        $current = Carbon::now()->startOfYear()->addMonth();
+
+        for ($i = 0; $i < 40; $i++) {
+            $this->invoiceIssuedAt('PREV-'.$i, 'ct-buyer', 1_500_000, $previous); // 40 × $15k = $600k
+        }
+
+        for ($i = 0; $i < 250; $i++) {
+            $this->invoiceIssuedAt('CURR-'.$i, 'ct-buyer', 32_000, $current); // 250 × $320 = $80k
+        }
+
+        $this->app->singleton(NexusThresholdSource::class, fn (): NexusThresholdSource => new ArrayNexusThresholdSource([
+            'US-CT' => new EconomicNexusThreshold(100_000, 200, NexusCombinator::SalesAndTransactions),
+        ]));
+        $this->app->forgetInstance(NexusEngine::class);
+        $this->app->forgetInstance(SalesLedger::class);
+
+        $activity = $this->app->make(SalesLedger::class)->activityFor(new SubdivisionCode('US-CT'));
+
+        // The reported pair must be ONE real year, never $600k paired with 250 transactions.
+        $this->assertNotNull($activity);
+        $this->assertTrue(
+            ($activity->salesDollars === 600_000 && $activity->transactions === 40)
+            || ($activity->salesDollars === 80_000 && $activity->transactions === 250),
+            sprintf(
+                'Expected one year\'s real pair, got $%d over %d transactions — a year that never happened.',
+                $activity->salesDollars,
+                $activity->transactions,
+            ),
+        );
+
+        // And therefore the seller is NOT told to register somewhere it has no obligation.
+        // `Approaching` is the correct answer here and is what this asserts against: one leg is
+        // well over, so the state is worth watching — but neither year crossed BOTH legs, so it
+        // must not be `Triggered`. Before the fix it was, on a pair that never existed.
+        $status = $this->app->make(NexusEngine::class)->evaluate(new SubdivisionCode('US-CT'))->status;
+
+        $this->assertNotSame(NexusStatus::Triggered, $status);
+        $this->assertSame(NexusStatus::Approaching, $status);
+    }
 }

@@ -218,4 +218,32 @@ class InvoiceLifecycleConsoleTest extends TestCase
         $this->withSession($this->session)->get('/credit-notes/'.$note->id)
             ->assertOk()->assertSee($invoice->number);
     }
+
+    public function test_a_full_refund_leaves_the_invoice_in_the_status_the_approval_preview_promised(): void
+    {
+        $invoice = $this->invoicedOrg('org_refund_full');
+        $invoice->forceFill(['status' => 'paid', 'paid_at' => now()])->save();
+
+        $this->withSession($this->session)->post('/invoices/'.$invoice->id.'/refund', [
+            'mode' => 'full', 'reason' => 'goodwill', 'idempotency_key' => 'k-full-status',
+        ])->assertRedirect()->assertSessionHas('status');
+
+        // RefundInvoiceAction's approval preview shows the operator `status -> refunded` before
+        // they approve. Before this, the refund executed and the invoice stayed `paid`, so the
+        // console promised a transition the code never performed.
+        $this->assertSame(InvoiceStatus::Refunded, $invoice->refresh()->status);
+    }
+
+    public function test_a_partial_refund_leaves_the_invoice_paid(): void
+    {
+        $invoice = $this->invoicedOrg('org_refund_part');
+        $invoice->forceFill(['status' => 'paid', 'paid_at' => now()])->save();
+
+        $this->withSession($this->session)->post('/invoices/'.$invoice->id.'/refund', [
+            'mode' => 'partial', 'amount' => '10.00', 'reason' => 'goodwill', 'idempotency_key' => 'k-part-status',
+        ])->assertRedirect()->assertSessionHas('status');
+
+        // Still paid — it IS paid, with part reversed; the credit note carries the detail.
+        $this->assertSame(InvoiceStatus::Paid, $invoice->refresh()->status);
+    }
 }

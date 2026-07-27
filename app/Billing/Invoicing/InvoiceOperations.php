@@ -12,6 +12,7 @@ use App\Billing\Notifications\Contracts\NotifiesCustomers;
 use App\Billing\Seller\SellerCatalog;
 use App\Billing\Support\WeightedAllocator;
 use App\Billing\Tax\TaxContextFactory;
+use App\Models\CreditNote;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use App\Models\Organization;
@@ -86,8 +87,43 @@ readonly class InvoiceOperations implements RunsInvoiceOperations
             : RefundRequest::partial($actionId, $invoice->organization_id, $engineInvoice, Money::ofMinor($netMinor, $invoice->currency), $reason, $at, $invoice->gateway_reference);
 
         // The refunder's ledger post, refund-record save and CreditNoteIssued listener
-        // (which writes the durable credit note) all commit together.
-        return $this->db->transaction(fn (): Refund => $this->refunder->refund($request));
+        // (which writes the durable credit note) all commit together — and, once the credit
+        // notes cover the invoice, so does the status transition to Refunded.
+        return $this->db->transaction(function () use ($request, $invoice): Refund {
+            $refund = $this->refunder->refund($request);
+
+            $this->settleRefundedStatus($invoice);
+
+            return $refund;
+        });
+    }
+
+    /**
+     * Move a fully-reversed invoice to {@see InvoiceStatus::Refunded}.
+     *
+     * `Refunded` existed in the enum and was assigned NOWHERE in the app: its only other
+     * appearance was the approval preview, which showed the operator `status → refunded` before
+     * they approved. The refund then executed and left the invoice `paid`, so the console
+     * promised a transition the code never performed.
+     *
+     * Cumulative, not per-refund: several partial refunds that together cover the invoice leave
+     * it as fully reversed just as a single full one does. A partial refund correctly leaves the
+     * invoice `Paid` — it *is* still paid, with part reversed, and the credit notes carry the
+     * detail.
+     */
+    private function settleRefundedStatus(Invoice $invoice): void
+    {
+        if ($invoice->status === InvoiceStatus::Refunded) {
+            return;
+        }
+
+        $refunded = (int) CreditNote::query()
+            ->where('invoice_id', $invoice->id)
+            ->sum('gross_minor');
+
+        if ($refunded >= $invoice->total_minor && $invoice->total_minor > 0) {
+            $invoice->forceFill(['status' => InvoiceStatus::Refunded])->save();
+        }
     }
 
     public function markPaid(Invoice $invoice, ?string $reference): void

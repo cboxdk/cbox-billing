@@ -167,7 +167,17 @@ readonly class InvoiceSalesLedger implements SalesLedger
 
         $base = Invoice::query()
             ->where('seller', $this->sellers->default()->id)
-            ->whereIn('status', [InvoiceStatus::Open, InvoiceStatus::Paid])
+            // `Refunded` is counted, deliberately. Until the refund path started writing that
+            // status, a fully-reversed invoice stayed `Paid` and was measured here; dropping it
+            // now would silently REDUCE measured sales as a side effect of an unrelated fix.
+            //
+            // Counting it is also the safer reading: most post-Wayfair thresholds are stated on
+            // GROSS sales, and the two errors are not symmetric — over-counting prompts a
+            // registration the seller may not strictly need, while under-counting misses one
+            // they do, which is back taxes plus penalties. Where a state permits netting
+            // returns, that is a per-state refinement to make against the dataset's own rules,
+            // not a blanket exclusion to assume here.
+            ->whereIn('status', [InvoiceStatus::Open, InvoiceStatus::Paid, InvoiceStatus::Refunded])
             ->where('issued_at', '>=', $windowStart)
             ->where('issued_at', '<', $windowEnd)
             ->whereIn('organization_id', $organizationIds);

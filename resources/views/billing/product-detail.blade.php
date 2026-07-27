@@ -59,7 +59,7 @@
             <thead><tr><th>Plan</th><th style="width:100px">Interval</th><th style="width:90px">Prices</th><th style="width:110px">Entitlements</th><th style="width:110px">Subscribers</th><th style="width:90px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($p['plans'] as $plan)
-                    <tr data-href="{{ route('billing.plans.show', $plan['id']) }}" tabindex="0" role="link" aria-label="Open plan {{ $plan['name'] }}">
+                    <tr data-href="{{ route('billing.plans.show', $plan['id']) }}" tabindex="0" aria-label="Open plan {{ $plan['name'] }}">
                         <td><span style="display:block;font-weight:500">{{ $plan['name'] }}</span><span class="num mut" style="font-size:11px">{{ $plan['key'] }}</span></td>
                         <td class="mut">per {{ $plan['interval'] }}</td>
                         <td class="num">{{ number_format($plan['prices']) }}</td>

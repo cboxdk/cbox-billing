@@ -265,7 +265,7 @@
             <thead><tr><th style="width:170px">Invoice</th><th style="width:110px">Date</th><th class="right" style="width:150px">Amount</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($c['invoices'] as $inv)
-                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" role="link" aria-label="Open invoice {{ $inv['number'] }}">
+                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" aria-label="Open invoice {{ $inv['number'] }}">
                         <td class="num">{{ $inv['number'] }}</td>
                         <td class="num mut">{{ $inv['date'] }}</td>
                         <td class="right num">{{ MoneyFormatter::minor($inv['minor'], $inv['currency']) }}</td>
@@ -490,7 +490,7 @@
             <tbody>
                 @forelse ($events as $event)
                     @php $href = $event['href']; @endphp
-                    <tr @if($href) data-href="{{ $href }}" tabindex="0" role="link" aria-label="Open {{ $event['label'] }}" @else style="cursor:default" @endif>
+                    <tr @if($href) data-href="{{ $href }}" tabindex="0" aria-label="Open {{ $event['label'] }}" @else style="cursor:default" @endif>
                         <td class="num mut">{{ $event['at'] }}</td>
                         <td><span class="cbx-pill cbx-pill--muted">{{ $event['type'] }}</span></td>
                         <td>{{ $event['label'] }}@if($event['detail'])<span class="mut" style="font-size:11px;margin-left:6px">{{ $event['detail'] }}</span>@endif</td>

@@ -90,7 +90,7 @@
                 <thead><tr><th>#</th><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Summary</th><th>Plane</th></tr></thead>
                 <tbody>
                     @foreach ($events as $event)
-                        <tr data-href="{{ route('billing.audit.show', $event->id) }}" tabindex="0" role="link" aria-label="Open audit event {{ $event->sequence }} — {{ $event->action }}" style="cursor:pointer">
+                        <tr data-href="{{ route('billing.audit.show', $event->id) }}" tabindex="0" aria-label="Open audit event {{ $event->sequence }} — {{ $event->action }}" style="cursor:pointer">
                             <td class="num mut">{{ $event->sequence }}</td>
                             <td class="mut" style="white-space:nowrap">{{ $event->occurred_at->format('Y-m-d H:i:s') }}</td>
                             <td>

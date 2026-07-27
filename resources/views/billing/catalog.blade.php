@@ -40,7 +40,7 @@
                 <tbody>
                     @foreach ($product['plans'] as $plan)
                         @php($tieredPrices = array_values(array_filter($plan['prices'], fn ($p) => $p['tiered'])))
-                        <tr data-href="{{ route('billing.plans.show', $plan['id']) }}" tabindex="0" role="link" aria-label="Open plan {{ $plan['name'] }}" @if($tieredPrices)style="border-bottom:0"@endif>
+                        <tr data-href="{{ route('billing.plans.show', $plan['id']) }}" tabindex="0" aria-label="Open plan {{ $plan['name'] }}" @if($tieredPrices)style="border-bottom:0"@endif>
                             <td>
                                 <span style="display:block;font-weight:600">{{ $plan['name'] }}</span>
                                 <span class="num mut" style="font-size:11px">per {{ $plan['interval'] }}</span>

@@ -133,7 +133,7 @@
             <thead><tr><th style="width:180px">Invoice</th><th style="width:120px">Issued</th><th class="right" style="width:150px">Amount</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($s['invoices'] as $inv)
-                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" role="link" aria-label="Open invoice {{ $inv['number'] }}">
+                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" aria-label="Open invoice {{ $inv['number'] }}">
                         <td class="num">{{ $inv['number'] }}</td>
                         <td class="num mut">{{ $inv['issued'] }}</td>
                         <td class="right num">{{ MoneyFormatter::minor($inv['total_minor'], $inv['currency']) }}</td>

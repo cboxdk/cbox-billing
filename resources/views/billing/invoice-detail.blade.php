@@ -112,7 +112,7 @@
                 <thead><tr><th>Number</th><th>Reason</th><th>Issued</th><th class="right" style="width:150px">Credited</th></tr></thead>
                 <tbody>
                     @foreach ($creditNotes as $note)
-                        <tr data-href="{{ route('billing.credit-notes.show', $note->id) }}" tabindex="0" role="link" aria-label="Open credit note {{ $note->number }}">
+                        <tr data-href="{{ route('billing.credit-notes.show', $note->id) }}" tabindex="0" aria-label="Open credit note {{ $note->number }}">
                             <td class="num">{{ $note->number }}</td>
                             <td>{{ str_replace('_', ' ', $note->reason) }}</td>
                             <td class="num">{{ $note->issued_at->format('Y-m-d') }}</td>

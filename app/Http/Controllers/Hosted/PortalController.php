@@ -333,7 +333,7 @@ class PortalController extends HostedController
             return new JsonResponse(['error' => 'No active subscription.'], Response::HTTP_NOT_FOUND);
         }
 
-        $plan = Plan::query()->with(['prices', 'product'])->where('key', $request->string('plan')->toString())->first();
+        $plan = $this->selectablePlan($request->string('plan')->toString(), $subscription);
 
         if (! $plan instanceof Plan) {
             return new JsonResponse(['error' => 'Unknown plan.'], Response::HTTP_NOT_FOUND);
@@ -605,11 +605,15 @@ class PortalController extends HostedController
 
         $session = $this->require($token, SessionType::Portal);
         $subscription = $this->activeSubscription($session->organization_id);
-        $plan = Plan::query()->with(['prices', 'product'])->where('key', $request->string('plan')->toString())->first();
 
+        // Resolve the subscription BEFORE the target plan: selectability is relative to what the
+        // customer is on (same product, and the target must be active), so there is nothing to
+        // judge a plan against until the current subscription is known.
         if (! $subscription instanceof Subscription) {
             return [$session, new Subscription, new Plan, new JsonResponse(['error' => 'No active subscription.'], Response::HTTP_NOT_FOUND)];
         }
+
+        $plan = $this->selectablePlan($request->string('plan')->toString(), $subscription);
 
         if (! $plan instanceof Plan) {
             return [$session, $subscription, new Plan, new JsonResponse(['error' => 'Unknown plan.'], Response::HTTP_NOT_FOUND)];
@@ -739,5 +743,39 @@ class PortalController extends HostedController
         $organization = Organization::query()->findOrFail($organizationId);
 
         return $this->gatewayCustomers->resolve($organization);
+    }
+
+    /**
+     * A plan the CUSTOMER is permitted to move themselves onto.
+     *
+     * The portal LISTED only active plans, but the action validated nothing, and
+     * SubscriptionService::changePlan() adds no target check either — so a customer holding a
+     * legitimate portal token could name any plan by key and be moved onto it. Plan keys are not
+     * secret: they appear in the pricing-table JSON, the entitlements API and old invoices.
+     *
+     * Two rules, both already stated elsewhere and neither previously enforced here:
+     *  - INACTIVE MEANS LEGACY. Plan's own docblock: "an inactive plan is Legacy — a valid
+     *    transition source but never a target." An archived cheap tier stays archived.
+     *  - SAME PRODUCT. On a shared instance another product's plans are just as reachable by
+     *    key; the management API checks this, the portal did not.
+     *
+     * Null when the plan is missing or not selectable — the caller answers "Unknown plan" for
+     * both, so this cannot be used to probe which plans exist.
+     */
+    private function selectablePlan(string $key, Subscription $subscription): ?Plan
+    {
+        $plan = Plan::query()->with(['prices', 'product'])->where('key', $key)->first();
+
+        if (! $plan instanceof Plan || ! $plan->active) {
+            return null;
+        }
+
+        $currentProductId = $subscription->plan?->product_id;
+
+        if ($currentProductId !== null && $plan->product_id !== $currentProductId) {
+            return null;
+        }
+
+        return $plan;
     }
 }

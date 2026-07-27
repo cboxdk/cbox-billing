@@ -26,8 +26,8 @@
             <thead><tr><th>Organization</th><th>Subject</th><th>Role</th><th style="width:120px">Kind</th><th style="width:120px">Environment</th><th style="width:150px">Updated</th></tr></thead>
             <tbody>
                 @forelse ($grants as $grant)
-                    <tr data-href="{{ route('billing.customers.show', $grant['org_id']) }}" tabindex="0" aria-label="Open {{ $grant['org'] }}">
-                        <td style="font-weight:500">{{ $grant['org'] }}<span class="num mut" style="font-size:11px;margin-left:6px">{{ $grant['org_id'] }}</span></td>
+                    <tr data-href="{{ route('billing.customers.show', $grant['org_id']) }}">
+                        <td style="font-weight:500"><a class="cbx-row-link" href="{{ route('billing.customers.show', $grant['org_id']) }}">{{ $grant['org'] }}<span class="num mut" style="font-size:11px;margin-left:6px">{{ $grant['org_id'] }}</span></a></td>
                         <td class="num">{{ $grant['subject'] }}</td>
                         <td>{{ $grant['role'] ?? '—' }}</td>
                         <td><span class="cbx-pill cbx-pill--{{ $grant['kind'] === 'role' ? 'info' : 'muted' }}">{{ $grant['kind'] }}</span></td>

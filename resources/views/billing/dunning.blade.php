@@ -83,8 +83,8 @@
             <thead><tr><th>Customer</th><th style="width:140px">Invoice</th><th class="right" style="width:120px">Amount</th><th style="width:150px">Decline</th><th class="right" style="width:90px">Attempts</th><th style="width:110px">Next retry</th><th style="width:100px">Status</th><th style="width:220px">Actions</th></tr></thead>
             <tbody>
                 @forelse ($retries as $r)
-                    <tr @if($r['subscription_id']) data-href="{{ route('billing.subscriptions.show', $r['subscription_id']) }}" tabindex="0" aria-label="Open subscription for {{ $r['org'] }}" @else style="cursor:default" @endif>
-                        <td><span style="display:flex;align-items:center;gap:10px"><span class="avatar-sm">{{ $r['ini'] }}</span>{{ $r['org'] }}</span></td>
+                    <tr @if($r['subscription_id']) data-href="{{ route('billing.subscriptions.show', $r['subscription_id']) }}" @else style="cursor:default" @endif>
+                        <td><a class="cbx-row-link" href="{{ route('billing.subscriptions.show', $r['subscription_id']) }}"><span style="display:flex;align-items:center;gap:10px"><span class="avatar-sm">{{ $r['ini'] }}</span>{{ $r['org'] }}</span></a></td>
                         <td class="num">@if (!empty($r['invoice_id']))<a class="cbx-link" href="{{ route('billing.invoices.show', $r['invoice_id']) }}">{{ $r['invoice'] }}</a>@else{{ $r['invoice'] }}@endif</td>
                         <td class="right num">{{ MoneyFormatter::minor($r['invoice_minor'], $r['currency']) }}</td>
                         <td>

@@ -27,11 +27,9 @@
             <thead><tr><th>Pricing table</th><th style="width:110px">Plans</th><th style="width:110px">Features</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($tables as $table)
-                    <tr data-href="{{ route('billing.pricing-tables.show', $table->id) }}" tabindex="0" aria-label="Open pricing table {{ $table->name }}">
-                        <td>
-                            <span style="display:block;font-weight:600">{{ $table->name }}</span>
-                            <span class="num mut" style="font-size:11px">/pricing/{{ $table->key }}</span>
-                        </td>
+                    <tr data-href="{{ route('billing.pricing-tables.show', $table->id) }}">
+                        <td><a class="cbx-row-link" href="{{ route('billing.pricing-tables.show', $table->id) }}"><span style="display:block;font-weight:600">{{ $table->name }}</span>
+                            <span class="num mut" style="font-size:11px">/pricing/{{ $table->key }}</span></a></td>
                         <td class="num">{{ number_format($table->columns_count) }}</td>
                         <td class="num mut">{{ number_format($table->feature_rows_count) }}</td>
                         <td>

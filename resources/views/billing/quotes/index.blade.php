@@ -56,8 +56,8 @@
             <thead><tr><th>Quote</th><th>Customer</th><th style="width:120px">Currency</th><th style="width:150px">Status</th><th style="width:150px">Updated</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($quotes as $quote)
-                    <tr data-href="{{ route('billing.quotes.show', $quote->id) }}" tabindex="0" aria-label="Open quote {{ $quote->number }}">
-                        <td><span style="display:block;font-weight:600" class="num">{{ $quote->number }}</span></td>
+                    <tr data-href="{{ route('billing.quotes.show', $quote->id) }}">
+                        <td><a class="cbx-row-link" href="{{ route('billing.quotes.show', $quote->id) }}"><span style="display:block;font-weight:600" class="num">{{ $quote->number }}</span></a></td>
                         <td>{{ $quote->customerName() }}</td>
                         <td class="num mut">{{ $quote->currency }}</td>
                         <td><span class="cbx-pill cbx-pill--{{ $quote->status->tone() === 'neutral' ? 'muted' : $quote->status->tone() }}">{{ $quote->status->label() }}</span></td>

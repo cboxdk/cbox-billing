@@ -93,14 +93,18 @@ class ConsoleUxFoundationTest extends TestCase
     {
         $response = $this->withSession($this->session)->get('/subscriptions')->assertOk();
 
-        // Rows navigate via `data-href` handled by a delegated listener, never inline onclick,
-        // and stay keyboard-operable via `tabindex`.
+        // Two separate mechanisms, deliberately:
+        //  - MOUSE: `data-href` on the row, handled by one delegated listener. Never inline
+        //    onclick, which cannot be content-security-policed and duplicates per row.
+        //  - KEYBOARD + ASSISTIVE TECH: a real <a> in the first cell. It carries the row's
+        //    accessible name and its focus, so the row's PURPOSE is announced as a link while
+        //    the row itself stays a plain <tr> and every cell remains readable.
         $response->assertSee('data-href=', false);
-        $response->assertSee('tabindex="0"', false);
+        $response->assertSee('cbx-row-link', false);
         $response->assertDontSee('onclick="window.location', false);
 
-        // NOT role="link" — this assertion used to require it, which is how the attribute
-        // survived on 30 rows across 27 files. The intent was right (ban inline onclick) but it
+        // NOT role="link", and no longer a focusable ROW either — earlier revisions of this
+        // test required first one then the other, which is how each survived across 27 files. The intent was right (ban inline onclick) but it
         // codified the wrong mechanism: `role="link"` overrides the row's `row` role, collapsing
         // the table's row/column relationships, and because a link takes its name from the
         // author the paired aria-label REPLACES the subtree — so every cell became unreachable

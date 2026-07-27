@@ -29,8 +29,8 @@
             <thead><tr><th style="width:180px">Credit note</th><th>Customer</th><th style="width:160px">Invoice</th><th>Reason</th><th style="width:100px">Issued</th><th class="right" style="width:150px">Credited</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($creditNotes as $note)
-                    <tr data-href="{{ route('billing.credit-notes.show', $note['id']) }}" tabindex="0" aria-label="Open credit note {{ $note['number'] }}">
-                        <td class="num">{{ $note['number'] }}</td>
+                    <tr data-href="{{ route('billing.credit-notes.show', $note['id']) }}">
+                        <td class="num"><a class="cbx-row-link" href="{{ route('billing.credit-notes.show', $note['id']) }}">{{ $note['number'] }}</a></td>
                         <td><span style="display:flex;align-items:center;gap:8px"><span class="avatar-sm" style="width:20px;height:20px;font-size:8px">{{ $note['ini'] }}</span>{{ $note['org'] }}</span></td>
                         <td class="num mut">{{ $note['invoice_number'] }}</td>
                         <td>{{ ucfirst(str_replace('_', ' ', $note['reason'])) }}</td>

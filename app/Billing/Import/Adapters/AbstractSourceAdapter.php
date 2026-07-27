@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Billing\Import\Adapters;
 
 use App\Billing\Import\Contracts\SourceAdapter;
+use App\Billing\Support\MinorUnits;
 use Carbon\CarbonImmutable;
 use Throwable;
 
@@ -77,23 +78,27 @@ abstract readonly class AbstractSourceAdapter implements SourceAdapter
 
     /**
      * A minor-unit amount from a provider that stores DECIMAL MAJOR units (Recurly's
-     * `unit_amount` = "49.00"): multiply up by 100. NOTE (assumption): this assumes a
-     * two-decimal currency — a zero-decimal currency (JPY, KRW) would need per-currency exponent
-     * handling; the fixtures + supported currencies are two-decimal, and the docs flag this.
+     * `unit_amount` = "49.00"), scaled by the CURRENCY's own exponent rather than a blanket 100.
+     *
+     * `$currency` is the record's own currency — the same value the surrounding Normalized* VO is
+     * built with. A zero-decimal currency (JPY, KRW) imports at 100× the real amount under a
+     * hardcoded ×100, and a three-decimal one (BHD, KWD, TND) at a tenth; an import that lands
+     * either way writes a wrong opening balance into the ledger, which is worse than refusing.
+     * An unknown or absent currency yields null rather than a guessed amount.
      *
      * @param  array<string, mixed>  $record
      */
-    protected function minorFromMajor(array $record, string ...$keys): ?int
+    protected function minorFromMajor(array $record, ?string $currency, string ...$keys): ?int
     {
+        if ($currency === null || $currency === '') {
+            return null;
+        }
+
         foreach ($keys as $key) {
             $value = $this->dig($record, $key);
 
-            if (is_int($value) || is_float($value)) {
-                return (int) round(((float) $value) * 100);
-            }
-
-            if (is_string($value) && is_numeric(trim($value))) {
-                return (int) round(((float) trim($value)) * 100);
+            if (is_int($value) || is_float($value) || (is_string($value) && is_numeric(trim($value)))) {
+                return MinorUnits::parse(is_string($value) ? trim($value) : $value, $currency);
             }
         }
 

@@ -160,7 +160,7 @@
 
             @if ($refundable && $remainingMinor > 0)
                 <form method="POST" action="{{ route('billing.invoices.refund', $invoice) }}" id="refund-form"
-                      data-confirm="Issue a refund against {{ $invoice->number }}? A credit note will be issued and the amount reversed."
+                      data-confirm="A credit note will be issued and the amount reversed."
                       data-confirm-title="Issue refund?" data-confirm-label="Refund" data-confirm-variant="destructive">
                     @csrf
                     <input type="hidden" name="idempotency_key" value="{{ \Illuminate\Support\Str::uuid() }}">
@@ -171,8 +171,13 @@
                                 <option value="full">Full ({{ MoneyFormatter::minor($remainingMinor, $c) }})</option>
                                 <option value="partial">Partial</option>
                             </select></label>
-                        <label style="{{ $labelStyle }}" id="refund-amount-field">Net amount (minor units of {{ $c }})
-                            <input class="num" type="number" name="amount_minor" min="1" max="{{ $remainingMinor }}" placeholder="e.g. 5000" style="{{ $inputStyle }}"></label>
+                        <label style="{{ $labelStyle }}" id="refund-amount-field">Net amount ({{ $c }})
+                            <input class="num" type="number" name="amount" id="refund-amount"
+                                   step="{{ \App\Billing\Support\MinorUnits::step($c) }}"
+                                   min="{{ \App\Billing\Support\MinorUnits::step($c) }}"
+                                   max="{{ \App\Billing\Support\MinorUnits::toMajor($remainingMinor, $c) }}"
+                                   placeholder="{{ \App\Billing\Support\MinorUnits::toMajor($remainingMinor, $c) }}"
+                                   style="{{ $inputStyle }}"></label>
                         <label style="{{ $labelStyle }}">Reason
                             <select name="reason" style="{{ $inputStyle }}">
                                 @foreach (RefundReason::cases() as $reason)
@@ -185,10 +190,30 @@
                 <script>
                     (function(){
                         var mode = document.getElementById('refund-mode'),
-                            field = document.getElementById('refund-amount-field');
+                            field = document.getElementById('refund-amount-field'),
+                            amount = document.getElementById('refund-amount'),
+                            form = document.getElementById('refund-form');
                         if (!mode) return;
                         function sync(){ field.style.display = mode.value === 'partial' ? '' : 'none'; }
                         mode.addEventListener('change', sync); sync();
+
+                        // Name the amount in the confirmation. The last checkpoint before money
+                        // leaves the business stated only the invoice number, so a mistyped
+                        // amount had nothing to catch it — the operator confirmed a sentence
+                        // that would read identically for 0,50 and for 5.000,00.
+                        var currency = @json($c),
+                            full = @json(\App\Billing\Support\MinorUnits::toMajor($remainingMinor, $c)),
+                            base = form ? form.getAttribute('data-confirm') : '';
+                        function describe(){
+                            if (!form) return;
+                            var value = mode.value === 'partial' && amount && amount.value ? amount.value : full,
+                                shown = currency + ' ' + value;
+                            form.setAttribute('data-confirm',
+                                'Refund ' + shown + ' against {{ $invoice->number }}? ' + base);
+                        }
+                        mode.addEventListener('change', describe);
+                        if (amount) { amount.addEventListener('input', describe); }
+                        describe();
                     })();
                 </script>
             @endif

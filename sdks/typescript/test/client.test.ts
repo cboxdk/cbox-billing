@@ -306,3 +306,64 @@ test('entitlements.feature is deny-by-default for an unknown key', async () => {
   assert.equal(resolved.enabled, false);
   assert.equal(resolved.type, null);
 });
+
+/**
+ * The README states: "Every write (POST/PUT/DELETE) sends an `Idempotency-Key` header by
+ * default." It did not. Seventeen management writes — payment intents, checkout and portal
+ * sessions, subscription cancel/pause/resume, seat and payment-method writes, licence
+ * renew/revoke — hardcoded `idempotency: false` while the transport retried 5xx AND network
+ * errors. A 502 from an ingress after the intent was created produced a SECOND payment intent.
+ *
+ * The four enforcement endpoints are the deliberate exception and are asserted here too, so the
+ * distinction stays a decision rather than drifting back into an accident: /usage is idempotent
+ * by construction (cumulative + seq), and /leases, /reserve and /commit are short-lived grants
+ * the server runs no idempotency middleware on.
+ */
+test('every management write sends an Idempotency-Key', async () => {
+  const cases: Array<[string, (c: CboxBilling) => Promise<unknown>]> = [
+    ['payment intent', (c) => c.paymentIntents.createPaymentIntent({ org: 'o' } as never)],
+    ['checkout session', (c) => c.checkout.createSession({ org: 'o' } as never)],
+    ['portal session', (c) => c.portal.createSession({ org: 'o' } as never)],
+    ['subscription create', (c) => c.subscriptions.create({ org: 'o', plan: 'p' } as never)],
+    ['plan change', (c) => c.subscriptions.change('o', { plan: 'p' } as never)],
+    ['cancel', (c) => c.subscriptions.cancel('o')],
+    ['seat assign', (c) => c.seats.assign('o', 's')],
+    ['seat unassign', (c) => c.seats.unassign('o', 's')],
+    ['payment-method default', (c) => c.paymentMethods.setDefault('o', 'pm_1')],
+    ['payment-method detach', (c) => c.paymentMethods.detach('o', 'pm_1')],
+  ];
+
+  for (const [label, call] of cases) {
+    const { fetch, calls } = fakeFetch([{ status: 200, body: { data: [] } }]);
+    const client = new CboxBilling({ baseUrl: 'https://billing.test', token: 't', fetch });
+
+    await call(client).catch(() => undefined);
+
+    assert.ok(
+      calls[0]?.headers['idempotency-key'],
+      `${label} must send an Idempotency-Key — the transport retries 5xx and network errors, so a write without one can apply twice`,
+    );
+  }
+});
+
+test('the enforcement hot path deliberately sends no Idempotency-Key', async () => {
+  const cases: Array<[string, (c: CboxBilling) => Promise<unknown>]> = [
+    ['usage', (c) => c.enforcement.ingestUsage({ org: 'o', entries: [] } as never)],
+    ['reserve', (c) => c.enforcement.reserve({ org: 'o', meters: [] } as never)],
+    ['commit', (c) => c.enforcement.commit({ reservation_id: 'r', actuals: [] } as never)],
+    ['lease', (c) => c.enforcement.lease({ org: 'o', meter: 'm' } as never)],
+  ];
+
+  for (const [label, call] of cases) {
+    const { fetch, calls } = fakeFetch([{ status: 200, body: { ok: true } }]);
+    const client = new CboxBilling({ baseUrl: 'https://billing.test', token: 't', fetch });
+
+    await call(client).catch(() => undefined);
+
+    assert.equal(
+      calls[0]?.headers['idempotency-key'],
+      undefined,
+      `${label} is idempotent by construction and must not send a key unless the caller asks`,
+    );
+  }
+});

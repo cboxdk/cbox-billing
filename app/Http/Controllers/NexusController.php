@@ -38,7 +38,12 @@ class NexusController extends Controller
         $report = $this->reporter->report();
 
         // Order the standing table by urgency: act-now first, watch next, then handled/quiet.
-        $rank = ['triggered' => 0, 'approaching' => 1, 'registered' => 2, 'below' => 3];
+        //
+        // `unknown` ranks just under `approaching`, above anything settled: a state whose
+        // threshold could not be resolved is not reassuring news. It is not `below` — the engine
+        // refuses to claim that precisely because "cannot tell" and "no obligation" differ — so
+        // burying it with the quiet rows would hide the one row that needs an operator.
+        $rank = ['triggered' => 0, 'approaching' => 1, 'unknown' => 2, 'registered' => 3, 'below' => 4];
         $evaluations = $report->evaluations;
         usort($evaluations, static fn ($a, $b): int => [$rank[$a->status->value], $a->state->value] <=> [$rank[$b->status->value], $b->state->value]);
 

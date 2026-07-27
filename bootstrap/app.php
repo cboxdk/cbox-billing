@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureOperator;
 use App\Http\Middleware\EnsureSandboxPlane;
 use App\Http\Middleware\RecordsOperatorAudit;
 use App\Http\Middleware\ResolveConsoleMode;
+use App\Http\Middleware\ResolveOrganizationRef;
 use App\Http\Middleware\SetsReferrerPolicy;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -27,7 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             // enforcement hot path (`throttle:cbox-enforcement`) runs hotter than the
             // management surface (`throttle:cbox-management`) — so each group carries its
             // own limiter rather than one blanket ceiling for both.
-            Route::middleware(['api', 'api.token'])
+            Route::middleware(['api', 'api.token', ResolveOrganizationRef::class])
                 ->prefix('api/v1')
                 ->name('api.v1.')
                 ->group(__DIR__.'/../routes/api.php');
@@ -53,14 +54,14 @@ return Application::configure(basePath: dirname(__DIR__))
             // Public, no-auth hosted order form: the CPQ /quote/{token} page a customer accepts
             // or declines. Self-contained + CSP-safe; the opaque token is the whole addressing
             // (an unknown token 404s). On the `web` group so session CSRF protects accept/decline.
-            Route::middleware('web')
+            Route::middleware(['web', 'throttle:cbox-public'])
                 ->group(__DIR__.'/../routes/quotes.php');
 
             // Public, no-auth embeddable storefront: the pricing table + paywall
             // (/pricing/{key}, /pricing/{key}/embed, /pricing/{key}/embed.js, /paywall).
             // Self-contained + CSP-safe; a pricing table's public key (or the paywall's org +
             // gated capability) is the whole addressing — no token, no provider auth gate.
-            Route::middleware('web')
+            Route::middleware(['web', 'throttle:cbox-public'])
                 ->group(__DIR__.'/../routes/storefront.php');
 
             // Public API reference: the OpenAPI 3.1 contract + a self-contained docs page

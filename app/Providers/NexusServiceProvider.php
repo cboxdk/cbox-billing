@@ -12,6 +12,7 @@ use App\Billing\Nexus\SellerNexusRegistrations;
 use App\Billing\Seller\SellerCatalog;
 use Cbox\Nexus\Contracts\NexusEngine;
 use Cbox\Nexus\Contracts\NexusRegistrations;
+use Cbox\Nexus\Contracts\NexusThresholdSource;
 use Cbox\Nexus\Contracts\PhysicalNexus;
 use Cbox\Nexus\Contracts\SalesLedger;
 use Illuminate\Contracts\Config\Repository as Config;
@@ -33,6 +34,10 @@ class NexusServiceProvider extends ServiceProvider
         $this->app->singleton(SalesLedger::class, static fn (Application $app): SalesLedger => new InvoiceSalesLedger(
             $app->make(SellerCatalog::class),
             $app->make(FxConverter::class),
+            // The ledger consults the SAME threshold source the engine does, so it can pick the
+            // stronger calendar year by that state's own rule rather than mixing the two years'
+            // metrics into a year that never happened.
+            $app->make(NexusThresholdSource::class),
         ));
 
         $this->app->singleton(NexusRegistrations::class, static fn (Application $app): NexusRegistrations => new SellerNexusRegistrations(

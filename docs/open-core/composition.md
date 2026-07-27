@@ -21,7 +21,7 @@ start. No source overrides, no forked `composer.json`.
 
 ## No private registry — just a token
 
-The four/five proprietary plugins are **not** on public Packagist, but **no private
+The six plugins are MIT but **not** published to public Packagist, and **no private
 registry** (Satis / Private Packagist) is needed. They are read straight from their
 private GitHub repos over `type:vcs`, authenticated by **one read-only GitHub token**:
 

@@ -99,7 +99,11 @@ class BillingLifecycleTest extends TestCase
         $commit->assertOk()->assertJsonPath('ok', true);
 
         // The committed usage landed in the durable event log (the metering truth).
-        $sum = app(EventLog::class)->sum('org_acme', 'api.requests', 0, (int) (microtime(true) * 1000) + 1);
+        // Bound generously past the present rather than at "now + 1ms". The event-log window is
+        // half-open [from, to) and this bound is truncated wall-clock milliseconds, so an event
+        // stamped on the very next millisecond falls outside a tight bound — an intermittent
+        // "usage vanished" failure that says nothing about the code under test.
+        $sum = app(EventLog::class)->sum('org_acme', 'api.requests', 0, (int) (microtime(true) * 1000) + 60_000);
         $this->assertSame(800, $sum);
 
         // --- 2c. A denied reserve on a disabled/unknown meter (deny-by-default) ---

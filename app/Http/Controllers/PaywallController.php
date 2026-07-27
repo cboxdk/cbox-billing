@@ -48,6 +48,15 @@ class PaywallController extends Controller
         $sellerBranding = $branding->forSeller(null);
 
         $request->validate([
+            // The org's own id, deliberately NOT the caller's `external_ref`: this endpoint is
+            // unauthenticated and discloses whether a given org holds a capability, priced in
+            // that org's billing currency, so accepting a guessable tenant key here would be an
+            // enumeration oracle. New orgs carry opaque ULID ids, which removes the guessing.
+            //
+            // NOT yet constrained to `ulid`: orgs created before that change keep their original
+            // slug ids (rewriting a live primary key means rewriting every dependent foreign
+            // key), so the rule would refuse legitimate existing orgs. The throttle on this
+            // route group is the mitigation until those ids are migrated.
             'org' => ['required', 'string', 'max:255'],
             'feature' => ['sometimes', 'nullable', 'string', 'max:255'],
             'meter' => ['sometimes', 'nullable', 'string', 'max:255'],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
 use App\Models\ApiToken;
 use App\Models\BillingSession;
@@ -136,7 +137,11 @@ class HostedPortalTest extends TestCase
             ->assertJsonPath('method.id', 'pm_new')
             ->assertJsonPath('method.default', true);
 
-        $this->assertNotEmpty($gateway->paymentMethods('org_pm'));
+        // Assert against the GATEWAY's customer id, not our tenant id. Checking
+        // paymentMethods('org_pm') was what hid the real defect: the fake vaults under whatever
+        // key it is handed, so passing the organization id looked fine here and produced a
+        // customer Stripe had never heard of in production.
+        $this->assertNotEmpty($gateway->paymentMethods($this->gatewayAccount('org_pm')));
     }
 
     public function test_the_portal_lists_multiple_methods_and_removes_one(): void
@@ -145,8 +150,9 @@ class HostedPortalTest extends TestCase
         $this->app->instance(PaymentGateway::class, $gateway);
 
         $this->subscribedOrg('org_methods');
-        $gateway->attachPaymentMethod('org_methods', 'pm_a');
-        $gateway->attachPaymentMethod('org_methods', 'pm_b');
+        $account = $this->gatewayAccount('org_methods');
+        $gateway->attachPaymentMethod($account, 'pm_a');
+        $gateway->attachPaymentMethod($account, 'pm_b');
 
         // The portal lists the vaulted methods with the remove control.
         $this->get('/billing/portal/'.$this->portalSession('org_methods')->token)
@@ -162,7 +168,7 @@ class HostedPortalTest extends TestCase
         $this->postJson('/billing/portal/'.$session->token.'/payment-method/remove', ['payment_method' => 'pm_a'])
             ->assertOk();
 
-        $remaining = array_map(static fn ($m): string => $m->id, $gateway->paymentMethods('org_methods'));
+        $remaining = array_map(static fn ($m): string => $m->id, $gateway->paymentMethods($account));
         $this->assertNotContains('pm_a', $remaining);
         $this->assertContains('pm_b', $remaining);
     }
@@ -186,5 +192,18 @@ class HostedPortalTest extends TestCase
         // The foreign method survives; the cross-tenant detach never reached the gateway.
         $foreign = array_map(static fn ($m): string => $m->id, $gateway->paymentMethods('org_foreign'));
         $this->assertContains('pm_foreign', $foreign);
+    }
+
+    /**
+     * The gateway customer id for an organization — the key the vault is actually keyed by.
+     *
+     * Tests must seed and assert against this rather than the tenant id: the fake gateway
+     * accepts any key, so using the organization id makes a test pass while production talks to
+     * a customer the gateway does not have.
+     */
+    private function gatewayAccount(string $organizationId): string
+    {
+        return $this->app->make(ResolvesGatewayCustomer::class)
+            ->resolve(Organization::query()->findOrFail($organizationId));
     }
 }

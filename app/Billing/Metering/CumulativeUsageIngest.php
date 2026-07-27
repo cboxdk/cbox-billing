@@ -56,7 +56,13 @@ readonly class CumulativeUsageIngest
             $seq = $entry['seq'];
 
             if (! array_key_exists($meter, $baselines)) {
-                $baselines[$meter] = $this->eventLog->sum($org, $meter, 0, $now);
+                // The event-log window is half-open, [from, to) — so the upper bound must sit
+                // one millisecond PAST now to include an event stamped at this very instant.
+                // Passing `$now` silently excluded the events this same batch is about to append
+                // (and any earlier one landing on the same millisecond), which read the durable
+                // baseline as 0 and made every delta the full cumulative — double-counting all
+                // usage from the moment the engine's window semantics were tightened.
+                $baselines[$meter] = $this->eventLog->sum($org, $meter, 0, $now + 1);
             }
 
             $delta = $cumulative - $baselines[$meter];

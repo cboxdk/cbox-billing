@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f63189dd6d30848fa073ffd9b278c662",
+    "content-hash": "0a5079844c7c1e3c040b883b0772e273",
     "packages": [
         {
             "name": "brick/math",
@@ -193,16 +193,16 @@
         },
         {
             "name": "cboxdk/laravel-billing",
-            "version": "v0.8.1",
+            "version": "v0.9.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-billing.git",
-                "reference": "94d7b827371224e9a84c3b92ad70edb0fdad43f3"
+                "reference": "f4067105313b475509acc01822ec52532cd83eb4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/94d7b827371224e9a84c3b92ad70edb0fdad43f3",
-                "reference": "94d7b827371224e9a84c3b92ad70edb0fdad43f3",
+                "url": "https://api.github.com/repos/cboxdk/laravel-billing/zipball/f4067105313b475509acc01822ec52532cd83eb4",
+                "reference": "f4067105313b475509acc01822ec52532cd83eb4",
                 "shasum": ""
             },
             "require": {
@@ -252,22 +252,22 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-billing/issues",
-                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.8.1"
+                "source": "https://github.com/cboxdk/laravel-billing/tree/v0.9.0"
             },
-            "time": "2026-07-18T07:25:26+00:00"
+            "time": "2026-07-26T14:16:13+00:00"
         },
         {
             "name": "cboxdk/laravel-billing-stripe",
-            "version": "v0.4.3",
+            "version": "v0.5.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-billing-stripe.git",
-                "reference": "cc84c1cfd2030101f5e11fa5cf38f038dc2a104c"
+                "reference": "8649e2ce24e3e12532cca8f6c24934643e187102"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-billing-stripe/zipball/cc84c1cfd2030101f5e11fa5cf38f038dc2a104c",
-                "reference": "cc84c1cfd2030101f5e11fa5cf38f038dc2a104c",
+                "url": "https://api.github.com/repos/cboxdk/laravel-billing-stripe/zipball/8649e2ce24e3e12532cca8f6c24934643e187102",
+                "reference": "8649e2ce24e3e12532cca8f6c24934643e187102",
                 "shasum": ""
             },
             "require": {
@@ -312,9 +312,9 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-billing-stripe/issues",
-                "source": "https://github.com/cboxdk/laravel-billing-stripe/tree/v0.4.3"
+                "source": "https://github.com/cboxdk/laravel-billing-stripe/tree/v0.5.1"
             },
-            "time": "2026-07-17T09:31:51+00:00"
+            "time": "2026-07-26T14:17:38+00:00"
         },
         {
             "name": "cboxdk/laravel-console-kit",
@@ -580,16 +580,16 @@
         },
         {
             "name": "cboxdk/laravel-nexus",
-            "version": "v0.1.1",
+            "version": "v0.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/cboxdk/laravel-nexus.git",
-                "reference": "43ab649aedb3a27a627b9690b2809b82afeb5f67"
+                "reference": "32c87005248c2b58586bf7c47c8d429f74f82753"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/cboxdk/laravel-nexus/zipball/43ab649aedb3a27a627b9690b2809b82afeb5f67",
-                "reference": "43ab649aedb3a27a627b9690b2809b82afeb5f67",
+                "url": "https://api.github.com/repos/cboxdk/laravel-nexus/zipball/32c87005248c2b58586bf7c47c8d429f74f82753",
+                "reference": "32c87005248c2b58586bf7c47c8d429f74f82753",
                 "shasum": ""
             },
             "require": {
@@ -634,9 +634,9 @@
             ],
             "support": {
                 "issues": "https://github.com/cboxdk/laravel-nexus/issues",
-                "source": "https://github.com/cboxdk/laravel-nexus/tree/v0.1.1"
+                "source": "https://github.com/cboxdk/laravel-nexus/tree/v0.2.0"
             },
-            "time": "2026-07-22T21:57:24+00:00"
+            "time": "2026-07-25T17:37:47+00:00"
         },
         {
             "name": "cboxdk/laravel-ssrf",

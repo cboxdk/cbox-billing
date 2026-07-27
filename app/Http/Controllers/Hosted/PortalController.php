@@ -17,6 +17,7 @@ use App\Billing\Invoicing\InvoicePdfRenderer;
 use App\Billing\Mode\BillingContext;
 use App\Billing\Notifications\Contracts\ManagesNotificationPreferences;
 use App\Billing\Notifications\MailEventType;
+use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Retention\Contracts\ManagesRetention;
 use App\Billing\Retention\Enums\CancellationMode;
 use App\Billing\Retention\ValueObjects\CancellationRequest;
@@ -67,6 +68,7 @@ class PortalController extends HostedController
         EnvironmentRegistry $environments,
         private readonly SubscribesOrganizations $subscriptions,
         private readonly PaymentGateway $gateway,
+        private readonly ResolvesGatewayCustomer $gatewayCustomers,
         private readonly ResolvesAccountCurrency $currencies,
         private readonly ManagesRetention $retention,
         private readonly PlanRetirementService $retirements,
@@ -97,7 +99,7 @@ class PortalController extends HostedController
             'subscription' => $subscription,
             'plans' => $this->presenter->availablePlans($currency, $subscription),
             'invoices' => $this->presenter->invoices($session->organization_id),
-            'methods' => $this->gateway->paymentMethods($organization->id),
+            'methods' => $this->gateway->paymentMethods($this->gatewayAccountFor($organization->id)),
             // The sunset notice (ADR-0016) and the retention seam the cancel UI renders from.
             'sunset' => $subscription instanceof Subscription ? $this->retirements->noticeFor($subscription) : null,
             'reasons' => $this->cancellationReasons($session->organization_id, $subscription),
@@ -351,7 +353,7 @@ class PortalController extends HostedController
         $session = $this->require($token, SessionType::Portal);
 
         $result = $this->gateway->createSetupIntent(new SetupIntentRequest(
-            account: $session->organization_id,
+            account: $this->gatewayAccountFor($session->organization_id),
             idempotencyKey: 'seti_'.Str::random(24),
         ));
 
@@ -375,8 +377,10 @@ class PortalController extends HostedController
         $session = $this->require($token, SessionType::Portal);
         $paymentMethodId = $request->string('payment_method')->toString();
 
-        $method = $this->gateway->attachPaymentMethod($session->organization_id, $paymentMethodId);
-        $this->gateway->setDefaultPaymentMethod($session->organization_id, $paymentMethodId);
+        $account = $this->gatewayAccountFor($session->organization_id);
+
+        $method = $this->gateway->attachPaymentMethod($account, $paymentMethodId);
+        $this->gateway->setDefaultPaymentMethod($account, $paymentMethodId);
 
         return new JsonResponse(['method' => $this->presentMethod($method), 'methods' => $this->methodsFor($session->organization_id)]);
     }
@@ -390,7 +394,7 @@ class PortalController extends HostedController
         $request->validate(['payment_method' => ['required', 'string']]);
 
         $session = $this->require($token, SessionType::Portal);
-        $this->gateway->setDefaultPaymentMethod($session->organization_id, $request->string('payment_method')->toString());
+        $this->gateway->setDefaultPaymentMethod($this->gatewayAccountFor($session->organization_id), $request->string('payment_method')->toString());
 
         return new JsonResponse(['methods' => $this->methodsFor($session->organization_id)]);
     }
@@ -414,7 +418,7 @@ class PortalController extends HostedController
             return new JsonResponse(['error' => 'Unknown payment method.'], Response::HTTP_NOT_FOUND);
         }
 
-        $this->gateway->detachPaymentMethod($session->organization_id, $paymentMethodId);
+        $this->gateway->detachPaymentMethod($this->gatewayAccountFor($session->organization_id), $paymentMethodId);
 
         return new JsonResponse(['methods' => $this->methodsFor($session->organization_id)]);
     }
@@ -422,7 +426,7 @@ class PortalController extends HostedController
     /** Whether `$paymentMethodId` is one of the account's own vaulted methods (deny-by-default). */
     private function ownsMethod(string $organizationId, string $paymentMethodId): bool
     {
-        foreach ($this->gateway->paymentMethods($organizationId) as $method) {
+        foreach ($this->gateway->paymentMethods($this->gatewayAccountFor($organizationId)) as $method) {
             if ($method->id === $paymentMethodId) {
                 return true;
             }
@@ -583,7 +587,7 @@ class PortalController extends HostedController
      */
     private function methodsFor(string $organizationId): array
     {
-        return array_map($this->presentMethod(...), $this->gateway->paymentMethods($organizationId));
+        return array_map($this->presentMethod(...), $this->gateway->paymentMethods($this->gatewayAccountFor($organizationId)));
     }
 
     /**
@@ -717,5 +721,23 @@ class PortalController extends HostedController
             'exp_year' => $method->expYear,
             'default' => $method->isDefault,
         ];
+    }
+
+    /**
+     * The GATEWAY's customer id for an organization.
+     *
+     * The gateway vault is keyed by the gateway's own customer handle (`cus_…`), never by our
+     * tenant id. This controller passed the raw organization id straight into every vault
+     * operation — list, setup-intent, attach, set-default, detach — so against a real gateway
+     * the customer's saved cards were invisible and a setup intent targeted an id the gateway
+     * had never heard of. The checkout flow always resolved it correctly; only the portal did
+     * not. The suite could not catch it because the fake gateway is keyed by whatever it is
+     * handed, so it happily vaulted against the organization id too.
+     */
+    private function gatewayAccountFor(string $organizationId): string
+    {
+        $organization = Organization::query()->findOrFail($organizationId);
+
+        return $this->gatewayCustomers->resolve($organization);
     }
 }

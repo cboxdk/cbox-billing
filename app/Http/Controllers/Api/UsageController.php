@@ -36,20 +36,14 @@ class UsageController extends ApiController
 
         $entries = [];
 
-        foreach ($request->array('entries') as $entry) {
-            if (! is_array($entry)) {
-                continue;
-            }
+        foreach ($request->array('entries') as $index => $raw) {
+            $entry = is_array($raw) ? $raw : [];
 
-            $meter = $entry['meter'] ?? null;
-            $cumulative = $entry['cumulative'] ?? null;
-            $seq = $entry['seq'] ?? null;
-
-            if (! is_string($meter) || ! is_int($cumulative) || ! is_int($seq)) {
-                continue;
-            }
-
-            $entries[] = ['meter' => $meter, 'cumulative' => $cumulative, 'seq' => $seq];
+            $entries[] = [
+                'meter' => $this->requireString($entry['meter'] ?? null, sprintf('entries.%s.meter', $index)),
+                'cumulative' => $this->requireInt($entry['cumulative'] ?? null, sprintf('entries.%s.cumulative', $index)),
+                'seq' => $this->requireInt($entry['seq'] ?? null, sprintf('entries.%s.seq', $index)),
+            ];
         }
 
         $accepted = $ingest->ingest($org, $entries);

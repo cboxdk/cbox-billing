@@ -195,7 +195,7 @@ class ApprovalRefundConsoleTest extends TestCase
 
         // Partial net 50 000; tax reversed proportionally: 24 750 * 50 000 / 99 000 = 12 500.
         $this->withSession($this->maker)->post('/invoices/'.$invoice->id.'/refund', [
-            'mode' => 'partial', 'amount_minor' => 50_000, 'reason' => 'goodwill', 'idempotency_key' => 'k-part',
+            'mode' => 'partial', 'amount' => '500.00', 'reason' => 'goodwill', 'idempotency_key' => 'k-part',
         ]);
         $request = ApprovalRequest::query()->firstOrFail();
         $this->assertSame(50_000, $request->amount_minor);

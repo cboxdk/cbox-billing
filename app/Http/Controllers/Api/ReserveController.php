@@ -47,19 +47,13 @@ class ReserveController extends ApiController
 
         $requests = [];
 
-        foreach ($request->array('meters') as $meter) {
-            if (! is_array($meter)) {
-                continue;
-            }
+        foreach ($request->array('meters') as $index => $meter) {
+            $row = is_array($meter) ? $meter : [];
 
-            $key = $meter['meter'] ?? null;
-            $estimate = $meter['estimate'] ?? null;
-
-            if (! is_string($key) || ! is_int($estimate)) {
-                continue;
-            }
-
-            $requests[] = new BucketRequest($key, $estimate);
+            $requests[] = new BucketRequest(
+                $this->requireString($row['meter'] ?? null, sprintf('meters.%s.meter', $index)),
+                $this->requireInt($row['estimate'] ?? null, sprintf('meters.%s.estimate', $index)),
+            );
         }
 
         $outcome = $enforcement->reserveBucketsOutcome($org, $requests);

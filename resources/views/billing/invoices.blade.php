@@ -52,7 +52,7 @@
             <thead><tr><th style="width:160px">Invoice</th><th>Customer</th><th style="width:100px">Date</th><th class="right" style="width:150px">Amount</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($invoices as $inv)
-                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" role="link" aria-label="Open invoice {{ $inv['number'] }}">
+                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" aria-label="Open invoice {{ $inv['number'] }}">
                         <td class="num">{{ $inv['number'] }}</td>
                         <td><span style="display:flex;align-items:center;gap:8px"><span class="avatar-sm" style="width:20px;height:20px;font-size:8px">{{ $inv['ini'] }}</span>{{ $inv['org'] }}</span></td>
                         <td class="num mut">{{ $inv['date'] }}</td>

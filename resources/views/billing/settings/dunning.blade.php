@@ -33,7 +33,7 @@
             <thead><tr><th>Decline category</th><th style="width:170px">Backoff (days)</th><th class="right" style="width:90px">Attempts</th><th style="width:180px">Heuristics</th><th style="width:110px">Source</th><th style="width:90px"></th></tr></thead>
             <tbody>
                 @foreach ($strategies as $st)
-                    <tr @if($st['editable']) data-href="{{ route('billing.settings.dunning.edit', $st['category']) }}" tabindex="0" role="link" aria-label="Edit {{ $st['label'] }} strategy" @else style="cursor:default" @endif>
+                    <tr @if($st['editable']) data-href="{{ route('billing.settings.dunning.edit', $st['category']) }}" tabindex="0" aria-label="Edit {{ $st['label'] }} strategy" @else style="cursor:default" @endif>
                         <td>
                             <span class="cbx-pill cbx-pill--{{ $st['pill'] }}"><span class="dot"></span>{{ $st['label'] }}</span>
                             <div class="mut" style="font-size:11px;margin-top:4px;max-width:340px">{{ $st['description'] }}</div>

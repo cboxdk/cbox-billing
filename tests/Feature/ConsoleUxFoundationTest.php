@@ -93,10 +93,19 @@ class ConsoleUxFoundationTest extends TestCase
     {
         $response = $this->withSession($this->session)->get('/subscriptions')->assertOk();
 
-        // Rows are keyboard-operable links (data-href + role=link), never onclick navigation.
+        // Rows navigate via `data-href` handled by a delegated listener, never inline onclick,
+        // and stay keyboard-operable via `tabindex`.
         $response->assertSee('data-href=', false);
-        $response->assertSee('role="link"', false);
+        $response->assertSee('tabindex="0"', false);
         $response->assertDontSee('onclick="window.location', false);
+
+        // NOT role="link" — this assertion used to require it, which is how the attribute
+        // survived on 30 rows across 27 files. The intent was right (ban inline onclick) but it
+        // codified the wrong mechanism: `role="link"` overrides the row's `row` role, collapsing
+        // the table's row/column relationships, and because a link takes its name from the
+        // author the paired aria-label REPLACES the subtree — so every cell became unreachable
+        // to a screen reader. A test can enshrine a bug as thoroughly as it can catch one.
+        $response->assertDontSee('role="link"', false);
     }
 
     public function test_destructive_subscription_cancel_renders_the_confirm_guard(): void

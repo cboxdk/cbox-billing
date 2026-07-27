@@ -37,7 +37,7 @@
             <thead><tr><th>Organization</th><th style="width:200px">Jurisdiction</th><th style="width:110px">Type</th><th style="width:160px">Certificate #</th><th style="width:100px">Status</th><th style="width:120px">Expires</th></tr></thead>
             <tbody>
                 @forelse ($certificates as $cert)
-                    <tr data-href="{{ route('billing.customers.show', $cert->organization_id) }}" tabindex="0" role="link" aria-label="Open {{ $cert->organization?->name ?? $cert->organization_id }}">
+                    <tr data-href="{{ route('billing.customers.show', $cert->organization_id) }}" tabindex="0" aria-label="Open {{ $cert->organization?->name ?? $cert->organization_id }}">
                         <td style="font-weight:500">{{ $cert->organization?->name ?? '—' }}<span class="num mut" style="font-size:11px;margin-left:6px">{{ $cert->organization_id }}</span></td>
                         <td>{{ ExemptionJurisdictions::label($cert->jurisdiction) }} <span class="num mut" style="font-size:11px">{{ $cert->jurisdiction }}</span></td>
                         <td>{{ $cert->exemption_type->label() }}</td>

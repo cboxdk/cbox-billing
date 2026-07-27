@@ -11,6 +11,10 @@
     @consoleBrandingStyle
 </head>
 <body>
+    {{-- Bypass block (WCAG 2.4.1). Reaching the first table row meant tabbing the 15-item icon
+         rail, the account button, the org and environment switchers, the clone popover and four
+         topbar buttons — around 25 stops, on EVERY page load. Visually hidden until focused. --}}
+    <a class="cbx-skip" href="#content">Skip to content</a>
 @php
     // Sourced from the shared console-kit nav registry via App\Http\View\NavigationComposer,
     // so an installed plugin's areas/pages render here with no edit to this layout.
@@ -194,9 +198,9 @@
             </div>
         </header>
 
-        <div class="content canvas-gradient">
+        <main id="content" tabindex="-1" class="content canvas-gradient">
             @yield('screen')
-        </div>
+        </main>
     </div>
 </div>
 

@@ -60,7 +60,7 @@
             <thead><tr><th>#</th><th>Organization</th><th>Plan</th><th>Status</th><th>Period end</th><th style="width:90px"></th></tr></thead>
             <tbody>
                 @forelse ($detail['subscriptions'] as $sub)
-                    <tr data-href="{{ route('billing.subscriptions.show', $sub['id']) }}" tabindex="0" role="link" aria-label="Open subscription {{ $sub['organization'] }}">
+                    <tr data-href="{{ route('billing.subscriptions.show', $sub['id']) }}" tabindex="0" aria-label="Open subscription {{ $sub['organization'] }}">
                         <td class="num mut">{{ $sub['id'] }}</td>
                         <td style="font-weight:500">{{ $sub['organization'] }}</td>
                         <td class="mut">{{ $sub['plan'] }}</td>
@@ -97,7 +97,7 @@
             <thead><tr><th>Number</th><th>Period</th><th>Total</th><th>Status</th><th>Issued</th></tr></thead>
             <tbody>
                 @forelse ($detail['invoices'] as $invoice)
-                    <tr data-href="{{ route('billing.invoices.show', $invoice['id']) }}" tabindex="0" role="link" aria-label="Open invoice {{ $invoice['number'] }}">
+                    <tr data-href="{{ route('billing.invoices.show', $invoice['id']) }}" tabindex="0" aria-label="Open invoice {{ $invoice['number'] }}">
                         <td class="num" style="font-weight:500"><a class="cbx-link" href="{{ route('billing.invoices.show', $invoice['id']) }}">{{ $invoice['number'] }}</a></td>
                         <td class="mut">{{ $invoice['period'] }}</td>
                         <td class="num">{{ $invoice['total'] }}</td>

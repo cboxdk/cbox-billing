@@ -59,7 +59,9 @@
             <img src="{{ asset('cbox/assets/logo/cbox-logo-h100.png') }}" alt="Cbox">
             <span>Billing</span>
         </div>
-        @yield('content')
+        <main id="content" tabindex="-1">
+            @yield('content')
+        </main>
         <p class="hosted-foot">Secured by Cbox · Billing. Card details are handled by the payment provider and never touch this server.</p>
     </div>
     @include('partials.confirm-dialog')

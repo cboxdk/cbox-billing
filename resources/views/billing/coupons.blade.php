@@ -27,7 +27,7 @@
             <thead><tr><th>Code</th><th style="width:130px">Discount</th><th style="width:170px">Duration</th><th style="width:120px">Redemptions</th><th style="width:110px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($coupons as $coupon)
-                    <tr data-href="{{ route('billing.coupons.show', $coupon['id']) }}" tabindex="0" role="link" aria-label="Open coupon {{ $coupon['code'] }}">
+                    <tr data-href="{{ route('billing.coupons.show', $coupon['id']) }}" tabindex="0" aria-label="Open coupon {{ $coupon['code'] }}">
                         <td>
                             <span class="num" style="display:block;font-weight:600">{{ $coupon['code'] }}</span>
                             @if($coupon['name'])<span class="mut" style="font-size:11px">{{ \Illuminate\Support\Str::limit($coupon['name'], 60) }}</span>@endif

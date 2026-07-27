@@ -27,7 +27,7 @@
             <thead><tr><th>Experiment</th><th style="width:130px">Runs on</th><th style="width:90px">Variants</th><th style="width:150px">Impr. · conv.</th><th style="width:110px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($experiments as $experiment)
-                    <tr data-href="{{ route('billing.experiments.show', $experiment->id) }}" tabindex="0" role="link" aria-label="Open experiment {{ $experiment->name }}">
+                    <tr data-href="{{ route('billing.experiments.show', $experiment->id) }}" tabindex="0" aria-label="Open experiment {{ $experiment->name }}">
                         <td>
                             <span style="display:block;font-weight:600">{{ $experiment->name }}</span>
                             <span class="num mut" style="font-size:11px">{{ $experiment->key }} · {{ $experiment->primary_metric->label() }}</span>

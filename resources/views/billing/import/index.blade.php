@@ -96,7 +96,7 @@
                             @elseif ($run->status === 'running')
                                 <span class="cbx-pill cbx-pill--warning">running</span>
                             @elseif ($run->status === 'failed')
-                                <span class="cbx-pill cbx-pill--danger">failed</span>
+                                <span class="cbx-pill cbx-pill--destructive">failed</span>
                             @else
                                 <span class="cbx-pill cbx-pill--muted">planned (dry-run)</span>
                             @endif

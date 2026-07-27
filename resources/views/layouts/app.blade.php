@@ -164,7 +164,7 @@
                 @if (! empty($environments))
                     <details class="cbx-env-clone" style="position:relative">
                         <summary class="cbx-btn cbx-btn--sm cbx-btn--ghost" style="height:28px;list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px" title="Clone an environment's config into a new sandbox">@include('partials.icon', ['name' => 'copy', 'size' => 13, 'sw' => 1.7])<span>Clone</span></summary>
-                        <form method="POST" action="{{ route('billing.environment.clone') }}" class="cbx-card"
+                        <form method="POST" action="{{ route('billing.environment.clone') }}" class="cbx-panel"
                               style="position:absolute;top:calc(100% + 6px);right:0;z-index:40;width:280px;padding:12px;display:flex;flex-direction:column;gap:8px">
                             @csrf
                             <div style="font-size:11px;font-weight:600;color:var(--muted-foreground)">Clone environment config</div>

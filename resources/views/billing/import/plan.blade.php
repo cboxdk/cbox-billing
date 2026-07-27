@@ -7,7 +7,7 @@
         'updated' => 'cbx-pill--info',
         'skipped' => 'cbx-pill--muted',
         'conflict' => 'cbx-pill--warning',
-        'failed' => 'cbx-pill--danger',
+        'failed' => 'cbx-pill--destructive',
         default => 'cbx-pill--muted',
     };
 @endphp

@@ -109,6 +109,32 @@ return Application::configure(basePath: dirname(__DIR__))
             'billing.sandbox' => EnsureSandboxPlane::class,
         ]);
 
+        // THE PLUGIN CONSOLE GUARD. Every commercial plugin gates its console routes on
+        // `platform.auth` — it is the published contract between this app and a plugin, and it
+        // was referenced by all six while being registered by nobody. Installing any plugin
+        // therefore threw `InvalidArgumentException` on every console request: the entire paid
+        // tier was unreachable in a fresh composition, and no plugin test stubbed the alias, so
+        // nothing caught it.
+        //
+        // A GROUP rather than an alias, because a plugin registers its routes with a bare
+        // `loadRoutesFrom()` and so inherits no group of its own. Without `web` in here there is
+        // no session, and `auth.cbox` — which authenticates a Cbox ID session — could never pass.
+        // Nested group names are expanded by the router, so `web` pulls in the session, cookie
+        // and CSRF stack exactly as the host's own console routes get it.
+        //
+        // The rest mirrors the guard on this app's console group in routes/web.php, so a plugin
+        // page is protected identically to a first-party one: an authenticated principal, in an
+        // allowlisted operator org, with the selected plane resolved and the action audited.
+        // Deliberately NOT including `billing.permission` — the slug differs per plugin surface,
+        // so a plugin declares its own alongside this group.
+        $middleware->group('platform.auth', [
+            'web',
+            EnsureAuthenticated::class,
+            EnsureOperator::class,
+            ResolveConsoleMode::class,
+            RecordsOperatorAudit::class,
+        ]);
+
         // PLANE-BEFORE-BINDING (console). `billing.mode` (ResolveConsoleMode) pushes the operator's
         // SELECTED environment onto the ambient BillingContext, and EnvironmentScope reads that
         // context on every query. But `SubstituteBindings` ships in the `web` GROUP, and a group's

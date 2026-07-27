@@ -6,10 +6,14 @@ weight: 63
 
 # Commercial plugins
 
-The private `cbox-billing-cloud` composition overlays five proprietary plugins onto
-the open base image. Each is **deny-by-default** (feature-gated + license-gated), so
-shipping them all in one image is safe — each stays inert until its capability is
-wired and its entitlement unlocks it.
+The private `cbox-billing-cloud` composition overlays six plugins onto the base image.
+The plugins are **MIT**, like the platform — what the commercial offering sells is the
+hosted service, the composed image and the support around it, not a licence to the code.
+
+Each is still **deny-by-default** (feature-gated + capability-gated), so shipping them
+all in one image is safe: each stays inert until its capability is wired and enabled.
+That gate is an *enablement* control for a deployment, not a licence-enforcement
+mechanism.
 
 | Plugin | Package | Adds | Gated on |
 | --- | --- | --- | --- |
@@ -17,7 +21,7 @@ wired and its entitlement unlocks it.
 | **Revenue recognition** | `cboxdk/cbox-billing-revrec` | ASC 606 deferred-revenue recognition — straight-line schedules and a revenue waterfall — and a gated console. | Its capability |
 | **Connectors** | `cboxdk/cbox-billing-connectors` | Export billing documents (invoices, payments, credit-notes) to an accounting/ERP system over HTTP/JSON or NDJSON, with an idempotent per-document sync ledger and a gated console. | Its capability |
 | **Tax-plus** | `cboxdk/cbox-billing-tax-plus` | Advanced tax **filing** on the open `laravel-tax` engine — HMRC MTD 9-box VAT, EU OSS per-member-state payloads — and a gated console. | Its capability |
-| **Marketplace** | `cboxdk/cbox-billing-marketplace` | Marketplace billing concerns. | Its capability |
+| **Marketplace** | `cboxdk/cbox-billing-marketplace` | Split payments — apportions a settled invoice or payment across multiple payees with remainder-safe allocation — and a gated console. | Its capability |
 
 ## How each lights up
 

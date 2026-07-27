@@ -1,15 +1,19 @@
 ---
 title: Capability gating
-description: The deny-by-default capability gate every commercial plugin reads — how a consume-license is verified offline to bind a LicenseCapabilityGate, and how it differs from the presence-gating console features.
+description: The deny-by-default capability gate every plugin reads — how a consume-license is verified offline to bind a LicenseCapabilityGate, and how it differs from the presence-gating console features.
 weight: 62
 ---
 
 # Capability gating
 
-A composed deployment ships all five commercial plugins in one image. That is only
-safe because each plugin is **deny-by-default**: it stays inert until both its
-console feature is present **and** the plan/license entitlement unlocks it. This page
-is about the second gate — the `CapabilityGate`.
+A composed deployment ships all six plugins in one image. That is only safe because
+each plugin is **deny-by-default**: it stays inert until both its console feature is
+present **and** the plan entitlement unlocks it. This page is about the second gate —
+the `CapabilityGate`.
+
+The plugins are MIT, so this gate governs what a deployment has *enabled*, not what its
+operator is *permitted* to run. Treat it as configuration safety, not licence
+enforcement.
 
 ## Two gates, two questions
 

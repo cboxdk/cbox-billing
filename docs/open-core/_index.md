@@ -12,7 +12,8 @@ as a hosted service for others — there is no restriction beyond keeping the co
 notice. The engine and its satellites (`laravel-billing`, `laravel-tax`, `laravel-nexus`,
 the client SDK, the gateway adapters) are MIT on the same terms.
 
-What is commercial is the **plugins**, not the platform. A private composition
+Every plugin is MIT too — what the commercial offering sells is the hosted service and
+the composed image, not a licence to the code. A private composition
 (`cbox-billing-cloud`) overlays six separately-licensed plugins on top of the base
 image — and it does so with **zero edits to the app**, purely through Laravel
 auto-discovery and a console-kit runtime socket.

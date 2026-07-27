@@ -90,7 +90,7 @@ The app is organized around a few load-bearing ideas:
   consolidated MRR/ARR normalized to one reporting currency with real ECB reference rates
   (plus operator overrides), the as-of/rounding policy, and auditable breakdowns.
 - **[Open core](open-core/_index.md)** — the plugin model, capability gating, the
-  five commercial plugins, and how a deployment composes them.
+  six plugins, and how a deployment composes them.
 - **[Console UI](console-ui/_index.md)** — the reusable console UX conventions
   (confirm dialog, pagination, breadcrumbs, accessible rows, flash, responsive
   utilities) every provider-console screen follows.

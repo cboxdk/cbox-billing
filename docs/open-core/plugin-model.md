@@ -6,7 +6,7 @@ weight: 61
 
 # The plugin model
 
-A commercial plugin adds whole console areas, pages, dashboard cards, and database
+A plugin adds whole console areas, pages, dashboard cards, and database
 tables to Cbox Billing **without a single edit to the app**. It does this through two
 mechanisms the base app already wires: **Laravel auto-discovery** and the
 **console-kit socket**.

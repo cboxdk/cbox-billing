@@ -94,6 +94,12 @@
 .cbx-kv { display: grid; grid-template-columns: 140px 1fr; align-items: baseline; column-gap: 24px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .cbx-kv:last-child { border-bottom: 0; }
 .cbx-kv dt { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.6875rem; font-weight: 600; color: var(--muted-foreground); }
+
+/* A small section label above a grouped control (the invoice action panels use it). It was
+   referenced in Blade with no rule behind it, so those headings rendered as plain body text —
+   indistinguishable from the content beneath them. Matches the `.cbx-kv dt` treatment so the
+   two read as one system. */
+.cbx-label { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.6875rem; font-weight: 600; color: var(--muted-foreground); }
 .cbx-kv dd { margin: 0; font-family: var(--font-mono); font-size: 13px; word-break: break-all; color: var(--foreground); }
 .cbx-kv dd.prose { font-family: var(--font-sans); font-size: 14px; }
 

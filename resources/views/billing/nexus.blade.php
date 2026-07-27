@@ -33,7 +33,7 @@
             <p class="cbx-page-desc" style="font-size:13px">Where your default selling entity has — or is approaching — a US sales-tax registration obligation. Thresholds come from the us-tax-data dataset; sales from your invoices (every currency, valued in USD) plus any external-channel sales you record below. <strong>Triggered</strong> = register now; <strong>Approaching</strong> = watch.</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-            <span class="cbx-pill cbx-pill--danger">{{ $triggeredCount }} triggered</span>
+            <span class="cbx-pill cbx-pill--destructive">{{ $triggeredCount }} triggered</span>
             <span class="cbx-pill cbx-pill--warning">{{ $approachingCount }} approaching</span>
             <span class="cbx-pill cbx-pill--success">{{ $registeredCount }} registered</span>
             @if ($unknownCount > 0)<span class="cbx-pill cbx-pill--warning">{{ $unknownCount }} unknown</span>@endif
@@ -76,7 +76,7 @@
                         <td class="mut" style="font-size:12.5px">{{ $e->threshold?->describe() ?? '—' }}</td>
                         <td class="num">{{ $e->progress !== null ? number_format($e->progress * 100, 1).'%' : '—' }}</td>
                         <td style="font-size:11.5px">
-                            @if ($e->physicalPresence)<span class="cbx-pill cbx-pill--neutral">presence</span>@endif
+                            @if ($e->physicalPresence)<span class="cbx-pill cbx-pill--muted">presence</span>@endif
                             @if (in_array($e->state->value, $registeredStates, true))<span class="cbx-pill cbx-pill--success">registered</span>@endif
                         </td>
                     </tr>

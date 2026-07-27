@@ -44,9 +44,15 @@ class PortalSessionController extends ApiController
 
         $session = $sessions->openPortal($organization, $request->string('return_url')->toString());
 
-        return new JsonResponse([
+        // The `url` embeds the session's PLAINTEXT bearer token, and this route carries the
+        // idempotency middleware, which persists the whole 2xx body for 72h so a retry can
+        // replay it. BillingSessionService stores only the token's SHA-256 digest precisely so
+        // that "a DB dump never yields a live token" — persisting the URL here would defeat
+        // that, and within the session TTL that URL is full authority over the customer's
+        // subscription and vaulted payment methods. Strip it from the replay copy (SEC-2).
+        return (new JsonResponse([
             'url' => route('hosted.portal.show', $session->token),
             'expires_at' => $session->expires_at->toIso8601String(),
-        ], Response::HTTP_CREATED);
+        ], Response::HTTP_CREATED))->withHeaders(['X-Idempotency-Redact' => 'url']);
     }
 }

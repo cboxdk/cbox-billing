@@ -358,4 +358,63 @@ class PortalSelfServeTest extends TestCase
         // Absence of a row is the "opted in" answer — no row is written by reading.
         $this->assertSame(0, NotificationPreference::query()->count());
     }
+
+    public function test_a_customer_cannot_move_themselves_onto_an_archived_plan(): void
+    {
+        $this->subscribe('org_legacy');
+        $token = $this->portalToken('org_legacy');
+
+        // A legacy tier: still a valid transition SOURCE for whoever is on it, never a target.
+        // Its key is not secret — plan keys appear in the pricing-table JSON, the entitlements
+        // API and old invoices — so "nobody will guess it" was never the protection.
+        $product = Product::query()->firstOrFail();
+        $legacy = Plan::query()->create([
+            'product_id' => $product->id,
+            'key' => 'legacy-cheap-2019',
+            'name' => 'Legacy Cheap',
+            'interval' => 'month',
+            'active' => false,
+        ]);
+        PlanPrice::query()->create([
+            'plan_id' => $legacy->id,
+            'currency' => 'DKK',
+            'price_minor' => 100,
+            'pricing_model' => 'flat',
+        ]);
+
+        $this->postJson('/billing/portal/'.$token.'/change', ['plan' => 'legacy-cheap-2019'])
+            ->assertNotFound();
+
+        // And it really did not apply — the subscription is untouched.
+        $this->assertNotSame(
+            'legacy-cheap-2019',
+            Subscription::query()->where('organization_id', 'org_legacy')->firstOrFail()->refresh()->plan->key,
+        );
+    }
+
+    public function test_a_customer_cannot_move_onto_another_products_plan(): void
+    {
+        $this->subscribe('org_xproduct');
+        $token = $this->portalToken('org_xproduct');
+
+        // A shared instance bills several products. Another product's plans are just as
+        // reachable by key, and the portal never checked — while the management API did.
+        $other = Product::query()->create(['key' => 'other-product', 'name' => 'Other Product']);
+        $plan = Plan::query()->create([
+            'product_id' => $other->id,
+            'key' => 'other-pro',
+            'name' => 'Other Pro',
+            'interval' => 'month',
+            'active' => true,
+        ]);
+        PlanPrice::query()->create([
+            'plan_id' => $plan->id,
+            'currency' => 'DKK',
+            'price_minor' => 100,
+            'pricing_model' => 'flat',
+        ]);
+
+        $this->postJson('/billing/portal/'.$token.'/change', ['plan' => 'other-pro'])
+            ->assertNotFound();
+    }
 }

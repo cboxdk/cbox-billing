@@ -10,6 +10,7 @@ use App\Models\Organization;
 use Database\Seeders\CatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -168,5 +169,38 @@ class HostedSessionApiTest extends TestCase
 
         $this->get($url)->assertNotFound();
         $this->assertSame('expired', $session->refresh()->status->value);
+    }
+
+    public function test_a_hosted_session_url_is_not_persisted_in_the_idempotency_replay_store(): void
+    {
+        $auth = $this->orgWithToken('org_redact');
+
+        $url = (string) $this->postJson('/api/v1/checkout-sessions', [
+            'org' => 'org_redact', 'plan' => 'starter', 'return_url' => 'https://merchant.example/done',
+        ], $auth + ['Idempotency-Key' => 'idem-redact-1'])->assertCreated()->json('url');
+
+        $plaintext = basename((string) parse_url($url, PHP_URL_PATH));
+        $stored = (string) DB::table('idempotency_keys')->where('idempotency_key', 'idem-redact-1')->value('response_body');
+
+        // BillingSessionService stores only the token's SHA-256 digest so that "a DB dump never
+        // yields a live token". The idempotency middleware persists the whole 2xx body for 72h
+        // to replay it — which put the plaintext token straight back at rest, in a URL that is
+        // full authority over the customer's subscription and vaulted cards for its TTL.
+        $this->assertNotSame('', $stored, 'The replay copy must exist.');
+        $this->assertStringNotContainsString($plaintext, $stored, 'A live session token must never be persisted.');
+    }
+
+    public function test_a_portal_session_url_is_not_persisted_either(): void
+    {
+        $auth = $this->orgWithToken('org_redact_p');
+
+        $url = (string) $this->postJson('/api/v1/portal-sessions', [
+            'org' => 'org_redact_p', 'return_url' => 'https://merchant.example/done',
+        ], $auth + ['Idempotency-Key' => 'idem-redact-2'])->assertCreated()->json('url');
+
+        $plaintext = basename((string) parse_url($url, PHP_URL_PATH));
+        $stored = (string) DB::table('idempotency_keys')->where('idempotency_key', 'idem-redact-2')->value('response_body');
+
+        $this->assertStringNotContainsString($plaintext, $stored);
     }
 }

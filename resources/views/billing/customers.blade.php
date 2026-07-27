@@ -30,8 +30,8 @@
             <thead><tr><th>Customer</th><th style="width:110px">Plan</th><th style="width:110px">Status</th><th style="width:100px">Standing</th><th class="right" style="width:140px">Outstanding</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($customers as $cust)
-                    <tr data-href="{{ route('billing.customers.show', $cust['id']) }}" tabindex="0" aria-label="Open customer {{ $cust['org'] }}">
-                        <td><span style="display:flex;align-items:center;gap:10px"><span class="avatar-sm">{{ $cust['ini'] }}</span><span><span style="display:block;font-weight:500">{{ $cust['org'] }}</span><span class="num mut" style="display:block;font-size:11px">{{ $cust['id'] }} · {{ $cust['country'] }}</span></span></span></td>
+                    <tr data-href="{{ route('billing.customers.show', $cust['id']) }}">
+                        <td><a class="cbx-row-link" href="{{ route('billing.customers.show', $cust['id']) }}"><span style="display:flex;align-items:center;gap:10px"><span class="avatar-sm">{{ $cust['ini'] }}</span><span><span style="display:block;font-weight:500">{{ $cust['org'] }}</span><span class="num mut" style="display:block;font-size:11px">{{ $cust['id'] }} · {{ $cust['country'] }}</span></span></span></a></td>
                         <td>{{ $cust['plan'] ?? '—' }}</td>
                         <td><span class="cbx-pill cbx-pill--{{ $statusPill[$cust['status']] ?? 'muted' }}">{{ $cust['status'] === 'none' ? 'no sub' : $cust['status'] }}</span></td>
                         <td><span class="cbx-pill cbx-pill--{{ $standingPill[$cust['standing']] ?? 'muted' }}">{{ $cust['standing'] }}</span></td>

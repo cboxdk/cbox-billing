@@ -112,8 +112,8 @@
                 <thead><tr><th>Number</th><th>Reason</th><th>Issued</th><th class="right" style="width:150px">Credited</th></tr></thead>
                 <tbody>
                     @foreach ($creditNotes as $note)
-                        <tr data-href="{{ route('billing.credit-notes.show', $note->id) }}" tabindex="0" aria-label="Open credit note {{ $note->number }}">
-                            <td class="num">{{ $note->number }}</td>
+                        <tr data-href="{{ route('billing.credit-notes.show', $note->id) }}">
+                            <td class="num"><a class="cbx-row-link" href="{{ route('billing.credit-notes.show', $note->id) }}">{{ $note->number }}</a></td>
                             <td>{{ str_replace('_', ' ', $note->reason) }}</td>
                             <td class="num">{{ $note->issued_at->format('Y-m-d') }}</td>
                             <td class="right num">−{{ MoneyFormatter::minor($note->gross_minor, $c) }}</td>

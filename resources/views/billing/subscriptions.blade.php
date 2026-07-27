@@ -64,8 +64,8 @@
             <thead><tr><th>Customer</th><th style="width:120px">Plan</th><th class="right" style="width:140px">MRR</th><th style="width:110px">Status</th><th style="width:140px">Renews</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($subscriptions as $sub)
-                    <tr data-href="{{ route('billing.subscriptions.show', $sub['id']) }}" tabindex="0" aria-label="Open subscription for {{ $sub['org'] }}">
-                        <td><span style="display:flex;align-items:center;gap:10px"><span class="avatar-sm">{{ $sub['ini'] }}</span><span><span style="display:block;font-weight:500">{{ $sub['org'] }}</span><span class="num mut" style="display:block;font-size:11px">since {{ $sub['started'] }}</span></span></span></td>
+                    <tr data-href="{{ route('billing.subscriptions.show', $sub['id']) }}">
+                        <td><a class="cbx-row-link" href="{{ route('billing.subscriptions.show', $sub['id']) }}"><span style="display:flex;align-items:center;gap:10px"><span class="avatar-sm">{{ $sub['ini'] }}</span><span><span style="display:block;font-weight:500">{{ $sub['org'] }}</span><span class="num mut" style="display:block;font-size:11px">since {{ $sub['started'] }}</span></span></span></a></td>
                         <td>{{ $sub['plan'] }}</td>
                         <td class="right num">{{ MoneyFormatter::minor($sub['minor'], $sub['currency']) }}</td>
                         <td>

@@ -27,8 +27,8 @@
             <thead><tr><th>Feature</th><th style="width:110px">Type</th><th style="width:110px">Value type</th><th style="width:110px">Plan grants</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($features as $feature)
-                    <tr data-href="{{ route('billing.features.show', $feature['id']) }}" tabindex="0" aria-label="Open feature {{ $feature['name'] }}">
-                        <td><span style="display:block;font-weight:600">{{ $feature['name'] }}</span><span class="num mut" style="font-size:11px">{{ $feature['key'] }}</span></td>
+                    <tr data-href="{{ route('billing.features.show', $feature['id']) }}">
+                        <td><a class="cbx-row-link" href="{{ route('billing.features.show', $feature['id']) }}"><span style="display:block;font-weight:600">{{ $feature['name'] }}</span><span class="num mut" style="font-size:11px">{{ $feature['key'] }}</span></a></td>
                         <td><span class="cbx-pill cbx-pill--{{ $feature['type'] === 'config' ? 'info' : 'muted' }}">{{ $feature['type'] }}</span></td>
                         <td class="mut">{{ $feature['value_type'] ?? '—' }}</td>
                         <td class="num">{{ number_format($feature['grants']) }}</td>

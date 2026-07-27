@@ -57,8 +57,8 @@
             <thead><tr><th style="width:150px">Invoice</th><th>Customer</th><th style="width:90px">Date</th><th class="right" style="width:140px">Amount</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($recentInvoices as $inv)
-                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" aria-label="Open invoice {{ $inv['number'] }}">
-                        <td class="num">{{ $inv['number'] }}</td>
+                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}">
+                        <td class="num"><a class="cbx-row-link" href="{{ route('billing.invoices.show', $inv['id']) }}">{{ $inv['number'] }}</a></td>
                         <td><span style="display:flex;align-items:center;gap:8px"><span class="avatar-sm" style="width:20px;height:20px;font-size:8px">{{ $inv['ini'] }}</span>{{ $inv['org'] }}</span></td>
                         <td class="num mut">{{ $inv['date'] }}</td>
                         <td class="right num">{{ MoneyFormatter::minor($inv['minor'], $inv['currency']) }}</td>
@@ -81,8 +81,8 @@
             <table class="tbl">
                 <tbody>
                     @forelse ($planBreakdown as $row)
-                        <tr data-href="{{ route('billing.catalog') }}" tabindex="0" aria-label="View {{ $row['plan'] }} in catalog">
-                            <td style="font-weight:500">{{ $row['plan'] }}</td>
+                        <tr data-href="{{ route('billing.catalog') }}">
+                            <td style="font-weight:500"><a class="cbx-row-link" href="{{ route('billing.catalog') }}">{{ $row['plan'] }}</a></td>
                             <td class="num mut" style="width:80px">{{ $row['count'] }} subs</td>
                             <td class="right num">{{ MoneyFormatter::minor($row['minor'], $row['currency']) }}</td>
                         </tr>

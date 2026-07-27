@@ -88,8 +88,8 @@
             <thead><tr><th>Customer</th><th>Deployment</th><th>Plan</th><th>Entitlements</th><th>Expires</th><th>Status</th><th style="width:150px"></th></tr></thead>
             <tbody>
                 @forelse ($licenses as $license)
-                    <tr data-href="{{ route('billing.licenses.show', ['id' => $license['id']]) }}" tabindex="0" aria-label="Open license {{ $license['id'] }}">
-                        <td style="font-weight:500">{{ $license['customer_id'] }}</td>
+                    <tr data-href="{{ route('billing.licenses.show', ['id' => $license['id']]) }}">
+                        <td style="font-weight:500"><a class="cbx-row-link" href="{{ route('billing.licenses.show', ['id' => $license['id']]) }}">{{ $license['customer_id'] }}</a></td>
                         <td class="num mut">{{ $license['deployment_id'] }}</td>
                         <td class="num">{{ $license['plan'] }}</td>
                         <td class="mut" style="font-size:11px">{{ count($license['entitlements']) }} · {{ implode(', ', array_slice($license['entitlements'], 0, 3)) }}{{ count($license['entitlements']) > 3 ? '…' : '' }}</td>

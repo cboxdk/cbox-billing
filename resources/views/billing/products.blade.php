@@ -27,11 +27,9 @@
             <thead><tr><th>Product</th><th style="width:120px">Plans</th><th style="width:120px">Active</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($products as $product)
-                    <tr data-href="{{ route('billing.products.show', $product['id']) }}" tabindex="0" aria-label="Open product {{ $product['name'] }}">
-                        <td>
-                            <span style="display:block;font-weight:600">{{ $product['name'] }}</span>
-                            <span class="num mut" style="font-size:11px">{{ $product['key'] }}@if($product['description']) · {{ \Illuminate\Support\Str::limit($product['description'], 60) }}@endif</span>
-                        </td>
+                    <tr data-href="{{ route('billing.products.show', $product['id']) }}">
+                        <td><a class="cbx-row-link" href="{{ route('billing.products.show', $product['id']) }}"><span style="display:block;font-weight:600">{{ $product['name'] }}</span>
+                            <span class="num mut" style="font-size:11px">{{ $product['key'] }}@if($product['description']) · {{ \Illuminate\Support\Str::limit($product['description'], 60) }}@endif</span></a></td>
                         <td class="num">{{ number_format($product['plans']) }}</td>
                         <td class="num mut">{{ number_format($product['active_plans']) }}</td>
                         <td>

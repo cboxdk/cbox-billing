@@ -265,8 +265,8 @@
             <thead><tr><th style="width:170px">Invoice</th><th style="width:110px">Date</th><th class="right" style="width:150px">Amount</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($c['invoices'] as $inv)
-                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}" tabindex="0" aria-label="Open invoice {{ $inv['number'] }}">
-                        <td class="num">{{ $inv['number'] }}</td>
+                    <tr data-href="{{ route('billing.invoices.show', $inv['id']) }}">
+                        <td class="num"><a class="cbx-row-link" href="{{ route('billing.invoices.show', $inv['id']) }}">{{ $inv['number'] }}</a></td>
                         <td class="num mut">{{ $inv['date'] }}</td>
                         <td class="right num">{{ MoneyFormatter::minor($inv['minor'], $inv['currency']) }}</td>
                         <td><span class="cbx-pill cbx-pill--{{ $invStatusPill[$inv['status']] ?? 'muted' }}">@if($inv['status'] !== 'draft')<span class="dot"></span>@endif{{ $inv['status'] }}</span></td>
@@ -490,8 +490,8 @@
             <tbody>
                 @forelse ($events as $event)
                     @php $href = $event['href']; @endphp
-                    <tr @if($href) data-href="{{ $href }}" tabindex="0" aria-label="Open {{ $event['label'] }}" @else style="cursor:default" @endif>
-                        <td class="num mut">{{ $event['at'] }}</td>
+                    <tr @if($href) data-href="{{ $href }}" @else style="cursor:default" @endif>
+                        <td class="num mut"><a class="cbx-row-link" href="{{ $href }}">{{ $event['at'] }}</a></td>
                         <td><span class="cbx-pill cbx-pill--muted">{{ $event['type'] }}</span></td>
                         <td>{{ $event['label'] }}@if($event['detail'])<span class="mut" style="font-size:11px;margin-left:6px">{{ $event['detail'] }}</span>@endif</td>
                         <td class="rowchev">@if($href)@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])@endif</td>

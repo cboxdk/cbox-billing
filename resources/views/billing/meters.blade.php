@@ -27,8 +27,8 @@
             <thead><tr><th>Meter</th><th style="width:110px">Unit</th><th style="width:130px">Aggregation</th><th style="width:120px">Entitlements</th><th style="width:100px">Status</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($meters as $meter)
-                    <tr data-href="{{ route('billing.meters.show', $meter['id']) }}" tabindex="0" aria-label="Open meter {{ $meter['name'] }}">
-                        <td><span style="display:block;font-weight:600">{{ $meter['name'] }}</span><span class="num mut" style="font-size:11px">{{ $meter['key'] }}</span></td>
+                    <tr data-href="{{ route('billing.meters.show', $meter['id']) }}">
+                        <td><a class="cbx-row-link" href="{{ route('billing.meters.show', $meter['id']) }}"><span style="display:block;font-weight:600">{{ $meter['name'] }}</span><span class="num mut" style="font-size:11px">{{ $meter['key'] }}</span></a></td>
                         <td class="mut">{{ $meter['unit'] }}</td>
                         <td><span class="cbx-pill cbx-pill--info">{{ $meter['aggregation'] }}</span></td>
                         <td class="num">{{ number_format($meter['entitlements']) }}</td>

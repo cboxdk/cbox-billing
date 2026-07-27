@@ -64,8 +64,8 @@
             <thead><tr><th>Plan</th><th style="width:160px">Product</th><th style="width:140px">Allowance</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($m['entitlements'] as $ent)
-                    <tr @if($ent['plan_id'])data-href="{{ route('billing.plans.show', $ent['plan_id']) }}" tabindex="0" aria-label="Open plan {{ $ent['plan'] }}"@endif>
-                        <td style="font-weight:500">{{ $ent['plan'] }}</td>
+                    <tr @if($ent['plan_id'])data-href="{{ route('billing.plans.show', $ent['plan_id']) }}"@endif>
+                        <td style="font-weight:500"><a class="cbx-row-link" href="{{ route('billing.plans.show', $ent['plan_id']) }}">{{ $ent['plan'] }}</a></td>
                         <td class="mut">{{ $ent['product'] }}</td>
                         <td class="num">@if(!$ent['enabled'])<span class="cbx-pill cbx-pill--muted">off</span>@elseif($ent['unlimited'])∞@else{{ number_format($ent['allowance']) }}@endif</td>
                         <td class="rowchev">@if($ent['plan_id'])@include('partials.icon', ['name' => 'chevron-right', 'size' => 14, 'sw' => 1.7])@endif</td>

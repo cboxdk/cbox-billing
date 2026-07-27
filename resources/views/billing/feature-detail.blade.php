@@ -66,8 +66,8 @@
             <thead><tr><th>Plan</th><th style="width:160px">Product</th><th style="width:120px">Grant</th><th style="width:120px">Value</th><th style="width:36px"></th></tr></thead>
             <tbody>
                 @forelse ($f['grants'] as $grant)
-                    <tr @if($grant['plan_id'])data-href="{{ route('billing.plans.show', $grant['plan_id']) }}" tabindex="0" aria-label="Open plan {{ $grant['plan'] }}"@endif>
-                        <td style="font-weight:500">{{ $grant['plan'] }}</td>
+                    <tr @if($grant['plan_id'])data-href="{{ route('billing.plans.show', $grant['plan_id']) }}"@endif>
+                        <td style="font-weight:500"><a class="cbx-row-link" href="{{ route('billing.plans.show', $grant['plan_id']) }}">{{ $grant['plan'] }}</a></td>
                         <td class="mut">{{ $grant['product'] }}</td>
                         <td>@if($grant['enabled'])<span class="cbx-pill cbx-pill--success"><span class="dot"></span>granted</span>@else<span class="cbx-pill cbx-pill--muted">off</span>@endif</td>
                         <td class="num">{{ $grant['value'] ?? '—' }}</td>

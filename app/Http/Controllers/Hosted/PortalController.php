@@ -48,6 +48,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Throwable;
 
 /**
  * The hosted customer-portal page and its actions (ADR-0009 Path A), authorized solely by
@@ -62,6 +63,9 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 class PortalController extends HostedController
 {
+    /** The resolved gateway customer for this request — see {@see gatewayAccountFor()}. */
+    private ?string $gatewayAccount = null;
+
     public function __construct(
         ManagesBillingSessions $sessions,
         BillingContext $context,
@@ -99,7 +103,7 @@ class PortalController extends HostedController
             'subscription' => $subscription,
             'plans' => $this->presenter->availablePlans($currency, $subscription),
             'invoices' => $this->presenter->invoices($session->organization_id),
-            'methods' => $this->gateway->paymentMethods($this->gatewayAccountFor($organization->id)),
+            'methods' => $this->safeMethodsFor($organization->id),
             // The sunset notice (ADR-0016) and the retention seam the cancel UI renders from.
             'sunset' => $subscription instanceof Subscription ? $this->retirements->noticeFor($subscription) : null,
             'reasons' => $this->cancellationReasons($session->organization_id, $subscription),
@@ -740,9 +744,34 @@ class PortalController extends HostedController
      */
     private function gatewayAccountFor(string $organizationId): string
     {
+        // MEMOISED PER REQUEST. resolve() may MINT a gateway customer, so every call is a
+        // potential write plus a round trip; removeMethod() alone reached it three times, each
+        // re-finding the same organization. One resolution per request is the correct number.
+        if ($this->gatewayAccount !== null) {
+            return $this->gatewayAccount;
+        }
+
         $organization = Organization::query()->findOrFail($organizationId);
 
-        return $this->gatewayCustomers->resolve($organization);
+        return $this->gatewayAccount = $this->gatewayCustomers->resolve($organization);
+    }
+
+    /**
+     * The account's vaulted methods, or an empty list when the gateway cannot be reached.
+     *
+     * Loading the portal page must not depend on the gateway being up. `show()` renders the
+     * saved-cards panel from this; letting a gateway outage escape would 500 the whole page —
+     * including the invoice history and the cancel flow, which need no gateway at all.
+     *
+     * @return list<PaymentMethod>
+     */
+    private function safeMethodsFor(string $organizationId): array
+    {
+        try {
+            return $this->gateway->paymentMethods($this->gatewayAccountFor($organizationId));
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     /**

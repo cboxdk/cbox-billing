@@ -6,6 +6,7 @@ namespace App\Billing\Import\Adapters;
 
 use App\Billing\Import\Contracts\SourceAdapter;
 use App\Billing\Support\MinorUnits;
+use Brick\Money\Exception\UnknownCurrencyException;
 use Carbon\CarbonImmutable;
 use Throwable;
 
@@ -98,7 +99,17 @@ abstract readonly class AbstractSourceAdapter implements SourceAdapter
             $value = $this->dig($record, $key);
 
             if (is_int($value) || is_float($value) || (is_string($value) && is_numeric(trim($value)))) {
-                return MinorUnits::parse(is_string($value) ? trim($value) : $value, $currency);
+                try {
+                    return MinorUnits::parse(is_string($value) ? trim($value) : $value, $currency);
+                } catch (UnknownCurrencyException) {
+                    // A provider record carrying a currency brick/money does not know must fail
+                    // THAT RECORD, not the run. MinorUnits throws for the console, where the
+                    // boundary has already validated the code and an unknown one is a bug; here
+                    // the value is provider data and the importer's whole design is per-record
+                    // outcomes. Null lands the record as a Conflict ("no currency"), which
+                    // BillingImporter already handles.
+                    return null;
+                }
             }
         }
 

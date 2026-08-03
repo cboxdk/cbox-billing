@@ -39,7 +39,22 @@ class SubscriptionDepthApiTest extends TestCase
     {
         parent::setUp();
 
+        // FREEZE THE CLOCK. These assertions compare a PRORATED charge against the full
+        // delta, which is only meaningful at a known point in the period — run on the 3rd of a
+        // month the remaining fraction is ~90% and the "prorated < full" assertion is simply
+        // false. The suite went red on a day nobody changed code because of exactly this.
+        // Mid-month, mid-period: proration is a real fraction and the result is the same every
+        // day of the year.
+        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00', 'UTC'));
+
         $this->seed(CatalogSeeder::class);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     /** @return array<string, string> */

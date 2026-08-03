@@ -43,8 +43,14 @@ class OrganizationSeeder extends Seeder
 
     public function run(): void
     {
-        $periodStart = Carbon::parse('2026-07-01');
-        $periodEnd = Carbon::parse('2026-07-31');
+        // ANCHORED TO NOW, not to a literal month. These were fixed dates, which gave the demo
+        // dataset a hard expiry: once the wall clock passed them every seeded subscription's
+        // current period had lapsed, so nothing served, entitlements resolved to null and the
+        // console showed a catalog with no working customers. A developer running
+        // `composer setup:local` after that date got a dead dataset, and the test suite — which
+        // seeds the same data — started failing on a day nobody changed any code.
+        $periodStart = Carbon::now()->startOfMonth();
+        $periodEnd = Carbon::now()->endOfMonth();
 
         foreach ($this->organizations() as $definition) {
             $environmentDefault = config('cbox-id-client.environment_default', 'default');
@@ -63,8 +69,9 @@ class OrganizationSeeder extends Seeder
 
             $plan = Plan::query()->where('key', $definition['plan'])->firstOrFail();
 
+            // A trial that is genuinely mid-flight relative to today, for the same reason.
             [$subStart, $subEnd] = ($definition['trial'] ?? false)
-                ? [Carbon::parse('2026-07-10'), Carbon::parse('2026-08-09')]
+                ? [Carbon::now()->subDays(9), Carbon::now()->addDays(21)]
                 : [$periodStart, $periodEnd];
 
             $canceled = $definition['canceled'] ?? false;

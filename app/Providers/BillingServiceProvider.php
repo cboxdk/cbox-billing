@@ -57,6 +57,7 @@ use App\Billing\Invoicing\PersistIssuedCreditNote;
 use App\Billing\Metering\EntitlementsView;
 use App\Billing\Metering\UsageSummaryView;
 use App\Billing\Mode\BillingContext;
+use App\Billing\Mode\Contracts\BillingClock;
 use App\Billing\Notifications\BillingNotifier;
 use App\Billing\Notifications\Contracts\ComposesTransactionalMail;
 use App\Billing\Notifications\Contracts\ManagesNotificationPreferences;
@@ -480,6 +481,14 @@ class BillingServiceProvider extends ServiceProvider
         $this->app->singleton(MeterPolicyResolver::class, static fn (Application $app): WalletIncludedAllowanceResolver => new WalletIncludedAllowanceResolver(
             $app->make(SubscriptionMeterPolicyResolver::class),
             $app->make(Wallet::class),
+            // THE BILLING CLOCK, not the wall clock. The resolver defaults to
+            // `microtime()`, and it uses that instant to decide which wallet lots have
+            // EXPIRED — so an unpinned clock reads a sandbox's included allowance against
+            // real time. A test clock advanced past a period boundary would then report the
+            // allowance as gone (or still present) according to the calendar rather than the
+            // virtual now the rest of the plane is running on, which is precisely what a test
+            // clock exists to control.
+            clock: static fn (): int => $app->make(BillingClock::class)->now()->getTimestampMs(),
         ));
 
         $this->app->singleton(ExpectedEntitlements::class, PlanExpectedEntitlements::class);

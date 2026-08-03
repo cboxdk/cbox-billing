@@ -37,10 +37,30 @@ class ReportNexus extends Command
             $this->newLine();
         }
 
+        // UNKNOWN IS NOT QUIET. A state whose threshold could not be resolved is neither
+        // triggered nor approaching, so a sweep reading only those two prints "nothing to do"
+        // for a deployment where NOTHING was measured — a firewalled or misconfigured dataset
+        // location resolves every state to unknown. The alert emitter and the console both
+        // surface it; this scheduled command was the last place still rendering "I cannot tell"
+        // as "you are fine", and it is the one an operator reads in a cron log.
+        $unknown = $report->unknown();
+
+        if ($unknown !== []) {
+            $this->warn(sprintf(
+                '%d state(s) could not be measured — their thresholds did not resolve. This is NOT "below": %s',
+                count($unknown),
+                implode(', ', array_map(static fn ($evaluation): string => $evaluation->state->value, $unknown)),
+            ));
+            $this->warn('Check NEXUS_US_DATASET_LOCATION and that the deployment can reach it.');
+            $this->newLine();
+        }
+
         if ($triggered === [] && $approaching === []) {
             $this->info("No US states have triggered or are approaching economic nexus (on this platform's sales).");
 
-            return self::SUCCESS;
+            // A board that resolved nothing is not a clean board. Exit non-zero so a scheduled
+            // run surfaces in whatever watches the cron, rather than reading as success.
+            return $unknown === [] ? self::SUCCESS : self::FAILURE;
         }
 
         $this->table(

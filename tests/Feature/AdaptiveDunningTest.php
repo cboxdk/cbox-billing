@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Billing\Invoicing\Contracts\GeneratesInvoices;
+use App\Billing\Payments\Contracts\ResolvesGatewayCustomer;
 use App\Billing\Payments\Contracts\RetriesPayments;
 use App\Billing\Payments\Dunning\DeclineCategory;
 use App\Billing\Subscriptions\Contracts\SubscribesOrganizations;
@@ -190,6 +191,14 @@ class AdaptiveDunningTest extends TestCase
             'billing_country' => 'DK',
             'billing_email' => 'billing@'.$id.'.test',
         ]);
+
+        // Vault a default instrument, as a real account being dunned necessarily has: the
+        // renewal charge is off-session, and without one the gateway refuses before any
+        // decline can be scripted. These suites previously ran against an unchargeable
+        // account, so every scripted response described a call production would never make.
+        $account = app(ResolvesGatewayCustomer::class)->resolve($organization);
+        app(PaymentGateway::class)->attachPaymentMethod($account, 'pm_dunning');
+        app(PaymentGateway::class)->setDefaultPaymentMethod($account, 'pm_dunning');
 
         $plan = Plan::query()->with(['prices', 'product'])->where('key', 'starter')->firstOrFail();
         $subscription = app(SubscribesOrganizations::class)->subscribe($organization, $plan)->refresh()->load('organization', 'plan');

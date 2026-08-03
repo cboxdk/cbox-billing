@@ -29,6 +29,9 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ResolveOrganizationRef
 {
+    /** @var array<string, string|null> resolved refs for this request */
+    private array $resolved = [];
+
     /**
      * @param  Closure(Request): Response  $next
      */
@@ -86,16 +89,21 @@ class ResolveOrganizationRef
      */
     private function canonical(string $ref): ?string
     {
-        // An id that already resolves needs no lookup by ref; this also keeps the hot enforcement
-        // path to a single indexed primary-key hit in the common case.
-        $organization = Organization::query()->find($ref);
-
-        if ($organization instanceof Organization) {
-            return $organization->id;
+        // Memoised for the request: `org` can arrive in both the path and the body, and this
+        // used to resolve twice.
+        if (array_key_exists($ref, $this->resolved)) {
+            return $this->resolved[$ref];
         }
 
-        $id = Organization::query()->where('external_ref', $ref)->value('id');
+        // ONE query, and no hydration. This previously ran `find()` — building a full Eloquent
+        // model, every column — only to return the string it was handed, on every authenticated
+        // request including /reserve and /usage at 600/min per token. `value()` selects a single
+        // indexed column, and the `orWhere` collapses the id and external_ref lookups into one
+        // round trip instead of two on the ref path.
+        $id = Organization::query()
+            ->where(fn ($query) => $query->where('id', $ref)->orWhere('external_ref', $ref))
+            ->value('id');
 
-        return is_string($id) ? $id : null;
+        return $this->resolved[$ref] = is_string($id) ? $id : null;
     }
 }

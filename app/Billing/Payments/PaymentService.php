@@ -11,6 +11,7 @@ use Cbox\Billing\Payment\Contracts\PaymentGateway;
 use Cbox\Billing\Payment\ValueObjects\PaymentIntent;
 use Cbox\Billing\Payment\ValueObjects\PaymentResult;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Charges an invoice through the bound {@see PaymentGateway}. The payment intent is keyed
@@ -42,7 +43,22 @@ readonly class PaymentService implements PaysInvoices
             return PaymentResult::failed('The invoice has no organization to charge.');
         }
 
-        $account = $this->customers->resolve($organization);
+        // A GATEWAY ERROR MUST DEGRADE TO "failed", NOT ESCAPE.
+        //
+        // Both calls below talk to the gateway and both can throw: resolve() may mint a
+        // customer, and paymentMethods() wraps any Throwable from the SDK. Nothing further up
+        // catches — not chargeRenewal(), not RenewSubscriptionJob — so an unhandled throw kills
+        // the renewal job AFTER the period was advanced and the invoice issued: the invoice
+        // sits Open, dunning never opens, and the subscription keeps serving.
+        //
+        // charge() itself already catches for exactly this reason. A brief gateway incident
+        // during the monthly run must land in dunning, which is recoverable, rather than in
+        // failed_jobs, which nobody is watching.
+        try {
+            $account = $this->customers->resolve($organization);
+        } catch (Throwable $e) {
+            return PaymentResult::failed('Could not resolve the gateway customer: '.$e->getMessage());
+        }
 
         $intent = new PaymentIntent(
             id: 'pi_'.Str::random(24),
@@ -65,7 +81,16 @@ readonly class PaymentService implements PaysInvoices
      */
     private function defaultMethodFor(string $account): ?string
     {
-        foreach ($this->gateway->paymentMethods($account) as $method) {
+        try {
+            $methods = $this->gateway->paymentMethods($account);
+        } catch (Throwable) {
+            // Unreachable-instrument and no-instrument are the same decision here: the intent
+            // is not off-session, charge() refuses it, and dunning opens. Guessing an id from a
+            // failed lookup would attempt a charge against an instrument we could not confirm.
+            return null;
+        }
+
+        foreach ($methods as $method) {
             if ($method->isDefault) {
                 return $method->id;
             }
